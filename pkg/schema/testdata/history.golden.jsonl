@@ -1,0 +1,5 @@
+{"t_ns":1725300000000000,"process":3,"type":"invoke","f":"write","key":"k/42","value":7,"op_id":8891}
+{"t_ns":1725300000410000,"process":3,"type":"ok","f":"write","key":"k/42","value":7,"op_id":8891}
+{"t_ns":1725300001010000,"process":5,"type":"invoke","f":"read","key":"k/42","op_id":8903}
+{"t_ns":1725300001330000,"process":5,"type":"fail","f":"read","key":"k/42","error":"timeout","op_id":8903}
+{"t_ns":1725300002000000,"type":"info","event":"phase","phase":"HEAL"}

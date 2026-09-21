@@ -1,0 +1,51 @@
+{
+  "schema": "prothesis.verdict/v1",
+  "run_id": "r_2026_09_03_a41f",
+  "profile": "gate",
+  "commit": "9c1e0f2",
+  "verdict": "FAIL",
+  "budget": { "wall_s": 600, "used_s": 412, "worlds_planned": 30, "worlds_run": 22 },
+  "violations": [
+    {
+      "id": "v1",
+      "oracle": "linearizable.kv",
+      "class": "consistency",
+      "severity": "high",
+      "phase": "DRIVE",
+      "first_seen_ms": 14320,
+      "explanation": "process 3 read a value that no committed write produced",
+      "witness": { "op_ids": [8891, 8903], "key": "k/42" },
+      "minimal_repro": {
+        "world": ".prothesis/regressions/w_a41f.thesis",
+        "cmd": "thesis replay .prothesis/regressions/w_a41f.thesis",
+        "reproduced": "3/3"
+      },
+      "shrink": {
+        "attempted": true,
+        "faults_before": 14,
+        "faults_after": 2,
+        "ops_before": 20000,
+        "ops_after": 6,
+        "surviving_faults": [
+          "proc.pause(role:leader)@8200..15100",
+          "net.partition(minority(kv))@8400..14900"
+        ]
+      },
+      "causal_timeline": [
+        { "t_ms": 8200, "event": "fault", "detail": "proc.pause n2 (leader, term 4)" },
+        { "t_ms": 8400, "event": "fault", "detail": "partition n3 from {n1,n2}" },
+        { "t_ms": 9010, "event": "log", "node": "n1", "detail": "elected leader term 5" },
+        { "t_ms": 14320, "event": "op", "detail": "client 3 read k/42 -> 7, never written in term 5" }
+      ],
+      "suspect": {
+        "files": ["internal/raft/lease.go", "internal/kv/read_path.go"],
+        "confidence": 0.42,
+        "basis": "log-template locality + blame over shrunk timeline window"
+      }
+    }
+  ],
+  "coverage": { "new_templates": 12, "cum_templates": 4102, "new_states": 6, "cum_states": 18933 },
+  "coverage_delta_vs_baseline": { "templates": -3, "note": "code paths lost since baseline commit" },
+  "oracle_lock": { "status": "ok", "manifest_sha": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" },
+  "artifacts": ".prothesis/runs/r_2026_09_03_a41f/"
+}

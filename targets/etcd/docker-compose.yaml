@@ -1,0 +1,112 @@
+name: prothesis-etcd
+
+# A 3-node etcd cluster as a PRO-THESIS target. Nothing here is modified for
+# the harness: the image is the upstream release, the binary is started with
+# its ordinary flags, and faults arrive from a NET_ADMIN sidecar the harness
+# joins to a container's network namespace at run time.
+#
+# The topology mirrors testdata/kvfixture for the same measured reasons:
+#
+#  * ONE SERVICE PER NODE, each publishing its client port to 127.0.0.1.
+#    Container IPs are not routable from a Windows host, so a host-side probe
+#    and a host-side driver have no other way in.
+#
+#  * TWO NETWORKS. The client plane is published; the peer plane is internal.
+#    A fault that cuts only the peer plane produces a node that is alive to
+#    clients and dead to its peers: the condition under which a
+#    serializable (local) read can return stale data.
+#
+#  * restart: "no", init: false. Auto-restart would mask no_crash; PID 1 must
+#    be etcd itself so proc.pause freezes the real process.
+#
+# The image ships NO shell. That is why the healthcheck is an etcdctl exec
+# rather than a script, and why two of the harness's built-in oracles are left
+# out of prothesis.yaml (see the README in this directory).
+
+networks:
+  client:
+    name: "${ETCD_PREFIX:-prothesis}-etcd-client"
+  peer:
+    name: "${ETCD_PREFIX:-prothesis}-etcd-peer"
+    internal: true
+
+volumes:
+  n1data: {}
+  n2data: {}
+  n3data: {}
+
+x-etcd: &etcd
+  image: quay.io/coreos/etcd:v3.5.17
+  restart: "no" # auto-restart would mask no_crash. NEVER change this.
+  init: false # PID 1 must be etcd so proc.pause freezes the real process
+  stop_grace_period: 3s
+  healthcheck:
+    test: ["CMD", "/usr/local/bin/etcdctl", "--endpoints=http://127.0.0.1:2379", "endpoint", "health"]
+    interval: 1s
+    timeout: 2s
+    retries: 40
+    start_period: 1s
+
+# Shared flags. Heartbeat 100 ms and election timeout 1000 ms are etcd's
+# documented defaults, restated so the numbers a fault window is chosen
+# against are visible here rather than assumed.
+x-flags: &flags
+  ETCD_DATA_DIR: /var/lib/etcd
+  ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+  ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+  ETCD_INITIAL_CLUSTER: etcd-n1=http://n1-peer:2380,etcd-n2=http://n2-peer:2380,etcd-n3=http://n3-peer:2380
+  ETCD_INITIAL_CLUSTER_STATE: new
+  ETCD_INITIAL_CLUSTER_TOKEN: "${ETCD_PREFIX:-prothesis}-etcd"
+  ETCD_HEARTBEAT_INTERVAL: "100"
+  ETCD_ELECTION_TIMEOUT: "1000"
+  ETCD_LOGGER: zap
+  ETCD_LOG_LEVEL: warn
+
+services:
+  etcd-n1:
+    <<: *etcd
+    container_name: "${ETCD_PREFIX:-prothesis}-etcd-n1"
+    hostname: etcd-n1
+    ports: ["127.0.0.1:${ETCD_PORT_N1:-12379}:2379"]
+    volumes: ["n1data:/var/lib/etcd"]
+    networks:
+      client: {}
+      peer:
+        aliases: [n1-peer]
+    environment:
+      <<: *flags
+      ETCD_NAME: etcd-n1
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://n1-peer:2380
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd-n1:2379
+
+  etcd-n2:
+    <<: *etcd
+    container_name: "${ETCD_PREFIX:-prothesis}-etcd-n2"
+    hostname: etcd-n2
+    ports: ["127.0.0.1:${ETCD_PORT_N2:-12380}:2379"]
+    volumes: ["n2data:/var/lib/etcd"]
+    networks:
+      client: {}
+      peer:
+        aliases: [n2-peer]
+    environment:
+      <<: *flags
+      ETCD_NAME: etcd-n2
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://n2-peer:2380
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd-n2:2379
+
+  etcd-n3:
+    <<: *etcd
+    container_name: "${ETCD_PREFIX:-prothesis}-etcd-n3"
+    hostname: etcd-n3
+    ports: ["127.0.0.1:${ETCD_PORT_N3:-12381}:2379"]
+    volumes: ["n3data:/var/lib/etcd"]
+    networks:
+      client: {}
+      peer:
+        aliases: [n3-peer]
+    environment:
+      <<: *flags
+      ETCD_NAME: etcd-n3
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://n3-peer:2380
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd-n3:2379

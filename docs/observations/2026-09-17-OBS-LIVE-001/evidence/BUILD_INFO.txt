@@ -1,0 +1,45 @@
+# OBS-LIVE-001 — build provenance of the evidence bundle
+
+Stamped at build time via `scripts/build.ps1` (D-070). ARCHIVED READBACK —
+taken from the binaries that produced this bundle, and not reproducible from
+the tree as it stands today. `thesis version` (the harness takes `version` or
+`--version`, never `-version`; the single-dash form is the oracle's and
+loadgen's) and the two `-version` flags then printed:
+
+```
+thesis 0.1.0-phase0 (spec prothesis/v1)
+build: commit 4a3e10c (dirty tree) at 2026-09-17T13:51:51Z
+thesis-oracle-linearizable build: commit 4a3e10c dirty=1 at 2026-09-17T13:51:51Z
+loadgen build: commit 4a3e10c dirty=1 at 2026-09-17T13:51:51Z
+```
+
+That `at <wall clock>` field no longer exists. D-072 replaced it with the
+commit's own date, because a per-build timestamp moved the oracle's SHA-256
+on every rebuild and made the lock's swapped-checker warning fire constantly.
+Binaries built today print `source date <commit date>` instead. The values
+above are left exactly as they were read: rewriting them into today's format
+would fabricate a readback nobody ever took.
+
+The dirty flag is honest: the tree carried the uncommitted observation docs
+and the D-070 code itself at build time.
+
+Binary SHA-256 before the D-070 rebuild (the binaries that produced runs 1–3
+in `evidence/`):
+
+```
+bin/thesis.exe                              096D9D7B8A4E4AF03DBBDE177484B1CAE11715823B1820D563D1ECEEC76476B6
+testdata/kvfixture/bin/loadgen.exe          A89E29F5D2B9B78EC5947F6411344CEA2158A673A4EB72DDE6990C188AF64349
+testdata/kvfixture/bin/linearizable-kv.exe  4DC6FB1FFF54681DC5BEC0C232C63B668C19A398B504A487705545491C2D24E4
+```
+
+After the D-070 rebuild the oracle's new digest (20b5a0a9...) was recorded
+outside the lock digest via `thesis oracles lock --reason "D-070: ..."` —
+the anti-gaming watcher (OQ-057) fired as designed and was answered.
+
+SUT image provenance for runs 1–3 was not recorded by the harness (they
+predate the OQ-055 fix). Run 4 (`r_2026_09_17_1a13`) is the first world with
+`sut.images` populated: service `kv`, image `prothesis/kvfixture:buggy`,
+digest `sha256:e995c7ec2f34bc9344b34dffa4bb8ed9d14b5ff16b8bee1608d091dcbe87cdef`.
+The same digest applies in fact to runs 1–3 (no image was rebuilt between
+them), but that is an assertion — run 4 is the first where the artifact says
+itself.

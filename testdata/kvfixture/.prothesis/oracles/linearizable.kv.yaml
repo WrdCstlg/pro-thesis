@@ -1,0 +1,57 @@
+# prothesis.oracle_def/v1 -- the per-key linearizability checker.
+#
+# This file is covered by .prothesis/lock. Editing ANY byte of it moves the
+# manifest digest and makes `thesis run` exit 4 (ORACLE_DRIFT) before it boots a
+# topology. Re-locking is a deliberate, human-authored act:
+#
+#     thesis oracles lock --reason "..."
+#
+# HONEST LIMITATION, stated rather than implied away: the DIGEST covers THIS
+# DEFINITION, not the executable `cmd` names. Swapping ./bin/linearizable-kv
+# for a program that always prints `ok` still does not move the digest, and
+# deliberately never will — hashing a binary into it would make an ordinary
+# rebuild exit 4 and turn re-locking into a reflex.
+#
+# What changed in D-060: the lock's `executables` block now records this
+# program's SHA-256 OUTSIDE the digest, and `thesis oracles verify` and every
+# run report a moved or missing one as a WARNING that also lands in the
+# verdict's oracle_lock.executables_moved. OQ-057 measured the swap coming back
+# silently green; it is no longer silent. It is still POSSIBLE — nothing short
+# of signing makes it impossible — and only the program is fingerprinted, not
+# its interpreter or anything it loads at run time.
+
+version: prothesis.oracle_def/v1
+
+# Appears verbatim in the verdict's violations[].oracle. The checker prints the
+# same string in its output document; a mismatch means the wrong binary is
+# wired up and the finding is rejected as INCONCLUSIVE rather than believed.
+name: linearizable.kv
+
+# Severity is derived from the CLASS by the engine, not chosen by the oracle,
+# so an oracle cannot grade its own finding down.
+class: consistency
+
+# Invariant I5. The engine refuses to EVALUATE this oracle outside ASSERT: a
+# register history is only complete once the driver has stopped and the cluster
+# has quiesced, so checking it mid-DRIVE would be checking a prefix.
+#
+# This is NOT a claim about where the evidence lies. A violation this oracle
+# reports routinely sits in DRIVE -- that is exactly what a stale read under a
+# partition looks like -- and `violations[].phase` is resolved from the
+# evidence, never from this list. See OQ-030.
+valid_phases: [ASSERT]
+
+# Resolved against the directory prothesis.yaml lives in; the host's .exe
+# suffix is supplied automatically, so this stays portable.
+#
+# Nothing is substituted into an oracle's command line. The checker receives
+# prothesis.oracle_input/v1 on STDIN and writes prothesis.oracle_output/v1 on
+# STDOUT, exiting 0 (ok), 1 (violated) or 2 (inconclusive).
+cmd: "./bin/linearizable-kv"
+
+# Bounds ONE evaluation. On expiry the checker's whole process tree is killed
+# and the finding is INCONCLUSIVE -- never ok. The checker also carries its own
+# internal wall and explored-state budgets and resolves to `inconclusive` on
+# exhaustion, so this timeout is the outer backstop rather than the first line
+# of defence.
+timeout: 120s

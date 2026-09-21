@@ -1,0 +1,83 @@
+{
+  "schema": "prothesis.driver_plan/v1",
+  "profile": "linear",
+  "seed": 424242,
+  "history_path": "/artifacts/history.jsonl",
+  "clients": 16,
+  "ops": 60000,
+  "mix": [
+    {
+      "op": "read",
+      "weight_ppm": 500000
+    },
+    {
+      "op": "write",
+      "weight_ppm": 500000
+    }
+  ],
+  "operations": [
+    {
+      "op_id": 11402,
+      "process": 3,
+      "f": "write",
+      "key": "k/0",
+      "value": 3000012,
+      "target": "http://127.0.0.1:18082",
+      "at_ms": 2971
+    },
+    {
+      "op_id": 11430,
+      "process": 7,
+      "f": "read",
+      "key": "k/0",
+      "read_mode": "lease",
+      "target": "http://127.0.0.1:18082",
+      "at_ms": 3004,
+      "pinned": true
+    },
+    {
+      "op_id": 11578,
+      "process": 7,
+      "f": "read",
+      "key": "k/0",
+      "read_mode": "linearizable",
+      "target": "http://127.0.0.1:18081",
+      "at_ms": 4180,
+      "pinned": true
+    },
+    {
+      "op_id": 11580,
+      "process": 11,
+      "f": "txn",
+      "value": [
+        [
+          "r",
+          "k/3",
+          null
+        ],
+        [
+          "w",
+          "k/0",
+          11000044
+        ]
+      ],
+      "target": "http://127.0.0.1:18083",
+      "at_ms": 4188,
+      "pinned": true
+    },
+    {
+      "op_id": 11999,
+      "process": 3,
+      "f": "admin",
+      "target": "http://127.0.0.1:18081",
+      "at_ms": 4900
+    }
+  ],
+  "targets": [
+    "http://127.0.0.1:18081",
+    "http://127.0.0.1:18082",
+    "http://127.0.0.1:18083"
+  ],
+  "origin": "drive",
+  "origin_ns": 1788764420000000000
+}

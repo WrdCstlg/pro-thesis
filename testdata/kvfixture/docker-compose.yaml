@@ -1,0 +1,113 @@
+name: prothesis-kvfixture
+
+# Topology notes, all load-bearing:
+#
+#  * ONE SERVICE PER NODE, each publishing its own client port to 127.0.0.1.
+#    Container IPs are not routable from the Windows host (measured), so a
+#    host-side health probe has no other way in and "publish no ports" is not
+#    available as a parallelism strategy.
+#
+#  * TWO NETWORKS. The client plane (published, reachable from the host) and the
+#    peer plane (internal, where Raft replication happens) are separate. A fault
+#    that cuts only the peer plane produces a GRAY failure: the node is
+#    unresponsive to its peers while still alive to the orchestrator and to
+#    clients. That is exactly the condition under which the injected read-lease
+#    defect is observable; a fault that cut both planes would model a dead node,
+#    and a dead node cannot serve a stale read to anybody.
+#
+#    Peers address each other through the network-scoped aliases n1-peer /
+#    n2-peer / n3-peer, which resolve ONLY on the peer network. That keeps peer
+#    traffic off the client plane by construction rather than by convention.
+#
+#  * NO PROXIES. Nodes talk to each other directly. PRO-THESIS injects network
+#    faults at run time from a NET_ADMIN sidecar joined to a container's network
+#    namespace, so the fixture needs no ambassador infrastructure and stays an
+#    unmodified system under test.
+#
+#  * ONE SEED for all three nodes. Per-node compose defaults of the
+#    "${KV_SEED:-1}" / ":-2" / ":-3" shape collapse to a single value the moment
+#    anything in the environment sets KV_SEED, which is precisely what a
+#    world-varying harness does. Each node derives its own stream in-process.
+
+networks:
+  kvclient:
+    name: "${KV_PREFIX:-prothesis}-kvclient"
+  kvpeer:
+    name: "${KV_PREFIX:-prothesis}-kvpeer"
+    internal: true
+
+volumes:
+  n1data: {}
+  n2data: {}
+  n3data: {}
+
+x-kv: &kv
+  # The image tag is derived from the SAME variable as the build tag, so a
+  # patched build can never be published as :buggy. Only kv-n1 carries the
+  # build section: three services exporting the same tag concurrently races in
+  # the containerd image store, and compose builds buildable services before it
+  # creates any container, so the other two find the image locally.
+  image: "prothesis/kvfixture:${KV_VARIANT:-buggy}"
+  pull_policy: never
+  restart: "no" # auto-restart would mask no_crash. NEVER change this.
+  init: false # PID 1 must be /kv so proc.pause freezes the real process
+  stop_grace_period: 3s
+  healthcheck:
+    test: ["CMD", "/kv", "healthcheck", "--url", "http://127.0.0.1:8080/healthz"]
+    interval: 1s
+    timeout: 2s
+    retries: 40
+    start_period: 1s
+
+services:
+  kv-n1:
+    <<: *kv
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: kv
+      args:
+        KV_VARIANT: "${KV_VARIANT:-buggy}"
+    pull_policy: build
+    container_name: "${KV_PREFIX:-prothesis}-kv-n1"
+    hostname: kv-n1
+    ports: ["127.0.0.1:${KV_PORT_N1:-18081}:8080"]
+    volumes: ["n1data:/var/lib/kv"]
+    networks:
+      kvclient: {}
+      kvpeer:
+        aliases: [n1-peer]
+    environment:
+      KV_NODE_ID: kv-n1
+      KV_PEERS: "kv-n2=http://n2-peer:9090,kv-n3=http://n3-peer:9090"
+      KV_SEED: "${KV_SEED:-20260906}"
+
+  kv-n2:
+    <<: *kv
+    container_name: "${KV_PREFIX:-prothesis}-kv-n2"
+    hostname: kv-n2
+    ports: ["127.0.0.1:${KV_PORT_N2:-18082}:8080"]
+    volumes: ["n2data:/var/lib/kv"]
+    networks:
+      kvclient: {}
+      kvpeer:
+        aliases: [n2-peer]
+    environment:
+      KV_NODE_ID: kv-n2
+      KV_PEERS: "kv-n1=http://n1-peer:9090,kv-n3=http://n3-peer:9090"
+      KV_SEED: "${KV_SEED:-20260906}"
+
+  kv-n3:
+    <<: *kv
+    container_name: "${KV_PREFIX:-prothesis}-kv-n3"
+    hostname: kv-n3
+    ports: ["127.0.0.1:${KV_PORT_N3:-18083}:8080"]
+    volumes: ["n3data:/var/lib/kv"]
+    networks:
+      kvclient: {}
+      kvpeer:
+        aliases: [n3-peer]
+    environment:
+      KV_NODE_ID: kv-n3
+      KV_PEERS: "kv-n1=http://n1-peer:9090,kv-n2=http://n2-peer:9090"
+      KV_SEED: "${KV_SEED:-20260906}"

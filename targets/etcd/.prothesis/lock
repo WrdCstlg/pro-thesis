@@ -1,0 +1,192 @@
+{
+  "schema": "prothesis.lock/v1",
+  "manifest_sha": "sha256:872c9151cf20d86ca84c0d82eee97255c3a7464cf44391ad4c65ff02d74b1823",
+  "reason": "D-066: the lock now covers harness.health and harness.role_probe; re-locked with no change to the oracle set",
+  "locked_at": "2026-09-15T12:23:18Z",
+  "tool_version": "0.1.0-phase0",
+  "builtin_options_fingerprint": "sha256:ca5cba3edb828e29bd4b1357c9ff2d86ae2e3eb6a6bd009a2430b076304064bf",
+  "executables": [
+    {
+      "oracle": "linearizable.kv",
+      "cmd": "./bin/linearizable-kv",
+      "resolved": "bin/linearizable-kv.exe",
+      "sha256": "sha256:687d21b4d5981dbb350790b60a587c9293cf32e6056ddee2af39ff4f7f523364",
+      "size": 4933632
+    }
+  ],
+  "covers": [
+    "harness.health",
+    "harness.role_probe",
+    "oracles.builtin",
+    "oracles.dir",
+    "perturber.allow",
+    "perturber.budget",
+    "perturber.deny",
+    "profiles",
+    "search"
+  ],
+  "limitations": [
+    "The DIGEST does not cover the EXECUTABLE an oracle names. Files under oracles.dir are covered byte for byte; the binary, interpreter, shared library, container image or PATH entry an oracle resolves at run time is NOT hashed into manifest_sha, so swapping a checker does not produce ORACLE_DRIFT and never will: hashing it into the digest would make an ordinary rebuild exit 4 and turn re-locking into a reflex. Since D-060 the `executables` block above records each resolved program's SHA-256 OUTSIDE the digest, and `verify` and every run report a moved or missing one as a WARNING that also lands in the verdict. That removes the SILENCE OQ-057 measured; it does not make a swap impossible, and nothing short of signing would. Only the program is fingerprinted — not its arguments, its interpreter, or anything it loads.",
+    "File modes are not covered. The executable bit does not survive a Windows checkout, so hashing it would fire a spurious ORACLE_DRIFT on a cross-platform clone.",
+    "Built-in oracle thresholds are compiled in and reachable from no config key. builtin_options_fingerprint records them for review but is OUTSIDE the digest: including it would turn any release that adjusts a default into exit 4 on every downstream project at once. `thesis oracles verify` reports a moved fingerprint as a warning, never as drift.",
+    "driver.profiles (clients / ops / mix) is not covered. Shrinking a workload there is a gate weakening this lock does not catch. Logged as OQ-026.",
+    "The digest covers the USER-SUPPLIED prothesis.yaml with defaults NOT applied. A key you did not write contributes nothing, so upgrading thesis cannot move this digest by changing a compiled-in default."
+  ],
+  "manifest": {
+    "schema": "prothesis.lock_manifest/v1",
+    "oracles": [
+      {
+        "path": "linearizable.kv.yaml",
+        "sha256": "sha256:e13c2db30c906d77d64f447c3ecf2f64d8f0421c7b837ba33eb30fedf816d0af",
+        "size": 1419
+      }
+    ],
+    "config": [
+      {
+        "path": "harness.health[0].node",
+        "kind": "scalar",
+        "value": "etcd:*"
+      },
+      {
+        "path": "harness.health[0].probe",
+        "kind": "scalar",
+        "value": "http://{host}:{port}/health"
+      },
+      {
+        "path": "harness.health[0].timeout",
+        "kind": "scalar",
+        "value": "30s"
+      },
+      {
+        "path": "harness.role_probe.probe",
+        "kind": "scalar",
+        "value": "./bin/etcdrole"
+      },
+      {
+        "path": "harness.role_probe.timeout",
+        "kind": "scalar",
+        "value": "10s"
+      },
+      {
+        "path": "oracles.builtin",
+        "kind": "scalar",
+        "value": "availability_after_heal"
+      },
+      {
+        "path": "oracles.builtin",
+        "kind": "scalar",
+        "value": "no_crash"
+      },
+      {
+        "path": "oracles.builtin",
+        "kind": "scalar",
+        "value": "no_panic_log"
+      },
+      {
+        "path": "oracles.builtin",
+        "kind": "scalar",
+        "value": "no_stuck_op"
+      },
+      {
+        "path": "oracles.dir",
+        "kind": "scalar",
+        "value": ".prothesis/oracles"
+      },
+      {
+        "path": "perturber.allow",
+        "kind": "scalar",
+        "value": "net.latency"
+      },
+      {
+        "path": "perturber.allow",
+        "kind": "scalar",
+        "value": "net.loss"
+      },
+      {
+        "path": "perturber.allow",
+        "kind": "scalar",
+        "value": "net.partition"
+      },
+      {
+        "path": "perturber.allow",
+        "kind": "scalar",
+        "value": "proc.kill"
+      },
+      {
+        "path": "perturber.allow",
+        "kind": "scalar",
+        "value": "proc.pause"
+      },
+      {
+        "path": "perturber.budget.max_concurrent_faults",
+        "kind": "scalar",
+        "value": "3"
+      },
+      {
+        "path": "perturber.budget.max_faults_per_world",
+        "kind": "scalar",
+        "value": "24"
+      },
+      {
+        "path": "perturber.deny",
+        "kind": "scalar",
+        "value": "clock.skew"
+      },
+      {
+        "path": "perturber.deny",
+        "kind": "scalar",
+        "value": "io.fill"
+      },
+      {
+        "path": "perturber.deny",
+        "kind": "scalar",
+        "value": "io.latency"
+      },
+      {
+        "path": "profiles.linear.budget",
+        "kind": "scalar",
+        "value": "10m"
+      },
+      {
+        "path": "profiles.linear.driver_profile",
+        "kind": "scalar",
+        "value": "linear"
+      },
+      {
+        "path": "profiles.linear.worlds",
+        "kind": "scalar",
+        "value": "2"
+      },
+      {
+        "path": "profiles.smoke.budget",
+        "kind": "scalar",
+        "value": "90s"
+      },
+      {
+        "path": "profiles.smoke.driver_profile",
+        "kind": "scalar",
+        "value": "smoke"
+      },
+      {
+        "path": "profiles.smoke.worlds",
+        "kind": "scalar",
+        "value": "2"
+      },
+      {
+        "path": "profiles.stale.budget",
+        "kind": "scalar",
+        "value": "10m"
+      },
+      {
+        "path": "profiles.stale.driver_profile",
+        "kind": "scalar",
+        "value": "stale"
+      },
+      {
+        "path": "profiles.stale.worlds",
+        "kind": "scalar",
+        "value": "2"
+      }
+    ]
+  }
+}

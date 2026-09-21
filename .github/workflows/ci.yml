@@ -1,0 +1,197 @@
+# PRO-THESIS CI on a hosted Linux runner.
+#
+# Every number in DECISIONS.md and OPEN_QUESTIONS.md before this workflow was
+# produced on one Windows machine under Docker Desktop. This is the first place
+# the suite and the live fault worlds run on hardware nobody here owns, on a
+# kernel with native cgroup v2 and routable container networking.
+#
+# It runs only in the public repository: the private mirror receives the same
+# pushes and must not spend an organisation's Actions minutes on them.
+#
+# Expected exit codes are asserted, not merely observed, and every live step
+# prints each oracle's conclusion with its evidence counts. A world that was
+# expected to FAIL and passed is a finding, and so is the reverse; the verdict
+# and result files are uploaded either way so the finding can be read.
+
+name: ci
+
+on:
+  push:
+    branches: [master, "ci-**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: unit (go ${{ matrix.go }})
+    if: github.repository == 'WrdCstlg/pro-thesis'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        # 1.22.x is the version go.mod and the README declare; stable is what
+        # the code was developed with (D-002 records 1.27.1 on the build host).
+        go: ["1.22.x", "stable"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+
+      - name: toolchain and daemon
+        run: |
+          go version
+          docker version --format 'docker {{.Server.Version}}'
+          docker info --format 'cgroup v{{.CgroupVersion}} ({{.CgroupDriver}}), kernel {{.KernelVersion}}, {{.NCPU}} cpu, {{.MemTotal}} bytes'
+
+      - name: build
+        run: go build ./...
+
+      - name: vet
+        run: go vet ./...
+
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then echo "gofmt would change:"; echo "$unformatted"; exit 1; fi
+
+      # The fault-family integration tests refuse to pull images inside a test
+      # and skip when these are absent, so pull them first.
+      - name: images the integration tests use
+        run: docker pull -q alpine:3.20 && docker pull -q debian:stable-slim
+
+      # The two Docker-backed fixture tests in internal/control are opt-in
+      # (PROTHESIS_DOCKER_TESTS) and need the fixture's driver and image. They
+      # run on the stable job only: they cost minutes and bridge networks.
+      - name: fixture driver and image (for the Docker-backed tests)
+        if: matrix.go == 'stable'
+        run: |
+          set -eux
+          go build -o testdata/kvfixture/bin/linearizable-kv ./cmd/thesis-oracle-linearizable
+          (cd testdata/kvfixture && go build -o bin/loadgen ./cmd/loadgen && docker compose build)
+
+      - name: test (main module)
+        env:
+          PROTHESIS_DOCKER_TESTS: ${{ matrix.go == 'stable' && '1' || '' }}
+        run: |
+          set +e
+          go test -count=1 -timeout 35m -json ./... > test.json
+          status=$?
+          echo "--- test results (subtests counted, as the build host's scripts count them) ---"
+          jq -r 'select(.Test != null and (.Action=="pass" or .Action=="skip" or .Action=="fail")) | .Action' test.json | sort | uniq -c
+          echo "--- packages ---"
+          jq -r 'select(.Test == null and (.Action=="pass" or .Action=="fail" or .Action=="skip")) | "\(.Action) \(.Package) \(.Elapsed // 0)s"' test.json
+          echo "--- skipped tests ---"
+          jq -r 'select(.Test != null and .Action=="skip") | "\(.Package | sub("^github.com/WrdCstlg/pro-thesis/"; "")) \(.Test)"' test.json | sort
+          if [ "$status" -ne 0 ]; then
+            echo "--- full output of every failing test ---"
+            jq -r 'select(.Test != null and .Action=="fail") | "\(.Package)\t\(.Test)"' test.json | sort -u |
+            while IFS="$(printf '\t')" read -r pkg name; do
+              echo "=== $pkg $name"
+              jq -r --arg p "$pkg" --arg t "$name" 'select(.Action=="output" and .Package==$p and .Test==$t) | .Output' test.json
+            done
+          fi
+          exit "$status"
+
+      - name: test (fixture module, both build variants)
+        working-directory: testdata/kvfixture
+        run: |
+          go vet ./...
+          go test -count=1 ./...
+          go test -count=1 -tags kvfixed ./...
+
+      # OQ-018: the race detector needs cgo, which the Windows build host lacks;
+      # D-023 ran it there inside a Linux container. This is the same check on a
+      # host that is not the build machine.
+      - name: race detector
+        if: matrix.go == 'stable'
+        run: go test -race -count=1 -timeout 30m ./...
+
+  live:
+    name: live fault worlds (fixture + etcd)
+    if: github.repository == 'WrdCstlg/pro-thesis'
+    needs: unit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      - name: build binaries
+        run: |
+          set -eux
+          go build -o bin/thesis ./cmd/thesis
+          go build -o testdata/kvfixture/bin/linearizable-kv ./cmd/thesis-oracle-linearizable
+          (cd testdata/kvfixture && go build -o bin/loadgen ./cmd/loadgen)
+          go build -o targets/etcd/bin/etcdload ./targets/etcd/cmd/etcdload
+          go build -o targets/etcd/bin/etcdsteady ./targets/etcd/cmd/etcdsteady
+          go build -o targets/etcd/bin/etcdrole ./targets/etcd/cmd/etcdrole
+          go build -o targets/etcd/bin/linearizable-kv ./cmd/thesis-oracle-linearizable
+          chmod +x scripts/ci-run.sh
+
+      - name: images
+        run: |
+          set -eux
+          (cd testdata/kvfixture && docker compose build)
+          (cd testdata/kvfixture && KV_VARIANT=kvfixed docker compose build)
+          docker pull quay.io/coreos/etcd:v3.5.17
+
+      - name: the lock is the committed one
+        run: |
+          set -eu
+          (cd testdata/kvfixture && ../../bin/thesis oracles verify)
+          (cd targets/etcd && ../../bin/thesis oracles verify)
+
+      - name: fixture, the planted defect is found (want FAIL, exit 1)
+        working-directory: testdata/kvfixture
+        run: ../../scripts/ci-run.sh 1 run --profile linear --fault 'net.partition(role:leader)@3000..7500'
+
+      - name: fixture, the patched build is the negative control (want PASS, exit 0)
+        working-directory: testdata/kvfixture
+        env:
+          KV_VARIANT: kvfixed
+        run: ../../scripts/ci-run.sh 0 run --profile linear --fault 'net.partition(role:leader)@3000..7500'
+
+      - name: etcd, smoke, no faults (want PASS, exit 0)
+        working-directory: targets/etcd
+        run: ../../scripts/ci-run.sh 0 run --profile smoke
+
+      - name: etcd, arm A, linearizable reads, partition the leader (want PASS, exit 0)
+        working-directory: targets/etcd
+        run: ../../scripts/ci-run.sh 0 run --profile linear --fault 'net.partition(role:leader)@3000..7500'
+
+      - name: etcd, arm B, serializable reads, partition the leader (want FAIL, exit 1)
+        working-directory: targets/etcd
+        run: ../../scripts/ci-run.sh 1 run --profile stale --fault 'net.partition(role:leader)@3000..7500'
+
+      - name: residue
+        if: always()
+        run: |
+          echo "containers:"; docker ps -a --filter label=io.prothesis.project --format '  {{.Names}} {{.Status}}'
+          echo "networks:";   docker network ls --filter name=thesis- --format '  {{.Name}}'
+
+      - name: upload verdicts and world results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verdicts
+          path: |
+            testdata/kvfixture/.prothesis/runs/*/verdict.json
+            testdata/kvfixture/.prothesis/runs/*/world-*/result.json
+            targets/etcd/.prothesis/runs/*/verdict.json
+            targets/etcd/.prothesis/runs/*/world-*/result.json
+          if-no-files-found: warn

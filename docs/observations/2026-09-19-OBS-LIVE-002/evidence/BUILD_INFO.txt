@@ -1,0 +1,59 @@
+# OBS-LIVE-002 — build provenance of the evidence bundle
+
+Read back from the binaries that produced run r_2026_09_19_151f, immediately
+before the run. Unlike OBS-LIVE-001's equivalent file, these lines ARE
+reproducible from the tree: the stamp is the commit's own date (D-072), not a
+wall clock, so rebuilding commit 2724b78 with the same dirty tree reproduces
+them exactly.
+
+```
+thesis 0.1.0-phase0 (spec prothesis/v1)
+build: commit 2724b78 (dirty tree), source date 2026-09-18T01:01:01Z
+thesis-oracle-linearizable build: commit 2724b78 dirty=1 source_date=2026-09-18T01:01:01Z
+loadgen build: commit 2724b78 dirty=1 source_date=2026-09-18T01:01:01Z
+```
+
+The dirty flag is honest and the tree it refers to is nameable: at build time
+`OPEN_QUESTIONS.md` carried the not-yet-committed OQ-067, and `AGENTS.md` was
+untracked. Neither compiles into any binary.
+
+Binary SHA-256 of the three programs that ran:
+
+```
+bin/thesis.exe                              AA033419A3E52F6EC84DBE3DC68904BF6732355D31FA11ECA29672C69A60117F
+testdata/kvfixture/bin/linearizable-kv.exe  75C9B7EB888A4535E47A23CB904BED83D98CC24AFF33BBEE7A229A5E0300A8CF
+testdata/kvfixture/bin/loadgen.exe          F894E90906B3538CDB00CFCE1480FD5AF11491F61CBB347C74277D2BBD1A356D
+```
+
+`scripts/build.ps1 -Verify` built the checker a second time to a scratch path
+and the two agreed byte for byte on 75c9b7eb…, so the digest above is a
+property of the source and not of the moment the compiler ran.
+
+Oracle lock at run time — `thesis oracles verify` exit 0, and the run's own
+verdict records `oracle_lock.status: ok` with no `executables_moved`:
+
+```
+sha256:0ebddd178fbacfaf419dc48981cc7394d794059f1827adc22a7e86bfb7af1766
+locked 2026-09-19T09:07:44Z
+reason: D-072 residual (OQ-057): the checker digest moved only because the
+        Commit stamp advanced f775e61 -> 2724b78. Proven, not assumed:
+        rebuilding this same tree with the previous stamp values reproduces
+        the previously locked digest 14b1a567c684... byte for byte, so no
+        checker source changed between those two states.
+```
+
+SUT image provenance — recorded BY THE HARNESS into `world.thesis`
+(`sut.images`), not asserted here, and confirmed against `docker images`:
+
+```
+prothesis/kvfixture:buggy  sha256:f833e5d83d566ccd29a79ffcda87c8e06550ae80786e38c63668d3da45111840
+prothesis/netadmin:1       sha256:951bbf204d8318da1a44ba5fba0390dc18fc223dfda47d2c8295b7e20fa784e1
+```
+
+Note for anyone comparing against OBS-LIVE-001: that bundle names image
+`sha256:e995c7ec…` for its run 4. That image no longer exists. The Docker
+content store was destroyed by a disk-exhaustion event on 2026-09-17 and these
+images were rebuilt from the same Dockerfile on 2026-09-19, producing a
+different image ID — Docker builds are not bit-reproducible. The earlier
+digest is therefore a permanently dangling reference: it still records
+truthfully what ran, but nothing can resolve it any more.

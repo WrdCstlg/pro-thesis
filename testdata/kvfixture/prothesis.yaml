@@ -1,0 +1,113 @@
+version: prothesis/v1
+name: kvfixture
+
+harness:
+  backend: compose
+  file: docker-compose.yaml
+  # The compose file parameterises its container names and its published ports so
+  # the parallel executor can give each worker its own. Naming those variables
+  # here is what lets a bare "thesis search" allocate a per-worker port band
+  # WITHOUT the caller remembering --worker-env: omit the mapping and the driver
+  # is told about the slot's band while compose publishes the file's defaults, so
+  # every operation fails against a port nothing is listening on and the history
+  # is unjudgeable. Measured before this existed: run r_2026_09_09_23c5, 78,018
+  # operation records, all 39,009 ops failed, none checkable. See OQ-056.
+  prefix_env: KV_PREFIX
+  nodes:
+    # `service` is the LOGICAL group the fault grammar targets: kv:*,
+    # minority(kv), majority(kv), and the constraint "never partition more than
+    # minority of kv". `compose_service` is the PHYSICAL compose service. They
+    # differ because container IPs are not routable from a Windows host, so each
+    # node must publish its own 127.0.0.1 port, which forces one compose service
+    # per node. Splitting the fields keeps the frozen grammar exact. See OQ-016
+    # and DECISIONS.md D-020.
+    - { id: kv-n1, service: kv, compose_service: kv-n1, role_hint: replica, port_env: KV_PORT_N1 }
+    - { id: kv-n2, service: kv, compose_service: kv-n2, role_hint: replica, port_env: KV_PORT_N2 }
+    - { id: kv-n3, service: kv, compose_service: kv-n3, role_hint: replica, port_env: KV_PORT_N3 }
+  health:
+    # {host} is 127.0.0.1 and {port} is the node's published host port.
+    # Container IPs are not routable from a Windows host, so a host-side probe
+    # has no other way in.
+    #
+    # This is the directive's own `kv:*` wildcard, restored now that OQ-016 is
+    # resolved: `service: kv` is the logical group and `compose_service` carries
+    # the physical name, so the frozen grammar resolves exactly as written and
+    # covers all three nodes.
+    - node: "kv:*"
+      probe: "http://{host}:{port}/healthz"
+      timeout: 30s
+  steady_state:
+    # Runs INSIDE the cluster, because steady state is a cluster-wide condition
+    # that no single URL probe can express: every node reachable, exactly one
+    # leader, unanimous agreement on term and leader identity, commit_index > 0.
+    # Running it in a container also sidesteps the broken Git Bash on this host.
+    probe: "docker compose exec -T kv-n1 /kv steady --targets http://kv-n1:8080,http://kv-n2:8080,http://kv-n3:8080 --timeout 55s"
+    timeout: 60s
+
+driver:
+  cmd: "./bin/loadgen --history {history_path} --seed {seed} --profile {profile}"
+  profiles:
+    smoke: { clients: 4, ops: 500, mix: { read: 0.5, write: 0.5 } }
+    gate: { clients: 16, ops: 20000, mix: { read: 0.4, write: 0.4, txn: 0.2 } }
+    soak: { clients: 64, ops: 500000, mix: { read: 0.3, write: 0.4, txn: 0.2, admin: 0.1 } }
+    # `linear` is the only profile the linearizable.kv oracle can SOUNDLY check.
+    #
+    # gate and soak carry 20% txn, and the fixture's txn reads one key and
+    # writes a DIFFERENT one, which breaks the precondition of Herlihy & Wing's
+    # locality theorem -- so a per-key checker must refuse those histories
+    # rather than partition them (PHASE3_BUILD_BRIEF D-A). smoke is single-key
+    # but retires 500 ops in ~700ms, finishing long before a fault window
+    # opening at @8200ms, so it can only ever produce a clean history.
+    #
+    # The op budget deliberately exceeds what a world actually retires: the
+    # driver is stopped at QUIESCE, so overshooting costs nothing while
+    # undershooting ends DRIVE before the anomaly can be observed.
+    #
+    # The key space is NOT expressible here -- the frozen profile schema has no
+    # `keys` field -- so loadgen's own table carries it (8 keys) and the two are
+    # kept in step by a test. See OQ-012 and DECISIONS D-040.
+    linear: { clients: 16, ops: 60000, mix: { read: 0.5, write: 0.5 } }
+
+perturber:
+  budget: { max_concurrent_faults: 3, max_faults_per_world: 24 }
+  allow: [net.partition, net.latency, net.loss, proc.kill, proc.pause, io.latency]
+  deny: [io.fill, clock.skew]
+  constraints:
+    - "never partition more than minority of kv"
+
+oracles:
+  dir: .prothesis/oracles
+  builtin:
+    [
+      no_crash,
+      no_panic_log,
+      no_unbounded_queue,
+      resource_return_to_baseline,
+      availability_after_heal,
+      no_stuck_op,
+    ]
+
+profiles:
+  smoke: { budget: 90s, worlds: 3, driver_profile: smoke }
+  gate: { budget: 10m, worlds: 30, driver_profile: gate }
+  soak: { budget: 8h, worlds: -1, driver_profile: soak, search: true }
+  # The consistency-checking run profile. The budget must comfortably outlast a
+  # fault schedule reaching @13500ms plus BOOT, SEED, HEAL, QUIESCE, ASSERT and
+  # TEARDOWN; 10m leaves room for the ASSERT-phase linearizability search on a
+  # history of tens of thousands of operations.
+  linear: { budget: 10m, worlds: 5, driver_profile: linear }
+  # The Phase 4 search profile.
+  #
+  # `search: true` is what makes `thesis search` willing to run at all: the
+  # PROFILE's boolean decides WHETHER a search runs and the top-level `search:`
+  # block decides WHICH (DECISIONS.md D-028 item 7). It is deliberately NOT set
+  # on `gate`: a fixed-budget pre-commit check whose whole value is being a
+  # repeatable signal must never run an adaptive MCTS search.
+  #
+  # driver_profile is `linear` because linearizable.kv is the only oracle that
+  # can witness the fixture's stale read, and it is sound only on a single-key
+  # history (PHASE3_BUILD_BRIEF D-A). `worlds: -1` lets the wall budget be the
+  # only ceiling, so `--budget 30m` and `--worlds N` mean exactly what they say.
+  search: { budget: 30m, worlds: -1, driver_profile: linear, search: true }
+
+artifacts: { dir: .prothesis/runs, retain_passing: 3, retain_failing: all }

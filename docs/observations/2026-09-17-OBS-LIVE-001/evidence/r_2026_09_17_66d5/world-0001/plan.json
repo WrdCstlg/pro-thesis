@@ -1,0 +1,18 @@
+{
+  "schema": "prothesis.driver_plan/v1",
+  "profile": "linear",
+  "seed": 15886428869686273937,
+  "history_path": "testdata\\kvfixture\\.prothesis\\runs\\r_2026_09_17_66d5\\world-0001\\history.jsonl",
+  "clients": 16,
+  "ops": 60000,
+  "mix": [
+    {
+      "op": "read",
+      "weight_ppm": 500000
+    },
+    {
+      "op": "write",
+      "weight_ppm": 500000
+    }
+  ]
+}

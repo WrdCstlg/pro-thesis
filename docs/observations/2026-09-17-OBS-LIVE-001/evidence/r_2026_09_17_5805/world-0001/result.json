@@ -1,0 +1,115 @@
+{
+  "compose_project": "thesis-kvfixture-0eff35b9",
+  "driver": {
+    "drain": {
+      "deadline_ms": 10000,
+      "drained": true,
+      "outcome": "completed",
+      "waited_ms": 20
+    },
+    "exit_code": 0,
+    "started": true,
+    "stopped": false
+  },
+  "oracles": [
+    {
+      "class": "crash",
+      "explanation": "all 3 node process(es) ran to the end of the world without an unplanned exit",
+      "first_seen_ms": 0,
+      "observed_phase": "ASSERT",
+      "oracle": "no_crash",
+      "status": "ok",
+      "valid_phases": [
+        "BOOT",
+        "SEED",
+        "DRIVE",
+        "PERTURB",
+        "HEAL",
+        "QUIESCE",
+        "ASSERT",
+        "TEARDOWN"
+      ]
+    },
+    {
+      "class": "crash",
+      "explanation": "scanned 81 line(s) across 3 log stream(s) against 12 crash signature(s) with no match",
+      "first_seen_ms": 0,
+      "observed_phase": "ASSERT",
+      "oracle": "no_panic_log",
+      "status": "ok",
+      "valid_phases": [
+        "BOOT",
+        "SEED",
+        "DRIVE",
+        "PERTURB",
+        "HEAL",
+        "QUIESCE",
+        "ASSERT",
+        "TEARDOWN"
+      ]
+    },
+    {
+      "class": "resource",
+      "explanation": "queue depth did not rise monotonically across QUIESCE on any of 3 node(s)",
+      "first_seen_ms": 0,
+      "observed_phase": "ASSERT",
+      "oracle": "no_unbounded_queue",
+      "status": "ok",
+      "valid_phases": [
+        "QUIESCE",
+        "ASSERT"
+      ]
+    },
+    {
+      "class": "resource",
+      "explanation": "every resource metric on 3 node(s) returned to within 50% of its pre-DRIVE baseline",
+      "first_seen_ms": 0,
+      "observed_phase": "ASSERT",
+      "oracle": "resource_return_to_baseline",
+      "status": "ok",
+      "valid_phases": [
+        "QUIESCE",
+        "ASSERT"
+      ]
+    },
+    {
+      "class": "liveness",
+      "explanation": "all 3 node(s) answered health probes successfully after HEAL (within 2025ms convergence window)",
+      "first_seen_ms": 0,
+      "observed_phase": "ASSERT",
+      "oracle": "availability_after_heal",
+      "status": "ok",
+      "valid_phases": [
+        "QUIESCE",
+        "ASSERT"
+      ]
+    },
+    {
+      "class": "liveness",
+      "explanation": "all 5406 operation(s) completed within SLO ceiling (5000ms) after HEAL",
+      "first_seen_ms": 0,
+      "observed_phase": "ASSERT",
+      "oracle": "no_stuck_op",
+      "status": "ok",
+      "valid_phases": [
+        "HEAL",
+        "QUIESCE",
+        "ASSERT"
+      ]
+    },
+    {
+      "class": "consistency",
+      "explanation": "key \"k/0\": no linearization exists for the 652 operation(s) on this key under a last-write-wins register. The search space was exhausted (2030 state(s) explored over 7289 step(s)) with every branch rejected; this is a WITNESSED failure, not a timeout and not a budget. The deepest partial linearization the search reached placed 290 of 652 operation(s) on this key. At that point the register held 6000153, written by op 2447, and op 2470 (process 13, read) returned 15000136. That value was written by op 2320, which every linearization places before the value the register held. The witness op_ids point at the failure; the proof is the exhausted search over the whole key, not those operations alone. Evidence: 2678 determinate read(s), 2639 determinate write(s), 64 indeterminate write(s) explored on both the applied and the not-applied branch; 16 failed operation(s) dropped; 9 indeterminate read(s) dropped.",
+      "first_seen_ms": 0,
+      "observed_phase": "ASSERT",
+      "oracle": "linearizable.kv",
+      "status": "violated",
+      "valid_phases": [
+        "ASSERT"
+      ]
+    }
+  ],
+  "outcome": "violation",
+  "seed": 2337997644773862495,
+  "world": 1
+}

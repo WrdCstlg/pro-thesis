@@ -1,0 +1,11 @@
+golden/
+bin/
+*.md
+.git/
+
+# The harness's own state: the lock, the oracle definitions, the regression
+# corpus and above all .prothesis/runs/, which every run adds a directory to.
+# None of it is needed to compile the fixture, and with it inside the context
+# every build's `COPY . .` misses the cache (OQ-068: 2.38 GB of a 2.40 GB
+# context was run output, and one new file in it cost +5.4 GB of build cache).
+.prothesis/
