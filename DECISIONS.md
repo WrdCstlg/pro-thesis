@@ -3015,3 +3015,42 @@ control: the method can find it); the CURRENT tree built with that same old stam
 `config_validate.go` are linked into it. Nothing under `cmd/thesis-oracle-linearizable`,
 `internal/buildinfo` or `internal/recorder/cjson` changed. The lock's `reason` says all of that.
 A reason reading "only the stamp moved" would have been the third false one; D-072 counts two.
+
+---
+
+## D-081: the comprehensive test protocol is adopted verbatim, and the em dash audit its release gate names is now a script
+
+**Decision.** Two additions.
+
+1. **The author's comprehensive test protocol is committed as
+   `docs/protocol/VERIFICATION_PROTOCOL.md`, verbatim as supplied.** It restates the invariants
+   this repository already runs under (soundness, measured claims, the refusal surface, exit codes
+   0-5, bitwise determinism), fixes the 5-tier verification hierarchy, the failing-first and
+   mutation authoring cycle, host discipline, statistical trial frames, and a 10-stage
+   pre-publication release gate. It declares itself normative and routes every deviation through
+   this ledger, which is how this repository already works.
+2. **`scripts/emdash-audit.ps1` implements the gate's punctuation stage**, which named a script
+   that did not exist. It scans every tracked Markdown file for U+2014 and exits 1 naming the
+   offenders. Nine files are grandfathered by exact path, measured on 2026-09-21 to hold all 95
+   existing occurrences: the three verbatim briefs in `docs/protocol/` and six snapshot documents
+   under `docs/design/` (the set `docs/protocol/README.md` describes as kept as written). The list
+   is exact, not a directory pattern, so a NEW em-dashed file under those directories fails too.
+
+**Measured, failing-first and mutation evidence.** On the clean tree:
+`pwsh -File scripts/emdash-audit.ps1` printed "em dash audit OK (36 markdown files scanned, 9
+grandfathered)", exit 0. Mutation: one U+2014 appended to `AGENTS.md`; the script printed
+"EM DASH AUDIT FAILED: AGENTS.md: 1 em dash(es)", exit 1. `AGENTS.md` was then restored
+byte-for-byte (`git diff` empty) and the script returned to exit 0.
+
+**Rejected.** Scanning all tracked text, code included: 53 `.go`, `.ps1` and `.py` files carry
+U+2014 in string literals and comments, and the protocol scopes the rule to prose and markdown.
+Grandfathering `docs/design/` and `docs/protocol/` wholesale by pattern: a new file would inherit
+the exemption silently, which is the soundness invariant's failure mode applied to punctuation.
+
+**What this does not do.** It does not touch the en dash, arrow and ellipsis characters the
+ledgers already use; the audit is U+2014 only, matching the gate row. It does not make the gate's
+"Repository Visibility" row retroactively true: the public repository was published at the
+author's decision before this protocol arrived, and the row's "PRIVATE until human user
+authorization" criterion is read from that point on as "private until the author says publish",
+which is the standing rule in AGENTS.md section 6. And it does not run the gate: the first full
+execution is reported with the commit that lands this entry.

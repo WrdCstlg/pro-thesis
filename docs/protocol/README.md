@@ -10,6 +10,7 @@ rule in the ledgers was actually a rule can find it here.
 | [`SABOTEUR_INJECTION.md`](SABOTEUR_INJECTION.md) | Addendum A: the guided-search engine spec that superseded the base directive's Phase 4. Its central claim was later measured and found untested (OQ-060). |
 | [`PHASE0_BUILD_BRIEF.md`](PHASE0_BUILD_BRIEF.md) | The Phase 0 brief: the world file format, the canonical JSON profile, the clock frame. |
 | [`PHASE3_BUILD_BRIEF.md`](PHASE3_BUILD_BRIEF.md) | The Phase 3 brief: the external linearizability checker and the single-key soundness rule (D-A). |
+| [`VERIFICATION_PROTOCOL.md`](VERIFICATION_PROTOCOL.md) | The comprehensive test protocol: the 5-tier verification hierarchy, failing-first and mutation authoring rules, and the pre-publication release gate (D-081). |
 
 **Two documents are deliberately not published here:** the base build directive
 that every ledger entry calls "the directive", and the prompt that asked the
