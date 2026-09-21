@@ -1,0 +1,1 @@
+2026-09-19T09:11:27.089520003Z 2026/09/19 09:11:27.089383 level=info event=boot node=kv-n1 variant=buggy lease_ms=5000 tick_ms=25 hb_ms=100 election_ms=600-900 peers=[kv-n2 kv-n3] client=0.0.0.0:8080 peer=0.0.0.0:9090 data_dir="/var/lib/kv" seed=20260906 node_seed=12332567346149821931

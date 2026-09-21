@@ -1,0 +1,47 @@
+# Line endings are load-bearing, not cosmetic.
+#
+# `.thesis` world files and the lock manifest are content-addressed by SHA-256
+# over their exact bytes. On a Windows checkout with the default
+# core.autocrlf=true, git would rewrite every LF to CRLF, the strict canonical
+# decoder would reject the file, and every world_hash in the committed
+# regression corpus would break at once: surfacing in someone else's clone,
+# long after the mistake.
+#
+# `text eol=lf` normalizes to LF on commit AND checks out as LF on every
+# platform. Do NOT use `binary` here: it implies -diff, which would render
+# every lock and regression-corpus change as "Binary files differ" and defeat
+# the human review that anti-gaming rules 1 and 4 depend on.
+
+*.thesis        text eol=lf
+*.jsonl         text eol=lf
+# Golden files are compared BYTE-FOR-BYTE across a module boundary
+# (internal/driver/testdata/golden_plan.json is the driver-plan wire format, and
+# testdata/kvfixture carries the same bytes so both sides of the format are
+# pinned). A CRLF rewrite on checkout would fail those tests on a fresh Windows
+# clone and nowhere else. The fixture module already declares this rule; the
+# root did not, which is the gap this line closes.
+*.json          text eol=lf
+# `**/` and not `.prothesis/lock`: a gitattributes pattern containing a slash is
+# anchored to the directory holding the file, so the un-prefixed form matched the
+# ROOT lock only and silently skipped testdata/kvfixture/.prothesis/lock, which
+# is the one lock this repository actually commits. `git check-attr` reported no
+# attributes at all for it, and it had been committed with CRLF. Found while
+# regenerating that lock for D-060.
+**/.prothesis/lock text eol=lf
+# Observation bundles under docs/observations/ are byte-compared against the run
+# directories they were copied from, and their records assert those hashes. The
+# JSON and .thesis artifacts were already covered above; container logs (.log)
+# and the provenance readbacks (.txt) were not, so on a fresh Windows clone with
+# core.autocrlf=true they would check out as CRLF and stop matching. Found while
+# committing OBS-LIVE-002, and it applies retroactively to OBS-LIVE-001.
+*.log           text eol=lf
+*.txt           text eol=lf
+*.sh            text eol=lf
+*.go            text eol=lf
+*.md            text eol=lf
+*.yaml          text eol=lf
+*.yml           text eol=lf
+go.mod          text eol=lf
+go.sum          text eol=lf
+Dockerfile*     text eol=lf
+LICENSE         text eol=lf

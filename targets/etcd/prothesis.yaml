@@ -1,0 +1,92 @@
+version: prothesis/v1
+name: etcd
+
+# A second target for PRO-THESIS: upstream etcd v3.5.17, unmodified, three
+# nodes. The reference fixture (testdata/kvfixture) has a defect the harness
+# was built to find; this target has none that anyone planted, which is the
+# point. What it does have is a DOCUMENTED weaker read mode (serializable
+# reads are served from a member's local state without a quorum round trip)
+# and the pre-registered expectation in .prothesis/PREREGISTRATION.md is that
+# the same unmodified checker passes the linearizable profile and fails the
+# serializable one under a peer-plane partition.
+
+harness:
+  backend: compose
+  file: docker-compose.yaml
+  # The compose file parameterises container names and published ports on
+  # ETCD_PREFIX / ETCD_PORT_N*, so a parallel run can give each worker its
+  # own. See testdata/kvfixture/prothesis.yaml and OQ-056 for what goes wrong
+  # when this mapping is omitted.
+  prefix_env: ETCD_PREFIX
+  # `port` is the CONTAINER-side client port the harness looks up the
+  # published host port for. It defaults to the fixture's 8080; etcd serves
+  # clients on 2379.
+  nodes:
+    - { id: etcd-n1, service: etcd, compose_service: etcd-n1, role_hint: replica, port: 2379, port_env: ETCD_PORT_N1 }
+    - { id: etcd-n2, service: etcd, compose_service: etcd-n2, role_hint: replica, port: 2379, port_env: ETCD_PORT_N2 }
+    - { id: etcd-n3, service: etcd, compose_service: etcd-n3, role_hint: replica, port: 2379, port_env: ETCD_PORT_N3 }
+  health:
+    # etcd's own /health: "true" only when the member has a leader and can
+    # complete a linearizable read. A member cut from its peers reports
+    # unhealthy here, which is what availability_after_heal needs to see
+    # recover.
+    - node: "etcd:*"
+      probe: "http://{host}:{port}/health"
+      timeout: 30s
+  steady_state:
+    # Host-side, because the etcd image ships no shell. The probe reads the
+    # topology from the PROTHESIS_* environment the harness exports and
+    # requires one agreed leader, one term and a bounded raftIndex spread
+    # across all three members.
+    probe: "./bin/etcdsteady --timeout 55s"
+    timeout: 60s
+  # `role:` targets (role:leader, role:follower) bind through this probe
+  # instead of the fixture's /status document, which etcd does not have. It
+  # prints one JSON line per member from /v3/maintenance/status: leader iff
+  # the member's own id is the reported leader, follower iff another id is,
+  # an error line when the member reports no leader or cannot be reached.
+  # Covered by .prothesis/lock (D-066).
+  role_probe:
+    probe: "./bin/etcdrole"
+    timeout: 10s
+
+driver:
+  cmd: "./bin/etcdload --history {history_path} --seed {seed} --profile {profile}"
+  profiles:
+    smoke: { clients: 4, ops: 500, mix: { read: 0.5, write: 0.5 } }
+    # `read` is a linearizable read (etcd's default): a quorum round trip on
+    # every read. Single-key operations only, so the per-key checker is sound
+    # (PHASE3_BUILD_BRIEF D-A).
+    linear: { clients: 16, ops: 60000, mix: { read: 0.5, write: 0.5 } }
+    # `read_serializable` asks etcd for a serializable read, served from the
+    # member's local state. It is recorded in the history as f: "read" with
+    # meta.read_mode: "serializable"; the checker holds it to the same
+    # standard as any other read. This is the profile expected to FAIL.
+    stale: { clients: 16, ops: 60000, mix: { read_serializable: 0.5, write: 0.5 } }
+
+perturber:
+  budget: { max_concurrent_faults: 3, max_faults_per_world: 24 }
+  # No clock.skew (the image lacks util-linux's unshare --time) and no io.*
+  # (io.fill needs a shell in the target; io.latency is untested here).
+  allow: [net.partition, net.latency, net.loss, proc.kill, proc.pause]
+  deny: [io.fill, io.latency, clock.skew]
+  constraints:
+    - "never partition more than minority of etcd"
+
+oracles:
+  dir: .prothesis/oracles
+  # Two built-ins are deliberately ABSENT. `no_unbounded_queue` reads the
+  # target's /status endpoint, which etcd does not have, and
+  # `resource_return_to_baseline` reads RSS/fd/thread counts through a shell
+  # exec'd in the container, which this image cannot run. Both would return
+  # INCONCLUSIVE on every world and turn every run into exit 2. That is the
+  # fail-closed behaviour working as designed; it is also a limitation of the
+  # harness against a shell-less image, and it is recorded as OQ-063.
+  builtin: [no_crash, no_panic_log, availability_after_heal, no_stuck_op]
+
+profiles:
+  smoke: { budget: 90s, worlds: 2, driver_profile: smoke }
+  linear: { budget: 10m, worlds: 2, driver_profile: linear }
+  stale: { budget: 10m, worlds: 2, driver_profile: stale }
+
+artifacts: { dir: .prothesis/runs, retain_passing: 3, retain_failing: all }

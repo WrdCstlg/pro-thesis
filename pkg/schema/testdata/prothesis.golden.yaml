@@ -1,0 +1,65 @@
+version: prothesis/v1
+name: my-service
+harness:
+  backend: compose # compose | process | k8s | sim
+  file: docker-compose.yaml
+  nodes:
+    - id: n1
+      service: kv
+      role_hint: replica
+    - id: n2
+      service: kv
+      role_hint: replica
+    - id: n3
+      service: kv
+      role_hint: replica
+    - id: pg
+      service: postgres
+      role_hint: storage
+  health:
+    - node: "kv:*"
+      probe: "http://{host}:{port}/healthz"
+      timeout: 30s
+  steady_state:
+    probe: "thesis-helpers/steady.sh"
+    timeout: 60s
+driver:
+  cmd: "./bin/loadgen --history {history_path} --seed {seed} --profile {profile}"
+  profiles:
+    smoke: { clients: 4, ops: 500, mix: { read: 0.5, write: 0.5 } }
+    gate: { clients: 16, ops: 20000, mix: { read: 0.4, write: 0.4, txn: 0.2 } }
+    soak: { clients: 64, ops: 500000, mix: { read: 0.3, write: 0.4, txn: 0.2, admin: 0.1 } }
+perturber:
+  budget:
+    max_concurrent_faults: 3
+    max_faults_per_world: 24
+  allow:
+    - net.partition
+    - net.latency
+    - net.loss
+    - proc.kill
+    - proc.pause
+    - clock.skew
+    - io.latency
+  deny:
+    - io.fill
+  constraints:
+    - "never partition more than minority of kv"
+    - "pg must be reachable during SEED"
+oracles:
+  dir: .prothesis/oracles
+  builtin:
+    - no_crash
+    - no_panic_log
+    - no_unbounded_queue
+    - resource_return_to_baseline
+    - availability_after_heal
+    - no_stuck_op
+profiles:
+  smoke: { budget: 90s, worlds: 3, driver_profile: smoke }
+  gate: { budget: 10m, worlds: 30, driver_profile: gate }
+  soak: { budget: 8h, worlds: -1, driver_profile: soak, search: true }
+artifacts:
+  dir: .prothesis/runs
+  retain_passing: 3
+  retain_failing: all

@@ -1,0 +1,8 @@
+{"t_ns":1789616941355093900,"type":"info","event":"phase","phase":"BOOT"}
+{"t_ns":1789616958385382000,"type":"info","event":"phase","phase":"SEED"}
+{"t_ns":1789616958527842600,"type":"info","event":"phase","phase":"DRIVE"}
+{"t_ns":1789616958528353400,"type":"info","event":"phase","phase":"PERTURB"}
+{"t_ns":1789616966407358700,"type":"info","event":"phase","phase":"HEAL"}
+{"t_ns":1789616969022258800,"type":"info","event":"phase","phase":"QUIESCE"}
+{"t_ns":1789616971045850700,"type":"info","event":"phase","phase":"ASSERT"}
+{"t_ns":1789616971360056300,"type":"info","event":"phase","phase":"TEARDOWN"}

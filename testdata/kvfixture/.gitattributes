@@ -1,0 +1,8 @@
+# The fixture emits and consumes byte-exact artefacts. A CRLF rewrite on checkout
+# would corrupt every golden file and every history the oracles parse.
+*.jsonl   text eol=lf
+*.json    text eol=lf
+*.sh      text eol=lf
+*.go      text eol=lf
+*.yaml    text eol=lf
+Dockerfile text eol=lf

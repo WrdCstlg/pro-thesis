@@ -1,0 +1,9 @@
+{
+  "schema": "prothesis.oracle_output/v1",
+  "oracle": "linearizable.kv",
+  "class": "consistency",
+  "valid_phases": ["ASSERT"],
+  "status": "violated",
+  "witness": { "op_ids": [8891, 8903], "key": "k/42" },
+  "explanation": "process 5 read stale value under lease violation"
+}

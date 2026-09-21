@@ -1,0 +1,49 @@
+﻿thesis.exe : thesis: WARNING: 1 oracle program(s) differ from the lock:
+At line:1 char:41
++ ... ure; $out = & ../../bin/thesis.exe run --profile linear --seed 1 --fa ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (thesis: WARNING... from the lock::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  linearizable.kv: bin/linearizable-kv.exe changed (4dc6fb1fff54 -> 20b5a0a90511)
+  The lock hashes oracle DEFINITIONS; these digests are recorded outside it so a
+  rebuild is a warning rather than drift. A rebuilt checker is expected. A checker
+  you did not rebuild is the failure OQ-057 describes: the program deciding every
+  verdict was replaced. Confirm which, then re-lock with a reason that says so.
+thesis: entering world 1 (seed 2337997644773862495, profile linear)
+thesis: world 1: perturbing with 1 fault(s), peak concurrency 1
+perturber: t+3008ms inject net.partition(role:leader)@3000..7500 [f001] -> kv-n2
+perturber: t+7500ms withdraw net.partition(role:leader)@3000..7500 [f001]
+thesis: world 1: QUIESCE: the driver drained in 17ms; every issued operation has a completion record
+
+--- PRO-THESIS VERDICT ---
+Run ID:     r_2026_09_17_1a13
+Profile:    linear
+Commit:     4a3e10c
+Verdict:    FAIL (exit 1)
+Budget:     33s used / 600s wall, 1 worlds run / 5 planned
+Checker:    linearizable.kv ΓÇö the program(s) that decided this verdict changed since the lock was written
+
+Violations (1):
+  [v1] linearizable.kv (consistency, severity: high)
+       key "k/0": no linearization exists for the 859 operation(s) on this key under a last-write-wins register. The search space was exhausted (2346 state(s) explored over 7425 step(s)) with every branch rejected; this is a WITNESSED failure, not a timeout and not a budget. The deepest partial linearization the search reached placed 461 of 859 operation(s) on this key. At that point the register held 5000264, written by op 3872, and op 3873 (process 5, read) returned 8000223. That value was written by op 3780, which every linearization places before the value the register held. The witness op_ids point at the failure; the proof is the exhausted search over the whole key, not those operations alone. Evidence: 3508 determinate read(s), 3469 determinate write(s), 61 indeterminate write(s) explored on both the applied and the not-applied branch; 16 failed operation(s) dropped; 9 indeterminate read(s) dropped.
+       Causal Timeline (17 events):
+         t+-18003ms [phase] BOOT begins (window -18003..-154 ms)
+         t+-154ms [phase] SEED begins (window -154..0 ms)
+         t+   0ms [phase] DRIVE begins (window 0..0 ms)
+         t+   0ms [phase] PERTURB begins (window 0..7958 ms)
+         t+3008ms [fault] inject net.partition(role:leader)@3000..7500 -> kv-n2
+         t+3166ms [op] process 8 write k/0 -> 8000223 [invoke op_id=3780]
+         t+3202ms [op] process 8 write k/0 -> 8000223 [ok op_id=3780]
+         t+4262ms [op] process 5 write k/0 -> 5000264 [invoke op_id=3872]
+         t+4266ms [op] process 5 write k/0 -> 5000264 [ok op_id=3872]
+         t+4269ms [op] process 5 read k/0 [invoke op_id=3873]
+         t+4269ms [op] process 5 read k/0 -> 8000223 [ok op_id=3873]
+         t+7500ms [fault] withdraw net.partition(role:leader)@3000..7500 -> kv-n2
+         t+7958ms [phase] HEAL begins (window 7958..10604 ms)
+         t+8547ms [log] 2026/09/17 13:52:54.061826 level=info event=role_change node=kv-n2 role=follower term=2 leader=""
+         t+10604ms [phase] QUIESCE begins (window 10604..12624 ms)
+         t+12624ms [phase] ASSERT begins (window 12624..12624 ms)
+         t+12624ms [oracle] linearizable.kv (consistency) reported a violation in ASSERT: key "k/0": no linearization exists for the 859 operation(s) on this key under a last-write-wins register. The search space was exhausted (2346 state(s) explored over 7425 step(s)ΓÇª
+
+Artifacts:  .prothesis/runs/r_2026_09_17_1a13/

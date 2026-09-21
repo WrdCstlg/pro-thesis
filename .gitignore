@@ -1,0 +1,37 @@
+# build output
+#
+# `/bin/` is anchored to the repository root. The fixture builds its driver and
+# the reference checker into testdata/kvfixture/bin/, where a Windows build is
+# caught by *.exe below and a Linux one (`loadgen`, no extension) was not.
+/bin/
+**/bin/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# PRO-THESIS runtime state.
+# NOTE: .prothesis/oracles/, .prothesis/lock and .prothesis/regressions/ are NOT ignored.
+# Per invariant I6 and anti-gaming rule 4, oracles, the lock manifest and the regression
+# corpus are first-class committed artifacts. Only transient run output is ignored.
+**/.prothesis/runs/
+**/.prothesis/corpus/
+**/.prothesis/tmp/
+
+# Go workspace
+go.work
+go.work.sum
+vendor/
+
+# Python bytecode from the observation bundle's crosscheck.py
+__pycache__/
+*.py[cod]
+
+# The author's separate distadv / web-console project. It is a repository of its
+# own that happens to sit inside this directory; nothing in it is part of
+# PRO-THESIS (D-075 records what was ported from it).
+GLM Build/

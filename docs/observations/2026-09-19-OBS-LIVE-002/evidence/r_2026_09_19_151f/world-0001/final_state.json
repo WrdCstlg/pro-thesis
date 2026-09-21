@@ -1,0 +1,61 @@
+{
+  "schema": "prothesis.final_state/v1",
+  "run_id": "r_2026_09_19_151f",
+  "nodes": [
+    {
+      "id": "kv-n1",
+      "service": "kv-n1",
+      "reachable": true,
+      "status": null
+    },
+    {
+      "id": "kv-n2",
+      "service": "kv-n2",
+      "reachable": true,
+      "status": null
+    },
+    {
+      "id": "kv-n3",
+      "service": "kv-n3",
+      "reachable": true,
+      "status": null
+    }
+  ],
+  "phases": [
+    {
+      "phase": "BOOT",
+      "start_ms": -15321,
+      "end_ms": -152
+    },
+    {
+      "phase": "SEED",
+      "start_ms": -152,
+      "end_ms": 0
+    },
+    {
+      "phase": "DRIVE",
+      "start_ms": 0,
+      "end_ms": 7859
+    },
+    {
+      "phase": "PERTURB",
+      "start_ms": 1,
+      "end_ms": 7859
+    },
+    {
+      "phase": "HEAL",
+      "start_ms": 7859,
+      "end_ms": 9149
+    },
+    {
+      "phase": "QUIESCE",
+      "start_ms": 9149,
+      "end_ms": 11166
+    },
+    {
+      "phase": "ASSERT",
+      "start_ms": 11166,
+      "end_ms": 11166
+    }
+  ]
+}

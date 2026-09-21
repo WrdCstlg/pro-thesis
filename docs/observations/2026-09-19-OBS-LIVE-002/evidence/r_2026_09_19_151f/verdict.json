@@ -1,0 +1,147 @@
+{
+  "schema": "prothesis.verdict/v1",
+  "run_id": "r_2026_09_19_151f",
+  "profile": "linear",
+  "commit": "2724b78+dirty",
+  "verdict": "FAIL",
+  "budget": {
+    "wall_s": 600,
+    "used_s": 29,
+    "worlds_planned": 5,
+    "worlds_run": 1
+  },
+  "violations": [
+    {
+      "id": "v1",
+      "oracle": "linearizable.kv",
+      "class": "consistency",
+      "severity": "high",
+      "phase": "ASSERT",
+      "first_seen_ms": 0,
+      "explanation": "key \"k/0\": no linearization exists for the 577 operation(s) on this key under a last-write-wins register. The search space was exhausted (2869 state(s) explored over 10435 step(s)) with every branch rejected; this is a WITNESSED failure, not a timeout and not a budget. The deepest partial linearization the search reached placed 356 of 577 operation(s) on this key. At that point the register held 13000190, written by op 2924, and op 2962 (process 10, read) returned 4000170. That value was written by op 2805, which every linearization places before the value the register held. The witness op_ids point at the failure; the proof is the exhausted search over the whole key, not those operations alone. Evidence: 2366 determinate read(s), 2335 determinate write(s), 64 indeterminate write(s) explored on both the applied and the not-applied branch; 16 failed operation(s) dropped; 1 indeterminate read(s) dropped.",
+      "witness": {
+        "key": "k/0",
+        "op_ids": [
+          2805,
+          2924,
+          2962
+        ],
+        "oracle_argv": [
+          "./bin/linearizable-kv"
+        ],
+        "oracle_definition": "testdata\\kvfixture\\.prothesis\\oracles\\linearizable.kv.yaml",
+        "stderr_path": "testdata\\kvfixture\\.prothesis\\runs\\r_2026_09_19_151f\\world-0001\\oracles\\linearizable.kv.stderr.log"
+      },
+      "minimal_repro": null,
+      "shrink": {
+        "attempted": false,
+        "faults_before": 0,
+        "faults_after": 0,
+        "ops_before": 0,
+        "ops_after": 0,
+        "surviving_faults": []
+      },
+      "causal_timeline": [
+        {
+          "t_ms": -15321,
+          "event": "phase",
+          "detail": "BOOT begins (window -15321..-152 ms)"
+        },
+        {
+          "t_ms": -152,
+          "event": "phase",
+          "detail": "SEED begins (window -152..0 ms)"
+        },
+        {
+          "t_ms": 0,
+          "event": "phase",
+          "detail": "DRIVE begins (window 0..7859 ms)"
+        },
+        {
+          "t_ms": 1,
+          "event": "phase",
+          "detail": "PERTURB begins (window 1..7859 ms)"
+        },
+        {
+          "t_ms": 3009,
+          "event": "fault",
+          "detail": "inject net.partition(role:leader)@3000..7500 -> kv-n2"
+        },
+        {
+          "t_ms": 3137,
+          "event": "op",
+          "detail": "process 4 write k/0 -> 4000170 [invoke op_id=2805]"
+        },
+        {
+          "t_ms": 3157,
+          "event": "op",
+          "detail": "process 4 write k/0 -> 4000170 [ok op_id=2805]"
+        },
+        {
+          "t_ms": 4200,
+          "event": "op",
+          "detail": "process 13 write k/0 -> 13000190 [invoke op_id=2924]"
+        },
+        {
+          "t_ms": 4210,
+          "event": "op",
+          "detail": "process 13 write k/0 -> 13000190 [ok op_id=2924]"
+        },
+        {
+          "t_ms": 4255,
+          "event": "op",
+          "detail": "process 10 read k/0 [invoke op_id=2962]"
+        },
+        {
+          "t_ms": 4255,
+          "event": "op",
+          "detail": "process 10 read k/0 -> 4000170 [ok op_id=2962]"
+        },
+        {
+          "t_ms": 7500,
+          "event": "fault",
+          "detail": "withdraw net.partition(role:leader)@3000..7500 -> kv-n2"
+        },
+        {
+          "t_ms": 7683,
+          "event": "log",
+          "node": "kv-n2",
+          "detail": "2026/09/19 09:11:41.154834 level=info event=role_change node=kv-n2 role=follower term=2 leader=\"kv-n3\""
+        },
+        {
+          "t_ms": 7859,
+          "event": "phase",
+          "detail": "HEAL begins (window 7859..9149 ms)"
+        },
+        {
+          "t_ms": 9149,
+          "event": "phase",
+          "detail": "QUIESCE begins (window 9149..11166 ms)"
+        },
+        {
+          "t_ms": 11166,
+          "event": "phase",
+          "detail": "ASSERT begins (window 11166..11166 ms)"
+        },
+        {
+          "t_ms": 11166,
+          "event": "oracle",
+          "detail": "linearizable.kv (consistency) reported a violation in ASSERT: key \"k/0\": no linearization exists for the 577 operation(s) on this key under a last-write-wins register. The search space was exhausted (2869 state(s) explored over 10435 step(s…"
+        }
+      ],
+      "suspect": null
+    }
+  ],
+  "coverage": {
+    "new_templates": 0,
+    "cum_templates": 0,
+    "new_states": 0,
+    "cum_states": 0
+  },
+  "coverage_delta_vs_baseline": null,
+  "oracle_lock": {
+    "status": "ok",
+    "manifest_sha": "sha256:0ebddd178fbacfaf419dc48981cc7394d794059f1827adc22a7e86bfb7af1766"
+  },
+  "artifacts": ".prothesis/runs/r_2026_09_19_151f/"
+}

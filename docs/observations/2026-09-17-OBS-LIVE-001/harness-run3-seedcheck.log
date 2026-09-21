@@ -1,0 +1,41 @@
+﻿thesis.exe : thesis: entering world 1 (seed 2337997644773862495, profile linear)
+At line:1 char:41
++ ... ure; $out = & ../../bin/thesis.exe run --profile linear --seed 1 --fa ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (thesis: enterin...profile linear):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+thesis: world 1: perturbing with 1 fault(s), peak concurrency 1
+perturber: t+3009ms inject net.partition(role:leader)@3000..7500 [f001] -> kv-n2
+perturber: t+7500ms withdraw net.partition(role:leader)@3000..7500 [f001]
+thesis: world 1: QUIESCE: the driver drained in 17ms; every issued operation has a completion record
+
+--- PRO-THESIS VERDICT ---
+Run ID:     r_2026_09_17_03f3
+Profile:    linear
+Commit:     4a3e10c
+Verdict:    FAIL (exit 1)
+Budget:     33s used / 600s wall, 1 worlds run / 5 planned
+
+Violations (1):
+  [v1] linearizable.kv (consistency, severity: high)
+       key "k/0": no linearization exists for the 830 operation(s) on this key under a last-write-wins register. The search space was exhausted (4733 state(s) explored over 18271 step(s)) with every branch rejected; this is a WITNESSED failure, not a timeout and not a budget. The deepest partial linearization the search reached placed 450 of 830 operation(s) on this key. At that point the register held 2000233, written by op 3781, and op 3792 (process 10, read) returned 11000224. That value was written by op 3690, which every linearization places before the value the register held. The witness op_ids point at the failure; the proof is the exhausted search over the whole key, not those operations alone. Evidence: 3404 determinate read(s), 3376 determinate write(s), 61 indeterminate write(s) explored on both the applied and the not-applied branch; 17 failed operation(s) dropped; 8 indeterminate read(s) dropped.
+       Causal Timeline (16 events):
+         t+-18578ms [phase] BOOT begins (window -18578..-176 ms)
+         t+-176ms [phase] SEED begins (window -176..0 ms)
+         t+   0ms [phase] DRIVE begins (window 0..0 ms)
+         t+   0ms [phase] PERTURB begins (window 0..7979 ms)
+         t+3009ms [fault] inject net.partition(role:leader)@3000..7500 -> kv-n2
+         t+3192ms [op] process 11 write k/0 -> 11000224 [invoke op_id=3690]
+         t+3215ms [op] process 11 write k/0 -> 11000224 [ok op_id=3690]
+         t+4256ms [op] process 2 write k/0 -> 2000233 [invoke op_id=3781]
+         t+4268ms [op] process 10 read k/0 [invoke op_id=3792]
+         t+4270ms [op] process 10 read k/0 -> 11000224 [ok op_id=3792]
+         t+5256ms [op] process 2 write k/0 -> 2000233 [info op_id=3781 error=timeout]
+         t+7500ms [fault] withdraw net.partition(role:leader)@3000..7500 -> kv-n2
+         t+7979ms [phase] HEAL begins (window 7979..10689 ms)
+         t+10689ms [phase] QUIESCE begins (window 10689..12709 ms)
+         t+12709ms [phase] ASSERT begins (window 12709..12709 ms)
+         t+12709ms [oracle] linearizable.kv (consistency) reported a violation in ASSERT: key "k/0": no linearization exists for the 830 operation(s) on this key under a last-write-wins register. The search space was exhausted (4733 state(s) explored over 18271 step(sΓÇª
+
+Artifacts:  .prothesis/runs/r_2026_09_17_03f3/

@@ -1,0 +1,27 @@
+{
+  "schema": "prothesis.oracle_output/v1",
+  "oracle": "linearizable.kv",
+  "class": "consistency",
+  "valid_phases": [
+    "ASSERT"
+  ],
+  "status": "violated",
+  "witness": {
+    "op_ids": [
+      90001,
+      90002,
+      90003,
+      90004,
+      90005,
+      90006,
+      90007,
+      90008,
+      90009,
+      90010,
+      90011,
+      90012
+    ],
+    "key": "k/42"
+  },
+  "explanation": "process 1 read k/42=7 from kv-n2 under a leader read lease at t+1715ms, 1ms after op_id 90002 committed k/42=9 in term 2 on kv-n1. The lease is 5000ms against a 600ms minimum election timeout, so the displaced leader kept answering local reads for 4327ms after it was replaced."
+}
