@@ -1,8 +1,8 @@
 {
   "schema": "prothesis.lock/v1",
   "manifest_sha": "sha256:0ebddd178fbacfaf419dc48981cc7394d794059f1827adc22a7e86bfb7af1766",
-  "reason": "Fingerprint of the checker built from this tree with go build -trimpath -buildvcs=false and no build stamp; two builds agreed. scripts/build.ps1 stamps the commit into the binary, so a stamped build records a different fingerprint and needs a re-lock whose reason says that only the stamp moved (D-072).",
-  "locked_at": "2026-09-21T21:38:05Z",
+  "reason": "Rebuilt at f38da59 by scripts/build.ps1. Only the commit stamp moved: f38da59 changes no .go file and no go.mod/go.sum (git diff daaeaa3..f38da59 for both is empty); it adds a protocol document, an audit script and ledger text (D-081).",
+  "locked_at": "2026-09-21T22:34:08Z",
   "tool_version": "0.1.0-phase0",
   "builtin_options_fingerprint": "sha256:ca5cba3edb828e29bd4b1357c9ff2d86ae2e3eb6a6bd009a2430b076304064bf",
   "executables": [
@@ -10,7 +10,7 @@
       "oracle": "linearizable.kv",
       "cmd": "./bin/linearizable-kv",
       "resolved": "bin/linearizable-kv.exe",
-      "sha256": "sha256:58af1859375057f44d08f4d1cec59a232a368f20015c3dd8e5fd64cc5cdfd175",
+      "sha256": "sha256:adfe2de97a64726b7945556f8122e7dc2755dfc85206c00308785539fe72ad2c",
       "size": 4922880
     }
   ],
