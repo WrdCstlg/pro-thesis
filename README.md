@@ -310,7 +310,8 @@ This was a collaboration, and the repository does not try to draw a line
 through it. Every commit is under the author's git identity, and its
 `Co-Authored-By` trailers record the AI agents that worked on it; nothing in
 the history hides either party. The decisions, and the reasons for them, are
-in the ledgers.
+in the ledgers. The project was developed in a private repository; its full
+commit history is available on request.
 
 ### The method
 
