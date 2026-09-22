@@ -43,6 +43,13 @@ purpose. The citation test matches `\b(?:OQ|D)-\d{3}[a-z]?\b` in every `.go`, `.
 `.ps1` and `.py` file, so writing a not-yet-allocated id in its real form anywhere fails the suite
 until the heading exists. Add the heading in the same change, or do not write the id.
 
+**Documentation rides with the revision (author's rule, 2026-09-22).** Whenever the author
+revises the system, the documentation that describes it is revised in the SAME change: the
+README (including its authorship section and ledger ranges), this file's state and id counters,
+and `docs/ARCHITECTURE.md` when wiring moved. A revision whose documentation lands later is
+incomplete work, and the README records what the author built versus what agents built under his
+specifications; keep that attribution true.
+
 ---
 
 ## 2. Properties of the development host
