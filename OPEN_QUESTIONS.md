@@ -3325,3 +3325,116 @@ therefore NOT guaranteed to ask for the same worlds, and a claim that it does wo
 
 **Related.** D-075 is the design that accepts this risk; OQ-033 is why the feedback signal the
 model is coached with stays three-valued.
+
+---
+
+## OQ-070: the retention policy is parsed, validated and defaulted, and enforced by nothing
+
+**Classification:** OPEN; measured 2026-09-21. The attribution layer that any pruner must
+consult first landed as D-082, and the census floor that makes a shrunken corpus fail the suite
+instead of skipping landed as D-083; the pruner itself is not scheduled.
+
+**Observed.** `RetainPolicy.Keeps` (`pkg/schema/retain.go:63`) has zero callers anywhere:
+`git grep -n '\.Keeps\(' -- '*.go'` matches only its own definition. The policy it serves is
+scaffolded into every `prothesis.yaml` (`cmd/thesis/init.go:209-210`), defaulted
+(`pkg/schema/config_validate.go:94-98`: `retain_passing: 3`, `retain_failing: all`), validated
+(`config_validate.go:443-452`), and read by no code path. The only spec is
+`docs/design/02-recorder.design.md` section 4.5 (`func Retain(runsDir string, cfg
+schema.ArtifactsConfig) error`); `internal/recorder/retain.go` was never written
+(`02-recorder.verify.md` records the Phase 0 descope).
+
+**Two measured spec defects an implementer must route around.** (a) The spec's ordering key
+`run.json.started_wall_ns` does not exist: no Go file references `run.json` or
+`started_wall_ns`, and no bundle on disk contains one. (b) "A run referenced by any
+`.prothesis/regressions/*.thesis` is NEVER pruned" is unimplementable as written: `World` and
+`WorldOrigin` carry no run_id back-reference to the run directory that holds the evidence
+(`02-recorder.verify.md` notes the same gap).
+
+**Why it matters less than it looks, on this corpus.** Simulated whole-directory deletion under
+the literal policy frees 104.6 MiB = 4.42% of the 2.48 GB corpus: PASS is the only class the
+default policy deletes and it is the smallest, at 5.6% of bytes. Corpus re-measured 2026-09-21:
+184 run bundles under `testdata/kvfixture/.prothesis/runs` (146 with `verdict.json`), gitignored,
+existing nowhere else. Deletion remains final; the census floor that makes a shrink loud is
+OQ-072's companion.
+
+---
+
+## OQ-071: an INCONCLUSIVE verdict records no reason, and a world that dies before ASSERT records nothing at all
+
+**Classification:** OPEN; measured 2026-09-21. This is the harness-record defect class of
+OQ-072's census. Attribution of the already-recorded cases landed as D-082 (KP-006, KP-007,
+KP-010); persisting reasons at write time is unscheduled.
+
+**Observed.** `verdict.json` (`prothesis.verdict/v1`, `pkg/schema/verdict.go:31-53`) has no
+reason field. Of the 43 INCONCLUSIVE run verdicts in the corpus, 32 predate even the
+`budget.narrowed` field and cannot say why they refused. At world level, `result.json` is written
+only on the path that reaches ASSERT (`internal/control/runner.go:1347-1366`); every early-return
+path in `runWorld` (boot, telemetry, steady-state, driver, perturb, heal, quiesce failures,
+`runner.go:759-1205`) returns without writing it. 16 of the 43 INCONCLUSIVE runs are exactly this
+shape: the dead world left logs, phase markers and an overlay but no `result.json`, so the reason
+existed only on that run's stderr and is unrecoverable. `result.json` also has no Go schema type;
+it is built ad hoc as a map.
+
+**Consequence.** A reader cannot tell "the defect did not appear" from "we never got to look"
+without reconstructing the run from stderr that no longer exists. Recorded bundles are immutable,
+so the 16 runs stay unexplained permanently; the fix is prospective (reasons persist at write
+time) and is attributed, not backfilled.
+
+---
+
+## OQ-072: census: why the recorded corpus is INCONCLUSIVE (measured classification, 2026-09-21)
+
+**Classification:** ACCEPT-AND-DOCUMENT for the refusal classes; the harness-record half is
+OQ-071. This entry is the measured census the known-problem registry (KP-001 through KP-014,
+`testdata/kvfixture/.prothesis/known-problems.yaml`) is seeded from.
+
+**Population.** 184 run bundles; 146 with `verdict.json` (FAIL 79, INCONCLUSIVE 43, PASS 23,
+BUDGET_EXHAUSTED 1), 38 without. 802 `result.json` world files: pass 285, violation 233,
+inconclusive 284. Measured with PowerShell `ConvertFrom-Json` sweeps of
+`testdata/kvfixture/.prothesis/runs`.
+
+**The 284 inconclusive worlds, per (world x oracle) instance, by reason string:**
+
+| Instances | Oracle / cause | Code path |
+|---|---|---|
+| 202 | `resource_return_to_baseline`: "no pre-DRIVE baseline" | `internal/oracle/resource_return_to_baseline.go:92` |
+| 143 | `no_unbounded_queue`: fewer QUIESCE samples than needed to call a rise monotonic | `internal/oracle/no_unbounded_queue.go:83` |
+| 47 | `no_unbounded_queue`: carries none of the queue-depth metrics | `no_unbounded_queue.go:77` |
+| 33 | `resource_return_to_baseline`: "no samples" | `resource_return_to_baseline.go:87` |
+| 10 | `resource_return_to_baseline`: "no sample at or after QUIESCE start" | `:97` |
+| 6 | legacy `result.json`, no oracle fields at all | pre-`oracles[]` schema |
+| 4 | `no_stuck_op`: QUIESCE shorter than the SLO ceiling (OQ-033's structural case) | `internal/oracle/no_stuck_op.go:232` |
+| 4 | `linearizable.kv`: nothing checkable (OQ-056's port-mismatch runs) | `cmd/thesis-oracle-linearizable/load.go:581` |
+| 2 | one world: `history.jsonl` missing mid-read, both oracles refuse | `internal/oracle/input.go:601`, `load.go:134` |
+
+**The 43 INCONCLUSIVE run verdicts, by cause:** 13 folded-up world-level oracle inconclusive; 16
+harness-error worlds with no `result.json` (OQ-071); 7 narrowed-budget PASS downgrades (D-059,
+`internal/control/verdict.go:104-107`); 4 narrowed plus harness-error; 1 zero-worlds search
+(`internal/search/engine/engine.go:721-723`); 3 legacy, cause unrecoverable from disk.
+
+**The 38 verdict-less bundles:** 8 `thesis up` standing-topology bundles (no verdict by design);
+2 empty directories (run id allocated, aborted before BOOT); 26-28 interrupted `thesis search`
+runs (complete per-world artifacts, process never reached `engine.finish`; 16 of the 28 contain
+violation worlds, so "no verdict.json" must be read as "interrupted", never as "no evidence");
+2 died mid-first-world.
+
+**Declaration.** Roughly 88% of inconclusive world-instances are telemetry-coverage refusals: no
+baseline, or too few QUIESCE samples. Those are honest refusals (the refusal surface working as
+designed) and must be counted and reported, never "fixed" into another verdict. The avoidable
+classes are OQ-071's (a dead world that records nothing) and the already-resolved OQ-033/OQ-056
+classes. Every future inconclusive data point must attribute to a registry entry or turn the
+diagnostic red; unattributed silence is the failure this entry exists to prevent.
+
+---
+
+## OQ-073: L1c: the OS exit code and raw oracle/driver stdout are not persisted
+
+**Classification:** OPEN; not scheduled in the current work; recorded so the backlog names it.
+
+**Observed.** Oracle INPUT is evidenced (`oracle_input.json` per world) but oracle stdout is not
+persisted, so the output half is evidenced only by the parsed result
+(`docs/observations/2026-09-19-OBS-LIVE-002/record.md:198-201`). The driver's own stdout and
+stderr are discarded (D-073 records this as L1c's to fix). `witness.stderr_path` and
+`oracle_definition` leak absolute host paths into bundles; the observation record's proposal is
+run-relative paths (`world-0001/oracles/linearizable.kv.stderr.log`), which would end the class.
+Source list: `docs/observations/2026-09-17-OBS-LIVE-001/audit-response.md:63-73`.

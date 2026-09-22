@@ -1,0 +1,8 @@
+{
+  "schema": "prothesis.census/v1",
+  "recorded": "2026-09-21",
+  "bundle_floor": 184,
+  "verdicted_floor": 146,
+  "protected": ["r_2026_09_17_5805", "r_2026_09_17_66d5"],
+  "reason": "The recorded run corpus is the evidence the engine verdict tests re-check. It is gitignored, so a prune that shrinks it would otherwise turn those tests from PASS into SKIP with no signal. These floors make shrinkage loud: the suite fails while the corpus holds fewer bundles or fewer verdicts than recorded here, or while a protected id is gone. The floor may be lowered only by a documented prune that rewrites this file in the same commit."
+}

@@ -23,7 +23,10 @@ import (
 //
 // It SKIPS when no run bundle exists, which is the normal state of a clean
 // checkout: the acceptance runs are not committed. A skip says "nothing to
-// check here", never "checked and fine".
+// check here", never "checked and fine". corpusBundles makes that the ONLY
+// skip: while the corpus exists, the committed CENSUS.json floor (see
+// census_test.go) turns a prune that shrinks it into a failure, so these
+// checks cannot silently stop having anything to check.
 // ---------------------------------------------------------------------------
 
 func runsDir(t *testing.T) string {
@@ -38,10 +41,7 @@ func runsDir(t *testing.T) string {
 
 func TestEveryRecordedVerdictIsWellFormed(t *testing.T) {
 	dir := runsDir(t)
-	ents, err := os.ReadDir(dir)
-	if err != nil {
-		t.Skipf("no run bundles at %s: %v", dir, err)
-	}
+	ents := corpusBundles(t)
 	checked := 0
 	for _, e := range ents {
 		if !e.IsDir() {
@@ -87,10 +87,7 @@ func TestEveryRecordedVerdictIsWellFormed(t *testing.T) {
 // right-censoring D-029 builds its whole test around.
 func TestEveryRecordedSearchRecordIsConsistent(t *testing.T) {
 	dir := runsDir(t)
-	ents, err := os.ReadDir(dir)
-	if err != nil {
-		t.Skipf("no run bundles at %s: %v", dir, err)
-	}
+	ents := corpusBundles(t)
 	checked := 0
 	for _, e := range ents {
 		if !e.IsDir() {
@@ -148,10 +145,7 @@ func TestNoRecordedRunLeakedABridgeNetwork(t *testing.T) {
 		t.Skip("set PROTHESIS_ACCEPTANCE=1 to check recorded runs for bridge-network leaks")
 	}
 	dir := runsDir(t)
-	ents, err := os.ReadDir(dir)
-	if err != nil {
-		t.Skipf("no run bundles at %s: %v", dir, err)
-	}
+	ents := corpusBundles(t)
 	checked, leaked := 0, 0
 	for _, e := range ents {
 		if !e.IsDir() {

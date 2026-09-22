@@ -320,7 +320,8 @@ commit history is available on request.
   requirement that cannot be met as written in `OPEN_QUESTIONS.md` instead of
   quietly relaxing it; ship a compiling binary at the end of every phase; never
   claim a number that was not measured. The phase briefs are in
-  [`docs/protocol/`](docs/protocol/).
+  [`docs/protocol/`](docs/protocol/), and a wiring map of the commands,
+  packages, and refusal paths is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 - **Work is checked by someone other than its writer.** The adversarial
   conformance suite ([`scripts/adversarial.ps1`](scripts/adversarial.ps1))
   re-derives truth from raw artifacts instead of trusting the tool's own

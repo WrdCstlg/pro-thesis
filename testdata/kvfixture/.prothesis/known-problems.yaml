@@ -1,0 +1,120 @@
+# Known-problem registry for the kvfixture corpus (OQ-072).
+#
+# Every non-terminal outcome recorded under .prothesis/runs must attribute to
+# one entry below. `thesis diagnose` exits 2 and prints the evidence when
+# anything matches nothing; a NEW cause is supposed to turn it red. The fix is
+# never to broaden a matcher past what was measured: investigate, then add an
+# entry (with its OQ- or D- citation) in the same change.
+#
+# Registry order is precedence order: the first entry whose predicates all
+# match wins. Specific entries precede fallbacks. There is deliberately no
+# catch-all.
+schema: prothesis.knownproblems/v1
+problems:
+  # ---------------------------------------------------------------- world
+  - id: KP-001
+    title: resource_return_to_baseline has no usable telemetry baseline
+    classification: accepted-refusal
+    ledger: OQ-072
+    level: world
+    match:
+      oracle: resource_return_to_baseline
+      reason_regex: 'no pre-DRIVE baseline|no samples|no sample at or after QUIESCE start'
+  - id: KP-002
+    title: no_unbounded_queue lacks the QUIESCE samples a monotonic-rise call needs
+    classification: accepted-refusal
+    ledger: OQ-072
+    level: world
+    match:
+      oracle: no_unbounded_queue
+      reason_regex: 'fewer than the \d+ needed|carries none of the queue-depth'
+  - id: KP-003
+    title: no_stuck_op cannot judge when QUIESCE is shorter than the SLO ceiling
+    classification: by-design
+    ledger: OQ-033
+    level: world
+    match:
+      oracle: no_stuck_op
+      reason_regex: 'still in flight when observation ended'
+  - id: KP-004
+    title: linearizable.kv received a history with nothing checkable (port-mismatch era)
+    classification: defect-fixed
+    ledger: OQ-056
+    level: world
+    match:
+      oracle: linearizable.kv
+      reason_regex: 'none of them is checkable'
+  - id: KP-005
+    title: world result predates the oracles[] schema (legacy record, no per-oracle detail)
+    classification: by-design
+    ledger: OQ-072
+    level: world
+    match:
+      legacy: true
+  - id: KP-006
+    title: history.jsonl went missing mid-read; both oracles refused the world
+    classification: defect-open
+    ledger: OQ-071
+    level: world
+    match:
+      reason_regex: 'stopped early: open|cannot open the history'
+  - id: KP-007
+    title: world died before ASSERT and left no result.json
+    classification: defect-open
+    ledger: OQ-071
+    level: world
+    match:
+      no_result: true
+  # --------------------------------------------------------------- bundle
+  - id: KP-008
+    title: narrowed-budget run may not report PASS, downgraded by D-059
+    classification: by-design
+    ledger: D-059
+    level: bundle
+    match:
+      verdict: INCONCLUSIVE
+      narrowed: true
+  - id: KP-009
+    title: search exhausted its budget before a definitive resolution
+    classification: by-design
+    ledger: OQ-072
+    level: bundle
+    match:
+      verdict: BUDGET_EXHAUSTED
+  - id: KP-010
+    title: run verdict folded up from a world that died before ASSERT
+    classification: defect-open
+    ledger: OQ-071
+    level: bundle
+    match:
+      verdict: INCONCLUSIVE
+      missing_results: true
+  - id: KP-011
+    title: search consumed its whole wall budget and completed zero worlds
+    classification: by-design
+    ledger: OQ-072
+    level: bundle
+    match:
+      verdict: INCONCLUSIVE
+      zero_worlds: true
+  - id: KP-012
+    title: run verdict folded up from world-level refusals (or the fail-closed default)
+    classification: by-design
+    ledger: OQ-072
+    level: bundle
+    match:
+      verdict: INCONCLUSIVE
+  - id: KP-013
+    title: interrupted search run; per-world evidence exists, no verdict was written
+    classification: operational
+    ledger: OQ-072
+    level: bundle
+    match:
+      interrupted: true
+  - id: KP-014
+    title: bundle with no recorded outcome (up-topology, aborted before BOOT, or died early)
+    classification: operational
+    ledger: OQ-072
+    level: bundle
+    match:
+      unrecorded: true

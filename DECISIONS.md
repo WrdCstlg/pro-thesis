@@ -3054,3 +3054,109 @@ author's decision before this protocol arrived, and the row's "PRIVATE until hum
 authorization" criterion is read from that point on as "private until the author says publish",
 which is the standing rule in AGENTS.md section 6. And it does not run the gate: the first full
 execution is reported with the commit that lands this entry.
+
+---
+
+## D-082: the known-problem registry and `thesis diagnose`: every recorded refusal attributes to a catalogued cause, or the diagnostic itself goes red
+
+**Decision.** Three pieces.
+
+1. **`pkg/schema/knownproblems.go`: the `prothesis.knownproblems/v1` registry schema.** Each
+   entry is a KP id, a title, a classification (`accepted-refusal`, `by-design`, `defect-fixed`,
+   `defect-open`, `operational`), a mandatory OQ-/D- ledger citation, a level (`world` or
+   `bundle`), and a conjunctive matcher over that level's facts. Registry order is precedence
+   order; the first full match wins.
+2. **`internal/diagnose`: the attribution engine.** Walks `.prothesis/runs` read-only. Every
+   world whose outcome is not `pass`/`violation` attributes to a world-level entry; every world
+   dir with no `result.json` attributes to KP-007; every run whose verdict is not PASS/FAIL, and
+   every bundle with no verdict at all, attributes to a bundle-level entry. There is deliberately
+   NO catch-all entry: an item matching nothing is UNATTRIBUTED, printed with its evidence, and
+   makes `thesis diagnose` exit 2 (INCONCLUSIVE: the diagnostic refuses to claim coverage). A
+   catch-all would be the silent tautology the authoring protocol exists to catch.
+3. **`thesis diagnose`** (`cmd/thesis/diagnose.go`): exit 0 when everything attributed, 2 when
+   anything is not, 5 for a missing or invalid registry. Exit 1 and 4 are never used: no oracle
+   ran and no lock was checked.
+
+**The recursion.** A future run that produces a NEW kind of refusal attributes to nothing,
+`thesis diagnose` and `TestTheRealCorpusIsFullyAttributed` go red, and the fix is never to
+broaden a matcher past what was measured: investigate, add a KP entry with its ledger citation,
+watch it go green. The catalogue grows by accretion of measured causes.
+
+**Measured on the real corpus, 2026-09-21** (`go test -v -run TestTheRealCorpusIsFullyAttributed
+./internal/diagnose/`): 184 bundles, 958 world dirs, zero unattributed. KP-001 rtb no baseline
+245; KP-002 nuq insufficient QUIESCE evidence 24; KP-003 nso QUIESCE<SLO 4; KP-004 lin nothing
+checkable 4; KP-005 legacy record 6; KP-006 history missing 1; KP-007 dead world 156; KP-008
+narrowed downgrade 12; KP-009 budget exhausted 1; KP-010 dead-world verdict 17; KP-011
+zero-worlds search 1; KP-012 folded-up refusals 13; KP-013 interrupted search 26; KP-014
+unrecorded bundle 12. Cross-check against OQ-072's census: world-level 245+24+4+4+6+1+156 = 440
+= 284 recorded inconclusive + 156 dead worlds; bundle-level non-terminal verdicts
+12+1+17+1+13 = 44 = 146 verdicted - 79 FAIL - 23 PASS; verdict-less 26+12 = 38. Exact. World
+attribution is first-match per world: a world whose rtb AND nuq both refuse counts once, at
+KP-001, which is why KP-002 reads 24 against the census's 190 per-oracle instances.
+
+**Failing-first and mutation evidence.** The refusal tests were written before the engine was
+exercised on them. Three mutations, each shown red and reverted byte-for-byte: (i) the
+unattributed branch disabled (`if false && id == ""`): `TestAnUnknownCauseIsUnattributedLoudly`
+failed, "expected exactly one unattributed world, got []"; (ii) the reason matcher gutted
+(`return p.ID` replaced by `continue`): `TestInconclusiveWorldAttributesByOracleReason` failed,
+"expected full attribution, got [{world r_2026_09_21_bbbb world-0001: outcome="inconclusive"
+...}]"; (iii) the bundle verdict predicate gutted: `TestAnUnknownBundleShapeIsUnattributedLoudly`
+failed, "expected one unattributed bundle, got []". A first attempt at (iii) was itself defective
+(it skipped every verdict-bearing entry instead of ignoring the mismatch) and PASSED the test,
+which would have been a mutation that proves nothing; it was corrected and re-run to red. Full
+package afterwards via `scripts/run-tests.ps1 -Match internal/diagnose`: ok, 0.2 s.
+
+**Rejected.** A catch-all entry (above). Multi-attribution (count every matching KP per world):
+totals would stop reconciling against the census. Backfilling reasons into recorded bundles:
+recorded artifacts are immutable; the 34 runs whose reasons never persisted stay attributed to
+OQ-071's class, which is honest about being unrecoverable. Persisting reasons prospectively in
+verdict.json/result.json: worthwhile, unscheduled, does not change the registry's job.
+
+**What this does not do.** It changes no recorded verdict and no exit code of any run; diagnose
+reads, it never writes the corpus. It does not fix OQ-071 prospectively (dead worlds still write
+no result.json; they are now at least attributed). It does not make the search-engine corpus
+tests loud when the corpus shrinks (the census-floor work remains open and is a prerequisite for
+any pruner, OQ-070). And on the build host, measured 2026-09-21: four consecutive freshly built
+`bin/thesis.exe` binaries (stamped and unstripped) were refused by the Application Control
+policy, so the diagnose VERB was exercised only through the test suite against the real corpus,
+not as a CLI process; `cmdDiagnose` compiles into the same binary, and the policy refusal is the
+OQ-067 class of host flakiness, not a code signal.
+
+---
+
+## D-083: a committed census floor makes a shrunken corpus fail the suite instead of skipping it
+
+**Decision.** `testdata/kvfixture/.prothesis/CENSUS.json` (schema `prothesis.census/v1`) records
+`bundle_floor: 184`, `verdicted_floor: 146`, the two protected run ids, and the contract: the
+floor may be lowered only by a documented prune that rewrites the file in the same change. The
+`.gitignore` rules ignore only `runs/`, `corpus/` and `tmp/` under `.prothesis/`, so the census
+is committable without touching ignore rules. In `internal/search/engine`, every corpus-reading
+test now reaches the corpus through one helper, `corpusBundles`, which skips ONLY when the runs
+dir does not exist (a fresh clone has recorded nothing; that skip says "nothing to check", never
+"checked and fine"), keeps log-only behaviour on pre-census checkouts so bisecting old revisions
+is not bricked, and fails on every census violation when both exist. `.trash` and dot-directories
+are not bundles and are not counted.
+
+**Measured.** Corpus re-counted before writing the floor: 184 bundles, 146 verdicted
+(`Get-ChildItem testdata/kvfixture/.prothesis/runs -Directory`), matching the OQ-072 census taken
+the same day. The two protected ids were confirmed present first.
+
+**Failing-first and mutation evidence.** `TestCensusViolationsFlagsAShrunkCorpus` builds a
+synthetic corpus below every floor and demands exactly 3 violations naming each shortfall; the
+real corpus is never touched by tests. Mutations, each shown red and reverted: (i) the bundle
+floor comparison inverted to `>=`: `TestCensusViolationsAcceptsTheFloorAndGrowth` failed, "a
+corpus exactly at its floor must report no violations, got [corpus holds 2 run bundle(s), below
+the census floor of 2: ...]"; (ii) the protected-id check dropped: `...FlagsAShrunkCorpus`
+failed, "must report 3 violations, got 2".
+
+**Rejected.** An env-var opt-in (the OQ-066 pattern: a check that is off by default is a check
+that silently never runs; this one is on by default wherever the corpus exists). Failing when
+the runs dir is absent: that would brick CI and fresh clones, which legitimately hold no corpus.
+Counting `.trash` contents toward the floor: trash is evidence staged for deletion, not evidence.
+
+**What this does not do.** It does not implement the pruner (OQ-070 stays open); it makes the
+pruner's danger loud BEFORE the pruner exists, which is the only safe order. It also cannot
+distinguish "the whole runs directory was deleted" from "fresh clone": both skip, because the
+committed CENSUS.json must not brick CI checkouts that legitimately hold no corpus. The floor
+guards shrinkage below 184/146 with the corpus present; wholesale deletion of the corpus
+directory remains indistinguishable from never having run.
