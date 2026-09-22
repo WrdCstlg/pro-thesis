@@ -3160,3 +3160,59 @@ distinguish "the whole runs directory was deleted" from "fresh clone": both skip
 committed CENSUS.json must not brick CI checkouts that legitimately hold no corpus. The floor
 guards shrinkage below 184/146 with the corpus present; wholesale deletion of the corpus
 directory remains indistinguishable from never having run.
+
+---
+
+## D-084: the clustering engine: DBSCAN + HDBSCAN discovery over the unattributed pool, and a Ward taxonomy against the KP entries
+
+**Decision.** The author's written spec, implemented with four recorded deviations. Three verbs
+under `thesis cluster`: `extract` (Tier 1 structural features per unattributed outcome to
+`cluster_features.csv` + `cluster_manifest.json`), `discover` (DBSCAN with elbow-tuned epsilon +
+pure-Go HDBSCAN + the five-rule consensus into CANDIDATE / CONTESTED / NOISE; exit 2 when any
+CONTESTED), and `taxonomy` (Ward agglomeration over KP and candidate centroids, inconsistency-cut
+domain/family/variant levels, sub-type/split/orphan insights; exit 0). New package
+`internal/cluster`; corpus access goes through `diagnose.Scan`, an additive read-only export of
+the diagnose walk (`internal/diagnose/scan.go`) that reuses the same matchers and cannot
+disagree with `Diagnose`. Reports land under `.prothesis/` and are gitignored as derived
+artifacts.
+
+**Deviations from the spec, with reasons.** (1) NO gonum: D-002's dependency rule stands; Ward
+linkage is implemented directly via Lance-Williams updates. (2) HDBSCAN is Option A, pure Go;
+the Python bridge would add a runtime dependency and a nondeterminism surface for a report-only
+verb. (3) The spec's "exit 1 on error" is overwritten: 1 is the oracle-violation code and
+clustering renders no verdict, so errors exit 5. (4) Features map to fields that exist on disk:
+Component = first refusing oracle's name; ExitCode = driver.exit_code; HasBaseline =
+telemetry.json presence; WorldFixture = verdict.json profile; DurationMs = search.json duration
+(0 when unrecorded, documented); reason statistics over refusing oracles' explanation+error text.
+
+**Invariants kept.** No auto-promotion and no registry writes; read-only against the corpus
+(proven by `TestPipelineAgainstTheRealCorpusIsReadOnly`: one SHA-256 over sorted corpus paths +
+contents, identical before and after the full pipeline); noise is sacred; no catch-all;
+deterministic (no randomness, total-order tie-breaks), idempotent modulo the `generated`
+timestamp.
+
+**Measured, 2026-09-22.** Full suite: 34 ok, 0 not ok, 40 total (`scripts/run-tests.ps1`).
+Real corpus: 522 attributed, 0 unattributed, so the live pool is empty; `cluster extract` exit 0,
+`discover` exit 0 with `unattributed_input: 0` and `clusters: []` (valid YAML, empty-pool path),
+`taxonomy` exit 0 over 14 KP centroids (4 domains, 12 families, 5 advisory split candidates, no
+sub-types or orphans). The populated paths are proven on synthetic fixtures.
+
+**Failing-first and mutation evidence** (from the builder's report, spot-verified): every test
+written before implementation and red as BUILD-FAIL (undefined Ranges/ConsensusPoint/Scan, "no
+non-test Go files"); two real bugs caught and fixed (a Lance-Williams matrix indexing error
+producing 0-distance merges; green oracles' explanations diluting the reason feature - now
+refusing oracles only). Four mutations, each red then reverted: prob>0.7 gate removed
+(`TestConsensusHDBSCANOnlyLowProbabilityIsNoise`: "must be NOISE, got CANDIDATE"); Jaccard
+0.6->0.0 (`TestConsensusDisagreeingClustersAreContested`: "must be CONTESTED, got CANDIDATE");
+noise reassigned to the largest cluster (noise count 2->0 in `TestDiscoverPipelineTwoClustersTwoNoise`);
+Ward->single linkage (`TestWardMergeOrderOnFiveCentroids`: "merge 1 members: got [0 1 2], want
+[3 4]").
+
+**Rejected.** Python HDBSCAN bridge (above). gonum (above). A "promote" verb: the spec itself
+defers it, and it would need human-in-the-loop design. Tier 2 semantic features (TF-IDF /
+embeddings): deferred by the spec; Tier 1 structural only.
+
+**What this does not do.** It does not change any verdict, exit code of a run, or the registry;
+it is a lens, not a gate. On today's corpus it has nothing to cluster (zero unattributed); its
+value lands the first time a NEW refusal shape appears faster than it can be hand-catalogued.
+Built by Kimi Code CLI (a delegated session); nobody has arbitrated it yet.

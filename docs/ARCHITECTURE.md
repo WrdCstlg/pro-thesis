@@ -9,7 +9,7 @@ the refusal census is OQ-072, the attribution layer is D-082, the retention gap 
 ```mermaid
 flowchart TD
     subgraph CLI["cmd/thesis (one binary, hand-rolled dispatch)"]
-        V["verbs: init, up, down, run, search, replay, regress, bisect, shrink, oracles, diagnose, version"]
+        V["verbs: init, up, down, run, search, replay, regress, bisect, shrink, oracles, diagnose, cluster, version"]
     end
     subgraph Core["internal/"]
         CTRL["control: runner, world lifecycle, verdicts"]
@@ -18,6 +18,7 @@ flowchart TD
         HAR["harness: Docker CLI, compose projects"]
         ORA["oracle: engine + built-in invariants"]
         DIAG["diagnose: known-problem attribution"]
+        CLU["cluster: two-layer clustering of the unattributed pool"]
         LOCK["lock: oracle tamper manifest"]
         CORP["corpus + shrink: regression worlds"]
     end
@@ -33,6 +34,8 @@ flowchart TD
     SEARCH --> CTRL
     ORA --> CHECKER
     V --> LOCK
+    V --> CLU
+    CLU --> DIAG
     CTRL --> CORP
     CTRL --> SCHEMA
     DIAG --> SCHEMA
@@ -41,6 +44,12 @@ flowchart TD
 
 `pkg/schema/retain.go` (`RetainPolicy.Keeps`) sits inside `SCHEMA` and has **zero callers**: the
 retention policy is parsed, validated and defaulted, and enforced by nothing (OQ-070).
+
+`thesis cluster` (extract, discover, taxonomy) reads the corpus only through `diagnose.Scan`, an
+additive read-only twin of the diagnose walk, and writes derived reports
+(`cluster_features.csv`, `cluster_manifest.json`, `cluster_report.yaml`, `taxonomy_report.yaml`,
+all gitignored) under `.prothesis/`. It never writes to the registry and never promotes a
+candidate; discover exits 2 when any CONTESTED outcome exists.
 
 ## 2. World lifecycle and the six ways a verdict becomes INCONCLUSIVE
 

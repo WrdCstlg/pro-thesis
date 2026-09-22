@@ -21,6 +21,11 @@
 **/.prothesis/runs/
 **/.prothesis/corpus/
 **/.prothesis/tmp/
+# Clustering engine reports: derived, regenerable from the corpus and registry.
+**/.prothesis/cluster_features.csv
+**/.prothesis/cluster_manifest.json
+**/.prothesis/cluster_report.yaml
+**/.prothesis/taxonomy_report.yaml
 
 # Go workspace
 go.work
