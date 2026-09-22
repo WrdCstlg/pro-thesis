@@ -244,6 +244,16 @@ split the history by key and refuses any history it cannot soundly partition.
 It is a small fraction of what a transactional checker like Elle verifies, and
 says so.
 
+**Clustering.** `thesis cluster` is an advisory lens over the unattributed
+pool that `thesis diagnose` reports. `extract` writes Tier 1 structural
+features per unattributed outcome; `discover` runs DBSCAN and HDBSCAN over
+them and reconciles the two into CANDIDATE, CONTESTED and NOISE outcomes
+(exit 2 when anything is CONTESTED); `taxonomy` places the candidates next to
+the existing KP entries with Ward hierarchical clustering and flags probable
+sub-types, splits and orphans. It is read-only against the corpus, never
+writes to `known-problems.yaml`, and promotes nothing: a human still
+catalogues every new known problem.
+
 **Provenance.** What a verdict can be traced back to, and where each fact is
 recorded:
 

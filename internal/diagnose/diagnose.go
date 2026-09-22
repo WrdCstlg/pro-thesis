@@ -146,11 +146,21 @@ type worldScan struct {
 	outcome   string
 	legacy    bool // result.json predates the oracles[] schema
 	reasons   []oracleReason
+
+	// Richer facts, exposed through Scan for the clustering layer. They are
+	// additive: Diagnose's attribution logic reads none of them.
+	world        int     // the world's ordinal from result.json, 0 when absent
+	exitCode     int     // driver exit code, 0 when absent
+	hasTelemetry bool    // telemetry.json present beside result.json
+	durationMs   float64 // search.json duration for this ordinal, 0 when absent
 }
 
 type oracleReason struct {
-	oracle string
-	reason string
+	oracle      string
+	status      string
+	explanation string
+	errorText   string
+	reason      string // explanation + " " + error: the text matchers see
 }
 
 func matchWorld(kps []schema.KnownProblem, w worldScan) string {
@@ -183,6 +193,7 @@ func matchWorld(kps []schema.KnownProblem, w worldScan) string {
 
 type bundleFacts struct {
 	verdict        string // "" when no verdict.json
+	profile        string // run profile from verdict.json, "" when absent
 	narrowed       bool
 	zeroWorlds     bool
 	missingResults bool // at least one world dir without result.json
@@ -242,6 +253,7 @@ func readBundle(dir string) (bundleFacts, []worldScan, error) {
 		}
 		var v struct {
 			Verdict string `json:"verdict"`
+			Profile string `json:"profile"`
 			Budget  struct {
 				Narrowed bool `json:"narrowed"`
 			} `json:"budget"`
@@ -250,13 +262,35 @@ func readBundle(dir string) (bundleFacts, []worldScan, error) {
 			return bf, nil, fmt.Errorf("verdict.json: %w", err)
 		}
 		bf.verdict = v.Verdict
+		bf.profile = v.Profile
 		bf.narrowed = v.Budget.Narrowed
+	}
+
+	// Per-world durations live in search.json (search runs only). This read is
+	// best-effort on purpose: a missing or malformed search.json must not turn
+	// an attributable bundle into an unreadable one, because Diagnose shares
+	// this walker and its refusal surface must not move. A world without a
+	// recorded duration simply gets 0.
+	durations := map[int]float64{}
+	if data, err := os.ReadFile(filepath.Join(dir, "search.json")); err == nil {
+		var s struct {
+			Worlds []struct {
+				Ordinal    int     `json:"ordinal"`
+				DurationMS float64 `json:"duration_ms"`
+			} `json:"worlds"`
+		}
+		if json.Unmarshal(data, &s) == nil {
+			for _, w := range s.Worlds {
+				durations[w.Ordinal] = w.DurationMS
+			}
+		}
 	}
 
 	hasResults := false
 	var worlds []worldScan
-	for _, w := range worldDirs {
+	for i, w := range worldDirs {
 		ws := worldScan{name: w}
+		ws.hasTelemetry = fileExists(filepath.Join(dir, w, "telemetry.json"))
 		rpath := filepath.Join(dir, w, "result.json")
 		if fileExists(rpath) {
 			data, err := os.ReadFile(rpath)
@@ -264,7 +298,11 @@ func readBundle(dir string) (bundleFacts, []worldScan, error) {
 				return bf, nil, err
 			}
 			var r struct {
+				World   int    `json:"world"`
 				Outcome string `json:"outcome"`
+				Driver  struct {
+					ExitCode int `json:"exit_code"`
+				} `json:"driver"`
 				Oracles []struct {
 					Oracle      string `json:"oracle"`
 					Status      string `json:"status"`
@@ -277,18 +315,29 @@ func readBundle(dir string) (bundleFacts, []worldScan, error) {
 			}
 			ws.hasResult = true
 			ws.outcome = r.Outcome
+			ws.world = r.World
+			ws.exitCode = r.Driver.ExitCode
 			ws.legacy = r.Oracles == nil
 			for _, o := range r.Oracles {
 				reason := o.Explanation
 				if o.Error != "" {
 					reason += " " + o.Error
 				}
-				ws.reasons = append(ws.reasons, oracleReason{oracle: o.Oracle, reason: reason})
+				ws.reasons = append(ws.reasons, oracleReason{
+					oracle: o.Oracle, status: o.Status,
+					explanation: o.Explanation, errorText: o.Error,
+					reason: reason,
+				})
 			}
 			hasResults = true
 		} else {
 			bf.missingResults = true
 		}
+		ordinal := ws.world
+		if ordinal == 0 {
+			ordinal = i + 1 // world dirs are 1-based in sorted order
+		}
+		ws.durationMs = durations[ordinal]
 		worlds = append(worlds, ws)
 	}
 	bf.interrupted = bf.verdict == "" && hasResults
