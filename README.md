@@ -365,10 +365,41 @@ The weaknesses that are open today, and how to report a new one, are in
 ## The ledgers
 
 - [`DECISIONS.md`](DECISIONS.md): every non-obvious choice, with what was
-  rejected and why, D-001 through D-078.
+  rejected and why, D-001 through D-083.
 - [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md): every requirement that could not
   be met as written, every defect found, and what was measured about it,
-  OQ-001 through OQ-069. Entries are never deleted; a resolution is appended.
+  OQ-001 through OQ-073. Entries are never deleted; a resolution is appended.
+
+---
+
+## Authorship: who built what
+
+PRO-THESIS was conceived, specified and adjudicated by its author, Senan
+Sumrein, and implemented by AI coding agents working under his written
+specifications. The split is documented in the tree, not asserted:
+
+- **The author wrote the rules.** The base build directive, the phase briefs
+  and addenda in [`docs/protocol/`](docs/protocol/), and the comprehensive
+  test protocol ([`docs/protocol/VERIFICATION_PROTOCOL.md`](docs/protocol/VERIFICATION_PROTOCOL.md))
+  are his text. The doctrine every ledger entry cites (never weaken a gate;
+  never claim an unmeasured number; INCONCLUSIVE is a verdict, not a failure)
+  is his.
+- **The author made the rulings.** Every binding decision in
+  [`DECISIONS.md`](DECISIONS.md) was made or ratified by him; D-076 records
+  the standing rules of the process itself, including which model may build
+  and which may arbitrate ([`AGENTS.md`](AGENTS.md) section 9).
+- **The agents wrote the code and tests** under those specifications. Every
+  commit's `Co-Authored-By` trailer names the model exactly as the tool
+  reported it (Claude Opus 5 through v0.1.0; Kimi Code CLI for the test
+  protocol adoption D-081 and the attribution system D-082/D-083). The author
+  reviewed, redirected and rejected throughout: the pivot from "drive the
+  corpus to zero inconclusive" to "every recorded refusal must attribute to a
+  known problem" (D-082) was his instruction, and the system changed course
+  because of it.
+- **The evidence procedure is his.** The observation bundles
+  ([`docs/observations/`](docs/observations/)) were recorded under his
+  protocol, with exit codes read in the launching shell and witnesses
+  re-derived from raw artifacts by an independent script.
 
 ---
 
