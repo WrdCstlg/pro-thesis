@@ -48,6 +48,7 @@ Commands:
   replay          replay a .thesis world and report k/n honestly
   regress         replay the committed regression corpus
   bisect          find the first revision at which a world reproduces
+  diagnose        attribute every recorded non-terminal outcome to a known problem
   version         print version information
 
 Declared, not yet implemented:
@@ -137,6 +138,8 @@ func run() schema.ExitCode {
 		return cmdRegress(ctx, g, rest)
 	case "bisect":
 		return cmdBisect(ctx, g, rest)
+	case "diagnose":
+		return cmdDiagnose(ctx, g, rest)
 	case "shrink":
 		return cmdShrink(ctx, g, rest)
 
