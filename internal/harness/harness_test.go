@@ -72,6 +72,35 @@ func TestParsePublishedPort(t *testing.T) {
 	}
 }
 
+func TestParsePublishedHostPorts(t *testing.T) {
+	in := "0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp\n" +
+		"127.0.0.1:18081->8080/tcp\n" +
+		"3306/tcp, 33060/tcp\n" +
+		":19001->8080/tcp\n" +
+		// A published RANGE. In the first draft of D-088 this line contributed
+		// nothing: Atoi failed on "8000-8002" and every port in it was dropped
+		// without a word, which is the silent "free" the check exists to avoid.
+		"0.0.0.0:8000-8002->8000-8002/tcp\n"
+
+	got := parsePublishedHostPorts(in)
+	want := map[int]bool{
+		3000:  true,
+		18081: true,
+		19001: true,
+		8000:  true,
+		8001:  true,
+		8002:  true,
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %d ports (%v), want %d (%v)", len(got), got, len(want), want)
+	}
+	for p := range want {
+		if !got[p] {
+			t.Errorf("port %d missing from parsed ports: %v", p, got)
+		}
+	}
+}
+
 // The CLI's JSON output is an unversioned contract: some versions emit an
 // array, others one object per line. Both must parse or `up` breaks on a
 // Docker upgrade nobody controls.

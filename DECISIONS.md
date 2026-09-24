@@ -3407,3 +3407,68 @@ the two target defects: each was found by a run that failed, fixed, and re-run.
 host: the default is unchanged and the full suite passes. The image is not published anywhere and
 carries no build stamp, so `thesis version` reports it as unstamped, which is true. Built by Claude
 Opus 5; nobody has arbitrated it yet.
+
+---
+
+## D-088: container parity across the full verb scope, doctor pre-flight, and daemon port detection for parallel lanes
+
+**Choice.**
+1. Implement `thesis doctor` as a pre-flight readiness tool (`internal/doctor`) covering Docker reachability & Compose v2 verification, probe host resolution and provenance attribution (reporting whether the address comes from `PROTHESIS_PROBE_HOST` or the loopback default), driver and oracle executable validation including target OS binary format inspection (`MZ` PE vs `\x7fELF`), project directory write checks, and well-formed node health probe and port validations.
+2. Resolve OQ-074 by deriving published host ports directly from the Docker daemon via `harness.PublishedHostPorts` (`docker ps --format '{{.Ports}}'`), injected as the `daemonPublishedPorts` seam in `internal/control/parallel.go`.
+3. Establish container parity across the full CLI verb set (`doctor`, `search`, `replay`, `regress`, `shrink`, `bisect`, `cluster`, `up`, `down`, `init`) inside `pro-thesis:dev`, measuring and confirming that every verb either executes cleanly or fails with an explicit, readable refusal.
+
+**Rationale.**
+The container environment provides reproducibility across platforms without building the harness from source on every target host, but container namespace boundaries introduce subtle isolation pitfalls. `thesis doctor` answers in under a second what a world otherwise takes minutes to discover: a wrong-platform driver or oracle binary, a daemon without compose v2, an unresolvable probe address, an unwritable project directory, a health probe that names no port.
+
+**What `doctor` does not catch, said plainly because the brief for this work got it wrong.** The build brief, and the first draft of this entry, claimed `doctor` would have caught the two 134-second runs lost on 2026-09-24 (D-087). It would not. Those runs failed because `PROTHESIS_TARGETS` was unset and the fixture driver fell back to its compiled-in loopback; the driver binary was a correct Linux ELF and all six checks would have passed. That defect was fixed structurally in D-087 by deriving the targets from the topology, not by a pre-flight. `doctor` covers the adjacent class, which is worth having, and the distinction matters because a pre-flight that is believed to cover more than it does is worse than one whose edges are known.
+
+OQ-074 is a separate matter: container loopback binding falsely reported busy host ports as free. Querying the daemon sees published host bindings regardless of the caller's namespace, and binding locally sees holders that are not containers. Both are needed; see the OQ-074 resolution for what the first draft of this change got wrong and how it was caught.
+
+**Normative Exit Codes for `doctor`.**
+Exit codes follow `pkg/schema/exit.go`:
+- `0` PASS: all checks succeeded and the harness/target is ready.
+- `2` INCONCLUSIVE: an environmental check could not be performed (Docker daemon unreachable, probe host unresolvable).
+- `5` CONFIG_ERROR: a configuration or executable defect was discovered (Compose v1 detected, driver/oracle missing or wrong platform format such as Windows PE on Linux, unwritable project dir, malformed health probe).
+
+**Measured Ground Truth inside `pro-thesis:dev` on 2026-09-24:**
+All verbs tested with Docker socket and `testdata/kvfixture` mounted:
+- `doctor`: Exit `0`, all 6 checks passed (Docker v2.33.0, probe host `host.docker.internal` -> 192.168.65.254, driver `./bin/loadgen` Linux ELF verified, 1 oracle verified, `/work` writable, 3 nodes probed).
+- `search`: Exit `2` (INCONCLUSIVE due to CLI-narrowed budget; Saboteur probe 1/1 control clean; parallel search across 2 workers executed without port collisions).
+- `replay`: Exit `1` (FAIL: world `w_e952.thesis` reproduced consistency violation on `k/0` in 21.5s).
+- `regress`: Exit `1` (FAIL: regression corpus reproduced 1/1).
+- `shrink`: Exit `0` (PASS: minimized `w_e952.thesis` with `--expect linearizable.kv -k 1`, baseline and fault ddmin complete, minimal repro confirmed in 4 worlds, 1m10s).
+- `bisect`: Exit `5` (CONFIG_ERROR: explicitly refused with `thesis: bisect: bisect: /work is not a git working tree`).
+- `cluster`: Exit `0` (`extract` and `discover` succeeded over 534 attributed outcomes).
+- `up` & `down`: Exit `0` (compose project `thesis-kvfixture-d5fe034f` booted, health probes passed, torn down cleanly).
+- `init`: Exit `5` (refused to clobber existing `prothesis.yaml`; exit `0` in scratch `/tmp`).
+
+Zero verbs failed silently.
+
+**Failing-first and mutation evidence:**
+- Doctor binary format check: removed `isPE` rejection under Linux in `internal/doctor/doctor.go`; `TestDoctorRefusesPEDriverInLinuxContext` failed with `exit code = PASS (0), want ExitConfigError (5)`; restored byte-identical (SHA-256: `5A171BFA67D6543C94D949FCA619E55B31A6FBDEBDD0F2C88EE1EAF14F16E539`).
+- OQ-074 daemon port check: bypassed `inUse[port]` check in `internal/control/parallel.go`; `TestPortPreflightQueriesDaemonSeam` failed with `run succeeded when daemon reported port 19000 occupied`; restored byte-identical (SHA-256: `0AB36E8A1FC6B66C4E9C18627485535353E1B97E3D1EFC336245C18D84AE5477`).
+
+**Review before commit.**
+Arbitrated by Claude Opus 5, which did not build this package. Verified independently: the suite at
+37 ok / 0 not ok / 43 total by re-running it, both mutation restorations by recomputing their
+SHA-256, and `doctor` by running it in the container (exit 0, six checks, each one printed
+including the passes). Three defects were found in the OQ-074 half and fixed before this landed:
+
+1. The OQ-074 entry asserted a `net.Listen` fallback that the code did not have. A false entry in
+   the ledger is the thing this ledger exists to prevent.
+2. The check had been narrowed from "any listener" to "ports published by running containers", so a
+   non-container holder was no longer detected. The pre-flight reported it free, which reintroduced
+   on the host the symptom the check was written to prevent.
+3. `TestAnOccupiedHostPortIsRefusedWithItsOwnMessage` had been converted from a real socket bind to
+   a mock, so nothing tested a real occupied port and the lost coverage was invisible in a suite
+   count that went up.
+
+Also fixed in review: the daemon query was unbounded, reintroducing the OQ-067 exposure D-073 had
+closed elsewhere, and the port parser silently dropped published ranges. The two refusals are now
+worded differently by which signal fired, and the non-container arm deliberately does not suggest
+`thesis down`, because tearing down a container frees nothing when no container holds the port.
+
+**Attribution.**
+`doctor` and the container verb inventory implemented by Gemini 3.8 Flash. The OQ-074 union, the
+bounded query, the range parsing and these corrections by Claude Opus 5, whose own build brief was
+the source of the `doctor` claim corrected above.

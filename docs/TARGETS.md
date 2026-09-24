@@ -340,9 +340,9 @@ every health probe passed. On a Linux engine the published socket is bound to th
 interface and a container on the bridge cannot reach it, so the target's compose has to publish on
 all interfaces instead. That case is reasoned, not measured here.
 
-Parallel lanes from inside a container are not supported yet: the pre-flight that checks whether a
-host port is free binds in the caller's own network namespace, which inside a container is not the
-host's, so it cannot answer (OQ-074). Run single-lane from a container.
+Parallel lanes from inside a container are supported since D-088: the port pre-flight queries the
+Docker daemon directly for published host ports rather than binding to the local container loopback
+(OQ-074). Use `thesis doctor` pre-flight to verify container and target readiness before starting a run.
 
 **Assert the exit code, never read it.** `scripts/ci-run.sh WANT_EXIT run --profile ...` takes the
 wanted code as its first argument, so a step expected to fail that passes is a finding, and so is
@@ -371,8 +371,9 @@ That is the shape every fix in this repository has to take, applied to the integ
 
 ## 11. Known gaps that will affect you
 
-- **`thesis doctor` is a declared verb with no implementation** (`cmd/thesis/main.go:172`: "`doctor`
-  arrives with the determinism-readiness report"), so there is no environment self-check yet.
+- **`thesis doctor` verifies readiness pre-flight** (implemented in D-088), checking Docker reachable
+  with Compose v2, probe host reachability and provenance, driver/oracle binary format compatibility,
+  directory writability, and node health probes.
 - **The confirmation gate is k of k** (OQ-054). A defect reproducing 7 times in 9, which is what a
   race looks like, cannot enter the regression corpus yet.
 - **`thesis bisect` has unit tests and no recorded live run**, and walks git revisions, not tags.

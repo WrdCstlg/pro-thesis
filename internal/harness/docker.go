@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // The Docker CLI is the only engine interface in this tree, never the Go SDK.
@@ -283,4 +284,87 @@ func nonEmptyLines(s string) []string {
 		}
 	}
 	return out
+}
+
+// portQueryTimeout bounds the daemon query below.
+//
+// A sick daemon once took 32 s to answer `docker inspect` on a container that
+// did not exist, which spent whole world budgets and turned two passing tests
+// red (OQ-067). D-073 bounded that call for the same reason. This one runs at
+// the start of every parallel run, so an unbounded version would reintroduce
+// the same exposure at a new site: five seconds, as hard as the killed child's
+// exit.
+const portQueryTimeout = 5 * time.Second
+
+// PublishedHostPorts returns the set of host ports currently published by running containers.
+func PublishedHostPorts(ctx context.Context) (map[int]bool, error) {
+	cctx, cancel := context.WithTimeout(ctx, portQueryTimeout)
+	defer cancel()
+	out, err := run(cctx, "", "ps", "--format", "{{.Ports}}")
+	if err != nil {
+		return nil, fmt.Errorf("docker ps: %w", err)
+	}
+	return parsePublishedHostPorts(out), nil
+}
+
+// parsePortSpan reads either a single port or an inclusive "lo-hi" range, and
+// reports whether it read one at all. A value it cannot read yields false, so
+// the caller skips it rather than guessing.
+func parsePortSpan(s string) (lo, hi int, ok bool) {
+	if dash := strings.Index(s, "-"); dash >= 0 {
+		lo, err := strconv.Atoi(s[:dash])
+		if err != nil {
+			return 0, 0, false
+		}
+		hi, err := strconv.Atoi(s[dash+1:])
+		if err != nil {
+			return 0, 0, false
+		}
+		if lo < 1 || hi > 65535 || lo > hi {
+			return 0, 0, false
+		}
+		return lo, hi, true
+	}
+	p, err := strconv.Atoi(s)
+	if err != nil || p < 1 || p > 65535 {
+		return 0, 0, false
+	}
+	return p, p, true
+}
+
+func parsePublishedHostPorts(out string) map[int]bool {
+	ports := make(map[int]bool)
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		for _, part := range strings.Split(line, ",") {
+			part = strings.TrimSpace(part)
+			idx := strings.Index(part, "->")
+			if idx < 0 {
+				continue
+			}
+			hostPart := strings.TrimSpace(part[:idx])
+			lastColon := strings.LastIndex(hostPart, ":")
+			var portStr string
+			if lastColon >= 0 {
+				portStr = hostPart[lastColon+1:]
+			} else {
+				portStr = hostPart
+			}
+			// A published RANGE ("0.0.0.0:8000-8005->8000-8005/tcp") spells its
+			// host side with a dash. Atoi alone fails on it and the whole range
+			// was dropped without a word, which is the silent "free" this check
+			// exists to avoid.
+			lo, hi, ok := parsePortSpan(portStr)
+			if !ok {
+				continue
+			}
+			for p := lo; p <= hi; p++ {
+				ports[p] = true
+			}
+		}
+	}
+	return ports
 }

@@ -3469,3 +3469,38 @@ collision to prove.
 
 **Meanwhile**, `docs/TARGETS.md` says to run single-lane from a container, which is the only form
 exercised so far.
+
+---
+
+## OQ-074 RESOLVED (D-088): the parallel-lane port pre-flight derives published ports from the Docker daemon
+
+**Classification:** RESOLVED in D-088.
+
+**Resolution.** Closed by consulting BOTH signals, because neither sees the whole host.
+`harness.PublishedHostPorts(ctx)` queries `docker ps --format '{{.Ports}}'` and parses the
+host-bound published ports across every running container, reached through the
+`daemonPublishedPorts` seam. That is the half the local netstack cannot answer from inside a
+container. `checkPortsFree(ctx)` then also binds `127.0.0.1:<port>`, which is the half the daemon
+cannot answer: a port held by anything that is not a container. The local bind is not gated on
+"are we in a container"; inside one it finds nothing and contributes no information, which is
+cheaper than a heuristic that silently drops coverage when it guesses wrong. The daemon query is
+bounded at five seconds, for the reason D-073 bounded its own (OQ-067).
+
+**A correction to the first draft of this entry.** It said the check fell back to local
+`net.Listen`, and the code it described did not: `checkPortsFree` consulted the daemon alone and
+`portFree` had zero callers. The entry asserted a safety property the code did not have, which is
+the failure this ledger exists to catch, and it was found in review before the change was
+committed. The narrowing was real: between the first draft and this one, a port held by a
+non-container process was not detected at all, so the pre-flight reported it free and compose went
+on to fail with `Bind for 127.0.0.1:19001 failed`, which is the exact symptom the check was written
+to prevent. Both halves are now present and each is covered by a test that fails when its half is
+removed.
+
+**Evidence.** `TestAnOccupiedHostPortIsRefusedWithItsOwnMessage` binds a real loopback socket with
+the daemon mocked as reporting nothing, and `TestPortPreflightQueriesDaemonSeam` reports a port
+through the daemon that nothing holds locally. Mutation: removing the local half makes the first
+fail ("a slot whose first port was already bound by a non-container process was accepted"), removing
+the daemon half makes the second fail ("run succeeded when daemon reported port 19000 occupied"),
+and the source restored byte-identically after each (SHA-256
+`6C882E18E32F6A136ED43688D027841D5C782ED61B48AC02C0AD288F667A6BC1`). A clean parallel run proves
+nothing about detection and is not offered as evidence here.

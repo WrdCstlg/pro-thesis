@@ -9,7 +9,7 @@ the refusal census is OQ-072, the attribution layer is D-082, the retention gap 
 ```mermaid
 flowchart TD
     subgraph CLI["cmd/thesis (one binary, hand-rolled dispatch)"]
-        V["verbs: init, up, down, run, search, replay, regress, bisect, shrink, oracles, diagnose, cluster, version"]
+        V["verbs: init, up, down, run, search, replay, regress, bisect, shrink, oracles, diagnose, cluster, doctor, version"]
     end
     subgraph Core["internal/"]
         CTRL["control: runner, world lifecycle, verdicts"]
@@ -21,6 +21,7 @@ flowchart TD
         CLU["cluster: two-layer clustering of the unattributed pool"]
         LOCK["lock: oracle tamper manifest"]
         CORP["corpus + shrink: regression worlds"]
+        DOCTOR["doctor: readiness pre-flight"]
     end
     SCHEMA["pkg/schema: config, verdicts, world files, retain, knownproblems"]
     CHECKER["cmd/thesis-oracle-linearizable (external checker binary, fingerprinted by the lock)"]
@@ -28,6 +29,7 @@ flowchart TD
     V --> CTRL
     V --> SEARCH
     V --> DIAG
+    V --> DOCTOR
     CTRL --> REC
     CTRL --> HAR
     CTRL --> ORA
@@ -40,6 +42,8 @@ flowchart TD
     CTRL --> SCHEMA
     DIAG --> SCHEMA
     LOCK --> SCHEMA
+    DOCTOR --> HAR
+    DOCTOR --> SCHEMA
 ```
 
 `pkg/schema/retain.go` (`RetainPolicy.Keeps`) sits inside `SCHEMA` and has **zero callers**: the
