@@ -101,7 +101,8 @@ flowchart TD
 ```
 
 The loop at the bottom is the recursion: a new kind of refusal attributes to nothing, exits 2,
-and is catalogued into the registry with its ledger citation in the same change. What is not yet
-built: the census floor that makes corpus shrinkage loud in `internal/search/engine` (prerequisite
-for the OQ-070 pruner), and the pruner itself, which when it lands must rename into
-`.prothesis/runs/.trash/` and never unlink.
+and is catalogued into the registry with its ledger citation in the same change. The census floor
+that makes corpus shrinkage loud landed with D-083: `internal/search/engine/census_test.go` holds
+the committed corpus to `testdata/kvfixture/.prothesis/CENSUS.json`, so a shrunken corpus fails the
+suite instead of skipping it. What is still not built is the OQ-070 pruner itself, which when it
+lands must rename into `.prothesis/runs/.trash/` and never unlink.

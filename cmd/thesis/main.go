@@ -50,6 +50,7 @@ Commands:
   bisect          find the first revision at which a world reproduces
   diagnose        attribute every recorded non-terminal outcome to a known problem
   cluster         discover candidate failure categories in the unattributed pool
+  history         check a history log against the driver contract, offline
   version         print version information
 
 Declared, not yet implemented:
@@ -145,6 +146,8 @@ func run() schema.ExitCode {
 		return cmdCluster(ctx, g, rest)
 	case "shrink":
 		return cmdShrink(ctx, g, rest)
+	case "history":
+		return cmdHistory(ctx, g, rest)
 
 	case "doctor", "gate", "report", "watch", "serve":
 		fmt.Fprintf(os.Stderr, "thesis: `%s` is declared by the directive but not implemented yet.\n", cmd)
