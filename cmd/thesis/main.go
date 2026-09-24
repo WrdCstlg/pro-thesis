@@ -52,10 +52,11 @@ Commands:
   diagnose        attribute every recorded non-terminal outcome to a known problem
   cluster         discover candidate failure categories in the unattributed pool
   history         check a history log against the driver contract, offline
+  doctor          verify harness, container and target readiness pre-flight
   version         print version information
 
 Declared, not yet implemented:
-  doctor, gate, report, watch, serve
+  gate, report, watch, serve
 
 Global flags:
   --config PATH   path to prothesis.yaml (default: ./prothesis.yaml)
@@ -158,8 +159,10 @@ func run() schema.ExitCode {
 		return cmdShrink(ctx, g, rest)
 	case "history":
 		return cmdHistory(ctx, g, rest)
+	case "doctor":
+		return cmdDoctor(ctx, g, rest)
 
-	case "doctor", "gate", "report", "watch", "serve":
+	case "gate", "report", "watch", "serve":
 		fmt.Fprintf(os.Stderr, "thesis: `%s` is declared by the directive but not implemented yet.\n", cmd)
 		fmt.Fprintf(os.Stderr, "        Phase 0 delivers init, up and down. Phase 1 delivers run. %s\n", phaseOf(cmd))
 		return schema.ExitConfigError
@@ -182,8 +185,6 @@ func phaseOf(cmd string) string {
 		return "`search` arrives in Phase 4 with the Saboteur engine."
 	case "gate", "watch", "serve", "report":
 		return "This arrives in Phase 6 with the agent-loop surfaces."
-	case "doctor":
-		return "`doctor` arrives with the determinism-readiness report."
 	default:
 		return ""
 	}

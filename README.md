@@ -339,7 +339,7 @@ Research software at `0.1.0-phase0`, under active development.
 | | |
 |---|---|
 | Tests, hosted Linux CI | 1,566 pass · 3 skip · 0 fail on Go 1.27.1 with the Docker-backed tests and the race detector; 1,564 pass · 5 skip · 0 fail on Go 1.22.12 (first public commit, 2026-09-21) |
-| Tests, build host | 32 packages ok · 0 not ok · 38 total (six packages carry no tests), `scripts/run-tests.ps1`, 2026-09-21 |
+| Tests, build host | 37 packages ok · 0 not ok · 43 total (six packages carry no tests), `scripts/run-tests.ps1`, 2026-09-24 |
 | Live worlds, hosted Linux CI | Fixture defect found (exit 1), patched control passes (exit 0), etcd smoke passes, both etcd arms as pre-registered; every exit code asserted, not observed |
 | Live worlds, recorded | Two observation bundles with an independent observer's cross-check; a twenty-world sample with every world file and exit code recorded (OQ-054) |
 | Go | 1.22 minimum · one dependency (`gopkg.in/yaml.v3`) · the fixture has none |
@@ -415,10 +415,10 @@ The weaknesses that are open today, and how to report a new one, are in
 ## The ledgers
 
 - [`DECISIONS.md`](DECISIONS.md): every non-obvious choice, with what was
-  rejected and why, D-001 through D-083.
+  rejected and why, D-001 through D-088.
 - [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md): every requirement that could not
   be met as written, every defect found, and what was measured about it,
-  OQ-001 through OQ-073. Entries are never deleted; a resolution is appended.
+  OQ-001 through OQ-074. Entries are never deleted; a resolution is appended.
 
 ---
 

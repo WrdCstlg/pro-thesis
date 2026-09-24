@@ -619,7 +619,7 @@ func (p *ParallelRunner) Run(ctx context.Context, reqs []WorldRequest) ([]WorldO
 		return nil, err
 	}
 	if p.opts.verifyPorts() {
-		if err := p.checkPortsFree(); err != nil {
+		if err := p.checkPortsFree(ctx); err != nil {
 			return nil, err
 		}
 	}
@@ -715,8 +715,38 @@ func (p *ParallelRunner) checkNetworkBudget(ctx context.Context) error {
 	return nil
 }
 
+// daemonPublishedPorts queries the Docker daemon for all published host ports
+// across all running containers.
+//
+// It is a variable so tests can inject a mock rather than requiring a live Docker
+// daemon.
+var daemonPublishedPorts = harness.PublishedHostPorts
+
 // checkPortsFree refuses to start when a slot's published ports are taken.
-func (p *ParallelRunner) checkPortsFree() error {
+//
+// OQ-074. BOTH signals are consulted, because neither one sees the whole host.
+//
+// The daemon knows which host ports running containers publish, regardless of
+// which network namespace this process is standing in. That is the half the
+// local netstack cannot answer from inside a container, where 127.0.0.1 is the
+// container's own and a port busy on the host binds cleanly.
+//
+// The local bind knows whether ANYTHING holds the port, container or not: a
+// stray process, another tool, a service the operator forgot. That is the half
+// the daemon cannot answer, and D-088 briefly dropped it, which reintroduced on
+// the host the precise symptom this check exists to prevent, a world burning a
+// boot to discover "Bind for 127.0.0.1:19001 failed" from inside a concurrent
+// batch. A union is strictly stronger than either alone and costs one syscall
+// per port.
+//
+// The local half is not gated on "are we in a container". Inside one it simply
+// finds nothing and contributes no information, which is cheaper than a
+// heuristic that can silently drop coverage when it guesses wrong.
+func (p *ParallelRunner) checkPortsFree(ctx context.Context) error {
+	inUse, err := daemonPublishedPorts(ctx)
+	if err != nil {
+		return fmt.Errorf("control: pre-flight port check: %w", err)
+	}
 	for _, s := range p.slots {
 		ids := make([]string, 0, len(s.Ports))
 		for id := range s.Ports {
@@ -725,10 +755,19 @@ func (p *ParallelRunner) checkPortsFree() error {
 		sort.Strings(ids)
 		for _, id := range ids {
 			port := s.Ports[id]
+			// The two refusals are worded differently on purpose: which signal
+			// fired tells the operator where to look.
+			if inUse[port] {
+				return fmt.Errorf("control: worker slot %d wants host port %d for node %q, "+
+					"and it is already in use by a container on the host; a previous run may "+
+					"still be up, try `thesis down`, or move the band with "+
+					"ParallelOptions.PortBase",
+					s.Index, port, id)
+			}
 			if err := portFree(port); err != nil {
 				return fmt.Errorf("control: worker slot %d wants host port %d for node %q, "+
-					"and it is already in use (%v); a previous run may still be up — try "+
-					"`thesis down` — or move the band with ParallelOptions.PortBase",
+					"and it is already in use (%v). No container publishes it, so something "+
+					"else on this host holds it; move the band with ParallelOptions.PortBase",
 					s.Index, port, id, err)
 			}
 		}
@@ -741,6 +780,10 @@ func (p *ParallelRunner) checkPortsFree() error {
 // Loopback only, because that is where the fixture publishes and where the
 // health probes connect: container IPs are not routable from a Windows host
 // (D-010), so 127.0.0.1 is the only address a published port is reachable on.
+//
+// Inside a container this answers about the container's own netstack, which is
+// why it is one half of a union rather than the whole check. See
+// checkPortsFree.
 func portFree(port int) error {
 	ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
 	if err != nil {

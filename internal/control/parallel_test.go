@@ -726,7 +726,20 @@ func TestAWorldThatNeverBootedIsStillSweptByProjectName(t *testing.T) {
 // An occupied port must be reported as an occupied port, before a world burns a
 // boot to discover it as "Bind for 127.0.0.1:19001 failed" from inside a
 // concurrent batch where it is not obvious which world said it.
+//
+// The listener here is REAL, and the daemon is mocked as reporting nothing in
+// use. That is the half the daemon cannot see: a port held by a process that is
+// not a container. D-088 replaced this bind with a daemon query and the class
+// stopped being detected at all, which reintroduced on the host exactly the
+// symptom named above. Both signals are consulted now, and this test is the one
+// that fails if the local half is dropped again.
 func TestAnOccupiedHostPortIsRefusedWithItsOwnMessage(t *testing.T) {
+	orig := daemonPublishedPorts
+	defer func() { daemonPublishedPorts = orig }()
+	daemonPublishedPorts = func(ctx context.Context) (map[int]bool, error) {
+		return map[int]bool{}, nil
+	}
+
 	ln, err := listenOnAny(t)
 	if err != nil {
 		t.Skipf("could not bind a loopback port to occupy: %v", err)
@@ -741,16 +754,60 @@ func TestAnOccupiedHostPortIsRefusedWithItsOwnMessage(t *testing.T) {
 	})
 	_, err = pr.Run(context.Background(), requestsFor(1))
 	if err == nil {
-		t.Fatalf("a slot whose first port was already bound was accepted")
+		t.Fatalf("a slot whose first port was already bound by a non-container process "+
+			"was accepted; the daemon cannot see that port and the local bind is the "+
+			"only signal for it (port %d)", port)
 	}
 	if !strings.Contains(err.Error(), "already in use") {
 		t.Fatalf("the refusal does not name the cause: %v", err)
 	}
-	if !strings.Contains(err.Error(), "thesis down") {
+	// The remedy differs by which signal fired, and this arm must not send the
+	// operator to `thesis down`: no container holds this port, so tearing one
+	// down would free nothing and the real holder would stay invisible.
+	if !strings.Contains(err.Error(), "PortBase") {
 		t.Fatalf("the refusal does not say what to do about it: %v", err)
+	}
+	if strings.Contains(err.Error(), "thesis down") {
+		t.Fatalf("the refusal sends the operator to `thesis down` for a port no container "+
+			"holds, which would free nothing: %v", err)
 	}
 	if len(backend.projects()) != 0 {
 		t.Fatalf("the refusal booted a project")
+	}
+}
+
+// OQ-074. Inside a container, 127.0.0.1:<port> can bind cleanly because the
+// container has its own netstack, even while the host's port is occupied by
+// another container. The pre-flight must consult the daemon as well as the
+// local netstack.
+//
+// The port here is deliberately NOT bound locally, so the local half of the
+// union reports it free. Only the daemon knows, which is the arm this test
+// covers; TestAnOccupiedHostPortIsRefusedWithItsOwnMessage covers the other.
+func TestPortPreflightQueriesDaemonSeam(t *testing.T) {
+	orig := daemonPublishedPorts
+	defer func() { daemonPublishedPorts = orig }()
+
+	// Inject a port that is reported in use by the daemon
+	daemonPublishedPorts = func(ctx context.Context) (map[int]bool, error) {
+		return map[int]bool{19000: true}, nil
+	}
+
+	backend := &stubBackend{}
+	_, pr := newParallelRunner(t, backend, finishedDriver(), ParallelOptions{
+		Workers:  1,
+		PortBase: 19000,
+	})
+
+	_, err := pr.Run(context.Background(), requestsFor(1))
+	if err == nil {
+		t.Fatalf("run succeeded when daemon reported port 19000 occupied")
+	}
+	if !strings.Contains(err.Error(), "already in use") {
+		t.Fatalf("expected 'already in use' in error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "thesis down") {
+		t.Fatalf("expected 'thesis down' remediation in error, got: %v", err)
 	}
 }
 
