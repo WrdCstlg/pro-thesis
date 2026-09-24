@@ -125,7 +125,7 @@ type statusDoc struct {
 func (o *HTTPRoleObserver) ObserveRoles(ctx context.Context, nodes []Node) ([]RoleObservation, error) {
 	host := o.Host
 	if host == "" {
-		host = harness.ProbeHost
+		host = harness.ProbeHost()
 	}
 	path := o.Path
 	if path == "" {

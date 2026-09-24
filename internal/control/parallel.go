@@ -14,6 +14,7 @@ import (
 
 	"github.com/WrdCstlg/pro-thesis/internal/driver"
 	"github.com/WrdCstlg/pro-thesis/internal/harness"
+	"github.com/WrdCstlg/pro-thesis/internal/probehost"
 	"github.com/WrdCstlg/pro-thesis/pkg/schema"
 )
 
@@ -194,10 +195,11 @@ type WorkerSlot struct {
 	PortSpan int
 }
 
-// Targets renders the lane's nodes as `127.0.0.1:<port>` in config order.
+// Targets renders the lane's nodes as `<probe host>:<port>` in config order.
 //
-// Loopback, because container IPs are not routable from a Windows host (D-010),
-// so a published port is reachable at 127.0.0.1 and nowhere else.
+// The address is the one the probes use, which defaults to loopback because
+// container IPs are not routable from a Windows host (D-010) and a published
+// port is reachable there and nowhere else.
 //
 // This is the DRIVER's half of per-world isolation, and it is easy to forget.
 // Giving each compose project its own published ports only stops the two
@@ -205,11 +207,19 @@ type WorkerSlot struct {
 // whichever cluster owns the default port, or, when no world owns it, nothing
 // at all, and the world reports on a system it never touched. That is the
 // vacuous pass this project is ranked against, arrived at from a new direction.
+//
+// It arrived from a third direction in run r_2026_09_24_a253, the first world
+// driven from inside a container: the probe paths had been converted to the
+// configurable host and this one had not, so every health probe passed and all
+// 60,000 operations failed, in all five worlds. The checker refused instead of
+// passing, so nothing false was reported, but the run measured nothing. Any
+// address the probes are sent to has to reach the driver too (D-087).
 func (s WorkerSlot) Targets() []string {
+	host := probehost.Host()
 	out := make([]string, 0, len(s.Nodes))
 	for _, id := range s.Nodes {
 		if p, ok := s.Ports[id]; ok && p > 0 {
-			out = append(out, "127.0.0.1:"+strconv.Itoa(p))
+			out = append(out, host+":"+strconv.Itoa(p))
 		}
 	}
 	return out

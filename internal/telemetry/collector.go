@@ -464,10 +464,10 @@ func TargetsFromTopology(cfg *schema.Config, top *recorder.Topology) ([]Target, 
 	for _, nb := range top.Nodes {
 		t := Target{Node: nb.ID, Container: nb.ContainerID}
 		if tmpl, ok := probeByNode[nb.ID]; ok && nb.HostPort > 0 {
-			t.ProbeURL = harness.ExpandProbe(tmpl, harness.ProbeHost, nb.HostPort)
+			t.ProbeURL = harness.ExpandProbe(tmpl, harness.ProbeHost(), nb.HostPort)
 		}
 		if nb.HostPort > 0 {
-			t.StatusURL = harness.ExpandProbe("http://{host}:{port}"+StatusPath, harness.ProbeHost, nb.HostPort)
+			t.StatusURL = harness.ExpandProbe("http://{host}:{port}"+StatusPath, harness.ProbeHost(), nb.HostPort)
 		}
 		out = append(out, t)
 	}

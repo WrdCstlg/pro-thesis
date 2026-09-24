@@ -101,6 +101,26 @@ KV_VARIANT=kvfixed ../../bin/thesis run --profile linear --fault 'net.partition(
 echo $?                                # 0: the same fixture with the defect patched
 ```
 
+You can also run the harness as a container, without Go and without this
+repository's toolchain. The [`Dockerfile`](Dockerfile) builds an image carrying
+`thesis`, the reference checker and the docker CLI, and drives the host's daemon
+through a mounted socket:
+
+```bash
+docker build -t pro-thesis:dev .
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$PWD:/project" -w /project/testdata/kvfixture \
+  pro-thesis:dev run --profile linear --fault 'net.partition(role:leader)@3000..7500'
+```
+
+Measured that way on 2026-09-24, run `r_2026_09_24_b498`: exit 1 in 23.6 s, one
+witnessed violation on key `k/0` where no linearization exists for its 612
+operations after exhausting 2,129 states. Health probes go to
+`PROTHESIS_PROBE_HOST` rather than loopback, which is the container's own; your
+driver and oracles are your executables and must be present under the mounted
+project as `linux/amd64` binaries. [`docs/TARGETS.md`](docs/TARGETS.md) has the
+constraints and D-087 has the two runs that were wrong first.
+
 On Windows, `pwsh -File scripts/build.ps1` builds the same three binaries with
 build provenance stamped in: the commit, the dirty flag and the commit's source
 date (D-070, D-072). `-Verify` builds twice and proves the bytes identical. The

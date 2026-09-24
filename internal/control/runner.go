@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/WrdCstlg/pro-thesis/internal/harness"
 	"github.com/WrdCstlg/pro-thesis/internal/oracle"
 	"github.com/WrdCstlg/pro-thesis/internal/perturber"
+	"github.com/WrdCstlg/pro-thesis/internal/probehost"
 	"github.com/WrdCstlg/pro-thesis/internal/recorder"
 	"github.com/WrdCstlg/pro-thesis/internal/telemetry"
 	"github.com/WrdCstlg/pro-thesis/pkg/schema"
@@ -1431,7 +1433,7 @@ func (d *defaultDriverSupervisor) Start(ctx context.Context, req DriverRequest) 
 		Cmd:          req.Config.Driver.Cmd,
 		Dir:          req.ProjectDir,
 		Sub:          sub,
-		Env:          driverEnv(req.Env),
+		Env:          driverEnv(req.Topology, req.Env),
 		StdinControl: req.StdinControl,
 	}
 
@@ -1456,21 +1458,36 @@ func (d *defaultDriverSupervisor) Start(ctx context.Context, req DriverRequest) 
 }
 
 // driverEnv returns the driver's environment: the harness's own, with the
-// harness-owned names stripped, and extra appended so a later entry wins.
+// harness-owned names stripped, this world's real targets derived from the
+// topology, and extra appended so a later entry wins.
 //
 // The strip is the load-bearing half. TargetsEnv is in the PROTHESIS_ namespace,
 // which means the HARNESS is its authority: if this world did not set it, no
 // value should be visible. An inherited one (left over from a shell, or from an
 // outer `thesis` invocation) would silently point a serial world's driver at
 // some other cluster, and a world that drove the wrong system still writes a
-// history that looks clean. Harness silence must mean "use your own default",
-// never "inherit whatever was lying around".
+// history that looks clean.
+//
+// What used to follow from that was "harness silence means use your own
+// default". That was safe only while the default was right, which is true for a
+// driver and a harness on the same host and false the moment the harness runs
+// in a container: the driver's built-in loopback is then its OWN loopback.
+// Measured, runs r_2026_09_24_a253 and r_2026_09_24_9c90, five worlds each:
+// every health probe passed, every fault injected and withdrew, and all 60,000
+// operations failed in every world, because the harness said nothing and the
+// fixture driver dialled 127.0.0.1. The checker refused rather than passing, so
+// nothing false was reported, but neither run measured anything.
+//
+// So the harness now says what it knows. It published the ports and it knows
+// the address they are reachable on, and a value it can derive is not a value
+// it should withhold. An explicit entry in extra still wins, which is how the
+// parallel executor keeps authority over its own lane's band (D-087).
 //
 // driver.buildEnv applies the same rule to PROTHESIS_STDIN_CONTROL and
 // PROTHESIS_PLAN_PATH, which it owns.
-func driverEnv(extra []string) []string {
+func driverEnv(top *recorder.Topology, extra []string) []string {
 	base := os.Environ()
-	out := make([]string, 0, len(base)+len(extra))
+	out := make([]string, 0, len(base)+len(extra)+1)
 	prefix := TargetsEnv + "="
 	for _, kv := range base {
 		if strings.HasPrefix(kv, prefix) {
@@ -1478,7 +1495,30 @@ func driverEnv(extra []string) []string {
 		}
 		out = append(out, kv)
 	}
+	if derived := topologyTargets(top); derived != "" {
+		out = append(out, prefix+derived)
+	}
 	return append(out, extra...)
+}
+
+// topologyTargets renders this world's published nodes as `<probe host>:<port>`
+// in topology order, the same spelling WorkerSlot.Targets uses.
+//
+// A node the harness published no port for contributes nothing: not every
+// declared node must publish one, and a malformed entry would be worse than an
+// absent one. No topology, or no published ports in it, yields no claim.
+func topologyTargets(top *recorder.Topology) string {
+	if top == nil {
+		return ""
+	}
+	host := probehost.Host()
+	out := make([]string, 0, len(top.Nodes))
+	for _, n := range top.Nodes {
+		if n.HostPort > 0 {
+			out = append(out, host+":"+strconv.FormatInt(n.HostPort, 10))
+		}
+	}
+	return strings.Join(out, ",")
 }
 
 type defaultDriverHandle struct {
