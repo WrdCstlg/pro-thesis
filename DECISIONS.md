@@ -3216,3 +3216,115 @@ embeddings): deferred by the spec; Tier 1 structural only.
 it is a lens, not a gate. On today's corpus it has nothing to cluster (zero unattributed); its
 value lands the first time a NEW refusal shape appears faster than it can be hand-catalogued.
 Built by Kimi Code CLI (a delegated session); nobody has arbitrated it yet.
+
+---
+
+## D-085: the target integration contract is written down, and it tells an integrator to keep oracles on artifacts rather than on a live system
+
+**Decision.** `docs/TARGETS.md` documents how to point the harness at a system it did not ship
+with. It was written by reading the code and the recorded artifacts, not the design docs, and the
+worked example throughout is `targets/etcd`, which is an unmodified upstream image.
+
+Two things in it are recommendations the code does not enforce, and they are recorded here because
+a reader will otherwise not know they were chosen:
+
+1. **An oracle should read only the four artifact paths it is handed, not the live system.** An
+   oracle runs with a curated environment (`internal/oracle` builds `cmd.Env` rather than
+   inheriting the shell's), so ambient connection details are absent by construction. More
+   importantly, an oracle that queries a live database produces a finding that cannot be
+   re-examined from the bundle afterwards, which is exactly what the evidence is for. The
+   consequence for an integrator is a positive obligation: the driver must record a final
+   read-back sweep as ordinary operations, because `final_state.json` is deliberately thin
+   (`internal/control/artifacts.go:66`: per node only `id`, `service`, `reachable` and a raw
+   `status`), and no other path carries end-state facts into the artifact.
+2. **Domain facts ride in `meta` on the history record.** History parsing does not set
+   `DisallowUnknownFields` (it is set only in `pkg/schema/oracle.go:119` and `world.go:428`), so a
+   driver's extra fields survive into `history.jsonl` for that target's own oracle to read.
+   Measured in a recorded etcd world: `{"t_ns":1789442762673427900,...,"f":"read","op_id":9,
+   "meta":{"target":"etcd-n3","read_mode":"serializable"}}`. That is how the etcd target separates
+   a serializable read from a linearizable one while holding both to the same checker.
+
+**Measured while writing it**, because the first draft asserted several things that turned out to be
+wrong. `pkg/schema/fault_kinds.go` registers 17 kinds in 6 families, enumerated in full in the
+document. `targets/etcd/.prothesis/lock` lists exactly nine covered configuration keys, now named
+rather than counted. The steady-state probe is a host-side command (`ExecSteadyState`), not a
+command run inside the cluster: the etcd target runs it host-side precisely because the image ships
+no shell. A node's `port` is the container-side port and defaults to the reference fixture's 8080,
+so a target serving elsewhere must set it per node. There are two `profiles` blocks with different
+meanings, and `--profile` resolves against the top-level one. `go list -m
+github.com/WrdCstlg/pro-thesis@v0.1.0-phase0` prints `github.com/WrdCstlg/pro-thesis
+v0.1.0-phase0`, so the pinned install line resolves publicly; the install itself was not run.
+
+**Corrected in the same change.** `docs/ARCHITECTURE.md` still said the census floor was not yet
+built; it landed with D-083 as `internal/search/engine/census_test.go` against a committed
+`CENSUS.json`. That document's own rule is that a wrong edge is fixed by the change that finds it.
+
+**What this does not do.** It adds no code, moves no lock, and changes no verdict. The two holes it
+names in the lock are the existing ones (OQ-026 for `driver.profiles`, D-060 for the executables),
+not new findings. Written by Claude Opus 5; nobody has arbitrated it yet.
+---
+
+## D-086: `thesis history verify`, an offline history validator, and what the corpus said when it was pointed at itself
+
+**Decision.** A new verb, `thesis history verify PATH [PATH...]`, and `internal/historycheck`. It
+applies the structural rules of the driver contract to a history file with no project, no Docker
+and no run. Every rule it enforces is one the linearizable checker already refuses on
+(`cmd/thesis-oracle-linearizable/load.go`), moved to where an integrator can hit it in a second
+against a file instead of at the end of a world.
+
+The rules: a line that is not valid JSON; a record that is neither a valid operation nor a valid
+marker (`HistoryEntry.Validate`, the OQ-058 union rule); an operation record with no `op_id`; an
+`op_id` naming two invokes or two completions; a completion with no invoke; a completion whose
+`t_ns` precedes its own invoke; a `t_ns` outside the plausible epoch-nanosecond range; and an
+operation left open at the end. It also reports one warning, a process with two operations in
+flight, which no rule here forbids and which the checker does not refuse, because the checker pairs
+by `op_id` rather than by process.
+
+**Exit codes, and the one that was decided by measurement.** A witnessed breach is FAIL (1). An
+empty history is INCONCLUSIVE (2), because a checker handed nothing has checked nothing. An
+operation left open at the end was written as FAIL first, and the corpus changed it.
+
+Measured over both committed corpora with the verb itself, 985 recorded histories and 2,011 MB in
+23.5 s: **924 clean**, 9,549,942 operation records, 4,775,396 operations, 48,217 indeterminate
+completions. Zero malformed lines, zero duplicate `op_id`s, zero negative intervals, zero
+implausible timestamps and zero process-concurrency warnings across all of it. The only finding
+anywhere in the corpus is `unclosed_invoke`: 850 occurrences in 61 files.
+
+Cross-checking those 61 against the outcome their world recorded: **50 have no `result.json` at
+all**, 7 are `inconclusive`, 4 are `violation`, and **none is `pass`**. In a random sample of 120
+clean histories the same count is 1 with no `result.json`, 40 inconclusive, 40 pass, 39 violation.
+So an unclosed operation marks a world that stopped before it was judged, not a file that is wrong.
+Reporting it as FAIL would collapse a refusal into a verdict, which is the one thing the exit-code
+table exists to prevent, so it is INCONCLUSIVE. A proven breach still outranks it when a file has
+both.
+
+That cross-check is also, incidentally, an independent confirmation on one axis: across 985
+recorded histories, the harness never reported PASS for a world whose history was incomplete.
+
+**A defect this found in its own CLI.** During the sweep one path was momentarily unreadable, and
+because the first open error returned immediately, the reports already computed for 984 other files
+were discarded: the operator learned nothing about any of them. `verifyPaths` now checks every path
+and collects the ones it could not read. An unreadable path is still CONFIG_ERROR (5) and still
+outranks every other code, because it is a usage error and no count of clean files makes it a pass;
+it just no longer erases the evidence either side of it.
+
+**What it cannot do**, said in the usage text and in `docs/TARGETS.md` rather than left implied:
+the `info` rule. Whether a timeout was recorded as `info` rather than `fail` is a claim about what
+the target did, and no reading of the file can settle it. This checks the shape of a history; only
+the driver's author can make it true.
+
+**Failing-first and mutation evidence.** All 19 tests were written before the implementation and
+were red as BUILD-FAIL (`undefined: Check`, `undefined: Report`, every `Code*` constant, then
+`undefined: verifyPaths`). Seven mutations, each red then reverted, with the source restored to an
+identical SHA-256 after each pass: the union-rule check removed (`finding codes = [], want
+[invalid_record]`); the epoch-nanosecond range removed (`want [timestamp_not_nanoseconds
+timestamp_not_nanoseconds]`); the EOF unclosed scan removed (`want [unclosed_invoke]`); an empty
+history downgraded to a warning (`exit code = 0, want 2`); the reader aborted at the first
+malformed line (`got [no_operations malformed_json], want [malformed_json malformed_json]`); the
+run abandoned at the first unreadable path (`got 1 report(s), want 2`); and an unreadable path
+allowed to pass (`exit 0, want 5`).
+
+**What this does not do.** It moves no lock, changes no verdict and adds no dependency. It was
+exercised against the corpora with an unstamped scratch binary built outside `scripts/build.ps1`
+and deleted afterwards, so the checker's recorded fingerprint did not move. Built by Claude Opus 5;
+nobody has arbitrated it yet.

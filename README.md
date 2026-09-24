@@ -254,6 +254,21 @@ sub-types, splits and orphans. It is read-only against the corpus, never
 writes to `known-problems.yaml`, and promotes nothing: a human still
 catalogues every new known problem.
 
+**History checking.** `thesis history verify` applies the driver contract to a
+history file offline, with no project, no Docker and no run: malformed lines,
+records that are neither a valid operation nor a valid marker, operations with
+no `op_id`, an `op_id` naming two operations, a completion with no invoke or
+one that precedes it, and timestamps that are not epoch nanoseconds. An
+operation left open at the end is reported as INCONCLUSIVE rather than as a
+breach, because it means the history stops before the answer rather than
+proving one. Run over both committed corpora, 985 recorded histories and
+9,549,942 operation records in 23.5 s: 924 clean, and not one malformed line,
+duplicate `op_id` or negative interval anywhere. Of the 61 histories carrying
+an unclosed operation, 50 belong to a world that never wrote a `result.json`
+and none to a world judged pass (D-086). What it cannot check is the rule that
+matters most: whether a timeout was recorded as `info` rather than `fail` is a
+claim about the target, not about the file.
+
 **Provenance.** What a verdict can be traced back to, and where each fact is
 recorded:
 
@@ -289,6 +304,11 @@ flowchart LR
 |---|---|---|
 | [`testdata/kvfixture`](testdata/kvfixture/README.md) | A three-node Raft key-value store with exactly one planted defect: a 5,000 ms leader read lease against a 600 ms election timeout, so an isolated leader keeps answering reads from stale local state for up to 8.3× longer than it can be sure it is still leader. `-tags kvfixed` removes the defect and nothing else. | "Did the harness find the bug" is answerable, and answered on every CI push in both directions. |
 | [`targets/etcd`](targets/etcd/README.md) | Upstream etcd v3.5.17, three members, unmodified image, no planted bug. The expected outcome of each arm was written down before the first run. | Both arms came out as predicted, but the pre-registered *mechanism* was wrong: the stale reads were on all three members from 69 ms in, so replication lag alone was enough and the partition was not needed. The record says so. |
+
+Pointing the harness at a third system is documented in
+[`docs/TARGETS.md`](docs/TARGETS.md): the configuration surface, the driver and
+history contracts, what the lock does and does not cover, and the gaps that
+will bite.
 
 ---
 
