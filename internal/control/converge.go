@@ -50,7 +50,7 @@ func convergenceProbes(cfg *schema.Config, top *recorder.Topology, now func() in
 		if nb, ok := findNodeBinding(top, n.ID); ok {
 			port = nb.HostPort
 		}
-		probeURL := harness.ExpandProbe(tmpl, harness.ProbeHost, port)
+		probeURL := harness.ExpandProbe(tmpl, harness.ProbeHost(), port)
 		tms := now()
 		start := time.Now()
 		resp, pErr := client.Get(probeURL)

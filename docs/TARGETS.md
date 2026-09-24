@@ -295,6 +295,55 @@ publicly (`go list -m github.com/WrdCstlg/pro-thesis@v0.1.0-phase0` prints
 go install github.com/WrdCstlg/pro-thesis/cmd/thesis@v0.1.0-phase0
 ```
 
+### Running the harness as a container
+
+You do not need Go, or this repository, to gate a project. The [`Dockerfile`](../Dockerfile) builds
+an image carrying `thesis`, the reference checker, the docker CLI and compose v2. It drives the
+**host's** daemon through a mounted socket and runs no daemon of its own.
+
+```bash
+docker build -t pro-thesis:dev .            # from a checkout of this repository
+
+docker run --rm \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$PWD:/project" -w /project \
+  -e PROTHESIS_PROBE_HOST=host.docker.internal \
+  pro-thesis:dev run --profile linear --fault 'net.partition(app)@3000..7500'
+```
+
+Three things about that command are contract rather than detail.
+
+**The probe address changes.** Health probes go to published ports on the **host's** network
+namespace. Inside a container, `127.0.0.1` is the container's own loopback, so the default is wrong
+here and every world would come back INCONCLUSIVE with a health timeout that reads like the
+target's fault. `PROTHESIS_PROBE_HOST` names the address the container can reach the host on:
+`host.docker.internal` under Docker Desktop, the bridge gateway (usually `172.17.0.1`) on a Linux
+engine. The image sets the Docker Desktop value by default. An unusable value is refused at
+startup with CONFIG_ERROR rather than at the first probe (D-087).
+
+**Your driver and your oracles are not in the image, and cannot be.** They are built from your
+repository. They must exist under the mounted project and be runnable on `linux/amd64`. A Windows
+`.exe` in `bin/` will not do: the driver command `./bin/yourdriver` resolves to an extensionless
+Linux binary inside the container. This is the single most common reason a containerized run fails
+where a host run succeeds.
+
+**Compose build contexts work; bind mounts may not.** A build context is streamed by the client out
+of the container's filesystem, so it works from any mount path. A bind-mount volume
+(`- ./data:/data`) is resolved by the daemon against the **host** filesystem and needs that path to
+exist on the host as written. Named volumes are unaffected.
+
+One more, and it decides whether this works on your engine at all. Both targets here publish to
+loopback explicitly, `ports: ["127.0.0.1:${KV_PORT_N1:-18081}:8080"]`, which is right for a harness
+running on the host. Measured on Docker Desktop for Windows, a containerized harness still reaches
+those ports at `host.docker.internal`, because Desktop proxies that path: five worlds booted and
+every health probe passed. On a Linux engine the published socket is bound to the host's loopback
+interface and a container on the bridge cannot reach it, so the target's compose has to publish on
+all interfaces instead. That case is reasoned, not measured here.
+
+Parallel lanes from inside a container are not supported yet: the pre-flight that checks whether a
+host port is free binds in the caller's own network namespace, which inside a container is not the
+host's, so it cannot answer (OQ-074). Run single-lane from a container.
+
 **Assert the exit code, never read it.** `scripts/ci-run.sh WANT_EXIT run --profile ...` takes the
 wanted code as its first argument, so a step expected to fail that passes is a finding, and so is
 the reverse. It also prints what every oracle concluded in every world, with the evidence counts, so

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WrdCstlg/pro-thesis/internal/probehost"
 	"github.com/WrdCstlg/pro-thesis/internal/recorder"
 	"github.com/WrdCstlg/pro-thesis/pkg/schema"
 )
@@ -121,7 +122,7 @@ func SteadyStateEnv(req SteadyStateRequest) []string {
 	if req.ProjectDir != "" {
 		env = append(env, EnvProjectDir+"="+req.ProjectDir)
 	}
-	env = append(env, EnvHost+"="+ProbeHost)
+	env = append(env, EnvHost+"="+ProbeHost())
 	top := req.Topology
 	if top == nil {
 		return env
@@ -176,13 +177,15 @@ func envNodeKey(id string) string {
 }
 
 // ProbeHost is the address a host-side probe is sent to. It mirrors
-// harness.ProbeHost and is restated here so this file does not drag the harness
-// into every consumer of the steady-state seam.
+// harness.ProbeHost without dragging the harness into every consumer of the
+// steady-state seam: both now read the same installed value, so the two cannot
+// drift apart the way two constants could.
 //
-// Not configurable, and not 0.0.0.0: container IPs are NOT routable from a
-// Windows host under Docker Desktop's Linux engine, verified directly, so the
-// published port on loopback is the only way in (DECISIONS.md D-010).
-const ProbeHost = "127.0.0.1"
+// Never 0.0.0.0: container IPs are NOT routable from a Windows host under
+// Docker Desktop's Linux engine, verified directly, so a published port is the
+// only way in (D-010). It defaults to loopback and is set by
+// PROTHESIS_PROBE_HOST when the harness itself runs in a container (D-087).
+func ProbeHost() string { return probehost.Host() }
 
 // ErrUnterminatedQuote reports a probe or command template with an unbalanced
 // quote.

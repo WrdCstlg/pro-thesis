@@ -3328,3 +3328,82 @@ allowed to pass (`exit 0, want 5`).
 exercised against the corpora with an unstamped scratch binary built outside `scripts/build.ps1`
 and deleted afterwards, so the checker's recorded fingerprint did not move. Built by Claude Opus 5;
 nobody has arbitrated it yet.
+**Correction (same day, before any other entry).** The paragraph above says "All 19 tests". The
+count is wrong: it is **22**, 17 in `internal/historycheck` and 5 in `cmd/thesis/history_test.go`,
+measured with `Select-String -Pattern '^func Test'` over both files. The number was written from
+memory of how many cases had been drafted rather than counted off the file, which is the exact
+failure mode this ledger is supposed to make impossible. Everything else in the entry, including
+the seven mutations and the corpus figures, was measured and stands. The commit that carried this
+entry, 5a98933, repeats the wrong figure in its message and cannot be corrected there without
+rewriting a pushed branch; this paragraph is the correction of record.
+---
+
+## D-087: the probe address is configurable, so the harness can run in a container, and the driver is told where the cluster is
+
+**Decision.** `internal/probehost` holds the address host-side probes are sent to. It defaults to
+D-010's measured `127.0.0.1` and is overridden by `PROTHESIS_PROBE_HOST`, validated once at startup
+and refused with CONFIG_ERROR rather than at the first probe. A root `Dockerfile` builds an image
+carrying `thesis`, the reference checker, the docker CLI and compose v2, which drives the HOST's
+daemon through a mounted socket.
+
+D-010 is not superseded. Its measurement stands: a container IP is not routable from a Windows
+host, so a published port is the only way in. What changed is that the harness itself can now be
+the container, and then loopback is the container's own and the target's ports are in another
+namespace.
+
+**It is an environment variable, not a configuration key.** It describes where the harness is
+standing, not what is being tested. Two operators running the same committed project from different
+places must reach the same verdict, and a key in prothesis.yaml would let one of them change the
+gate by moving house. It also keeps the lock out of it.
+
+**What the live runs measured, including two that were wrong.** Three runs of the same command from
+inside the image against the reference fixture, `run --profile linear --fault
+'net.partition(role:leader)@3000..7500'`:
+
+- `r_2026_09_24_a253`, INCONCLUSIVE (exit 2). Five worlds. Every health probe passed, every fault
+  injected and withdrew on the right node, the driver drained cleanly, and **all 60,000 operations
+  failed in every world**. `WorkerSlot.Targets` still rendered loopback, so the driver was dialling
+  its own.
+- `r_2026_09_24_9c90`, INCONCLUSIVE (exit 2), after fixing `Targets`. Identical symptom. `Targets`
+  is the PARALLEL path; a serial `run` never set `PROTHESIS_TARGETS` at all, and the fixture driver
+  fell back to its compiled-in `127.0.0.1:18081`. The history records say so in plain text:
+  `"meta":{"target":"http://127.0.0.1:18082"}`.
+- `r_2026_09_24_b498`, **FAIL (exit 1) in 23.6 s**, after the serial path was fixed. One world, one
+  witnessed violation, `linearizable.kv` in ASSERT: key `k/0`, no linearization exists for its 612
+  operations, search space exhausted over 2,129 states and 6,798 steps. The causal timeline carries
+  the defect itself: at t+4180ms process 11 writes `k/0 -> 11000214` and is told ok; at t+4196ms
+  process 6 reads `k/0` and is told `15000210`, the value from t+3195ms. That is the planted 5,000
+  ms read lease answering from an isolated leader, found from inside a container.
+
+**The correction that came out of it.** `driverEnv` used to strip `PROTHESIS_TARGETS` and set
+nothing, so harness silence meant "driver, use your own default". That was safe only while the
+default was right. The harness published the ports and knows the address they are reachable on, and
+a value it can derive is not a value it should withhold, so a serial world now derives it from the
+topology. The strip stays: an inherited value is still replaced, never honoured. An explicit entry
+still wins, which is how the parallel executor keeps authority over its own lane's band.
+
+Both wrong runs are kept. Neither reported anything false: the checker said INCONCLUSIVE with
+"a checker with nothing to check reports INCONCLUSIVE, never ok" while six other oracles said ok,
+which is the fail-closed design catching a misconfigured harness rather than passing it.
+
+**Measured limits, stated rather than implied.** Both targets publish to loopback explicitly
+(`ports: ["127.0.0.1:${KV_PORT_N1:-18081}:8080"]`). On Docker Desktop for Windows the container
+still reaches them at `host.docker.internal`, measured above. On a Linux engine the socket is bound
+to the host's loopback and a bridged container cannot reach it, so the target's compose must publish
+on all interfaces; that case is reasoned, not measured. A compose build context is streamed by the
+client and works from any mount path (measured: `docker compose build` from inside the image, exit
+0); a bind-mount volume is resolved by the daemon against the host and is not covered. The driver
+and the oracles are the target's executables, are not in the image and cannot be, and must be
+runnable on linux/amd64. Parallel lanes from a container are unsupported: the port pre-flight binds
+in the caller's namespace and cannot answer (OQ-074).
+
+**Failing-first and mutation evidence.** Every test written before the code and red first: the
+probehost package as BUILD-FAIL on eight undefined symbols, `TestDriverTargetsFollowTheProbeHost`
+red with the exact production symptom (`Targets() = [127.0.0.1:19001 ...]`), and the driverEnv tests
+as BUILD-FAIL on the signature change. The live runs above are themselves the mutation evidence for
+the two target defects: each was found by a run that failed, fixed, and re-run.
+
+**What this does not do.** It moves no lock, changes no oracle and does not alter any verdict on the
+host: the default is unchanged and the full suite passes. The image is not published anywhere and
+carries no build stamp, so `thesis version` reports it as unstamped, which is true. Built by Claude
+Opus 5; nobody has arbitrated it yet.

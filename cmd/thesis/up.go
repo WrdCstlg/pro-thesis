@@ -114,7 +114,7 @@ func cmdUp(ctx context.Context, g globals, args []string) schema.ExitCode {
 	infof(g, "topology up (compose project %s)", top.ComposeProject)
 	for _, n := range top.Nodes {
 		if n.HostPort > 0 {
-			infof(g, "  %-8s %s  http://%s:%d", n.ID, shortID(n.ContainerID), harness.ProbeHost, n.HostPort)
+			infof(g, "  %-8s %s  http://%s:%d", n.ID, shortID(n.ContainerID), harness.ProbeHost(), n.HostPort)
 		} else {
 			infof(g, "  %-8s %s  (no published port)", n.ID, shortID(n.ContainerID))
 		}

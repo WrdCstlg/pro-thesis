@@ -8,19 +8,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WrdCstlg/pro-thesis/internal/probehost"
 	"github.com/WrdCstlg/pro-thesis/internal/recorder"
 	"github.com/WrdCstlg/pro-thesis/pkg/schema"
 )
 
 // ProbeHost is the address every health probe is sent to.
 //
-// Not configurable, and not 0.0.0.0. Container IPs are NOT routable from a
-// Windows host under Docker Desktop's Linux engine; verified directly: a
-// container at 172.17.0.2 is unreachable from PowerShell. So a host-side probe
-// has exactly one way in, the published port on loopback. `docker compose port`
-// reports the BIND address (0.0.0.0), which is not a destination; only its port
-// number is used. See DECISIONS.md D-010.
-const ProbeHost = "127.0.0.1"
+// Never 0.0.0.0. Container IPs are NOT routable from a Windows host under
+// Docker Desktop's Linux engine; verified directly: a container at 172.17.0.2
+// is unreachable from PowerShell. So a host-side probe has exactly one way in,
+// the published port. `docker compose port` reports the BIND address (0.0.0.0),
+// which is not a destination; only its port number is used. See D-010.
+//
+// It defaults to loopback, which is what D-010 measured and what every existing
+// project keeps. It stopped being a constant when the harness itself had to run
+// inside a container, where loopback is the container's own and the target's
+// published ports are somewhere else entirely (D-087).
+func ProbeHost() string { return probehost.Host() }
 
 // WaitHealthy blocks until every declared health probe passes, or the probe's
 // timeout expires.
@@ -60,7 +65,7 @@ func WaitHealthy(ctx context.Context, cfg *schema.Config, top *recorder.Topology
 					"(container IPs are not routable from this host; publish the client port to 127.0.0.1)",
 					nodeID, hp.Probe)
 			}
-			url := ExpandProbe(hp.Probe, ProbeHost, nb.HostPort)
+			url := ExpandProbe(hp.Probe, ProbeHost(), nb.HostPort)
 			if err := pollHTTP(ctx, url, hp.Timeout.Std()); err != nil {
 				return fmt.Errorf("harness: node %q failed its health probe: %w", nodeID, err)
 			}

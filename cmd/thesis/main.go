@@ -30,6 +30,7 @@ import (
 	"strings"
 
 	"github.com/WrdCstlg/pro-thesis/internal/buildinfo"
+	"github.com/WrdCstlg/pro-thesis/internal/probehost"
 	"github.com/WrdCstlg/pro-thesis/pkg/schema"
 )
 
@@ -112,6 +113,15 @@ func run() schema.ExitCode {
 
 	g, rest, err := parseGlobals(rest)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "thesis: %v\n", err)
+		return schema.ExitConfigError
+	}
+
+	// Where host-side probes are sent. Absent means loopback, which is every
+	// existing project. Present and unusable is refused here rather than at the
+	// first probe, because a bad address turns every world INCONCLUSIVE and the
+	// reason would otherwise be buried in a health-check timeout (D-087).
+	if err := probehost.SetFromEnv(os.LookupEnv); err != nil {
 		fmt.Fprintf(os.Stderr, "thesis: %v\n", err)
 		return schema.ExitConfigError
 	}

@@ -1,0 +1,25 @@
+# Keep the run corpus out of the build context.
+#
+# Measured before this file existed: the whole tree is 2.83 GB and 2.63 GB of
+# that is .prothesis/runs, which the image has no use for. OQ-068 recorded the
+# same mistake on the fixture image, where the corpus inside the build context
+# cost gigabytes of build cache per world. The fix there was
+# testdata/kvfixture/.dockerignore; this is the same fix for the harness image.
+**/.prothesis/runs/
+**/.prothesis/*.csv
+**/.prothesis/*.json
+**/.prothesis/*.yaml.report
+
+# Build outputs. The image builds its own binaries; a host binary here would be
+# the wrong architecture and would silently bloat the context.
+bin/
+**/bin/
+*.exe
+
+.git/
+.github/
+
+# Scratch and editor state.
+*.log
+.vscode/
+.idea/

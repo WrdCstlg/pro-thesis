@@ -3438,3 +3438,34 @@ stderr are discarded (D-073 records this as L1c's to fix). `witness.stderr_path`
 `oracle_definition` leak absolute host paths into bundles; the observation record's proposal is
 run-relative paths (`world-0001/oracles/linearizable.kv.stderr.log`), which would end the class.
 Source list: `docs/observations/2026-09-17-OBS-LIVE-001/audit-response.md:63-73`.
+
+---
+
+## OQ-074: the parallel-lane port pre-flight cannot answer from inside a container
+
+**Classification:** OPEN; found while containerizing the harness (D-087); not yet measured with a
+real collision, so it is recorded from the code rather than from a failure.
+
+**Observed.** `internal/control/parallel.go` reserves a band of host ports per worker slot and
+checks each one first with `portFree`, which does `net.Listen("tcp", "127.0.0.1:<port>")` and
+treats a successful bind as evidence the port is available. That is sound when the harness runs on
+the host, which is what it was written for.
+
+It stops being sound when the harness runs inside a container. The bind then happens in the
+CONTAINER's network namespace, which is not the one the target's ports are published into. A port
+busy on the host binds cleanly in the container and the pre-flight reports it free; the collision
+then surfaces later as compose failing with "Bind for 127.0.0.1:19001 failed: port is already
+allocated", which is the message the pre-flight exists to turn into something readable.
+
+**Why it is recorded rather than fixed.** The failure is not silent in the verdict sense: the world
+fails to boot and the run is INCONCLUSIVE, so nothing is passed that should not be. What is lost is
+the diagnosis, and the check reporting "free" when it cannot know is the part that offends the
+refusal rule. A check that cannot answer should say so.
+
+**What would close it.** Either skip the pre-flight when `probehost.Host()` is not loopback and say
+in the output that lane collision detection is unavailable, or ask the daemon which host ports are
+bound instead of asking the local netstack. The second is the real fix and needs a measured
+collision to prove.
+
+**Meanwhile**, `docs/TARGETS.md` says to run single-lane from a container, which is the only form
+exercised so far.
