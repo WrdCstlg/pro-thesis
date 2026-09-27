@@ -30,7 +30,7 @@ that the code can mean what it says.
 | `0` | **Pass.** Every planned world ran to ASSERT and no oracle found a violation. | At least one oracle judged every world, and every oracle returned `ok`. A world no oracle judged is `2`, never `0` (D-089). A run narrowed by `--worlds` or `--budget` below its locked profile cannot report this (D-059). | Asserted on every push to `master` by [`ci.yml`](.github/workflows/ci.yml): the fixture with its defect patched (`KV_VARIANT=kvfixed`), etcd with no faults, and etcd with linearizable reads under a leader partition. |
 | `1` | **Fail.** An oracle proved a violation and named its witness. | `violations[]` in `verdict.json` carries the oracle, the witness operation ids and the proof. | Asserted on every push for the planted fixture defect and for etcd's serializable reads. Measured in the launching shell, on the line after the call, in [OBS-LIVE-001](docs/observations/2026-09-17-OBS-LIVE-001/record.md) (runs 2 to 4), [OBS-LIVE-002](docs/observations/2026-09-19-OBS-LIVE-002/record.md), and a sample of twenty fresh worlds (20 of 20; run ids in OQ-054). |
 | `2` | **Nothing was proven.** The harness could not reach a verdict and refuses to guess. | An oracle that crashes, hangs, emits malformed output, or lacks the probe it needs returns `inconclusive`, never `ok`. One `inconclusive` takes the run to `2`; passing oracles cannot outvote it. A world that no oracle judged at all is `inconclusive` too. | `TestAWorldNoOracleJudgedIsInconclusiveNotPass` in [`internal/control/vacuous_pass_test.go`](internal/control/vacuous_pass_test.go); `TestExternalOracleReportsInconclusive`, `TestExternalOracleThatHangsIsKilledAndIsInconclusive`, `TestAnExternalInconclusiveTakesTheRunToExitTwo` in [`internal/oracle/external_test.go`](internal/oracle/external_test.go); `TestAvailabilityWithNoDeclaredProbeIsInconclusive`. Seen live: the two fixture-only oracles return `2` on every etcd world when enabled (OQ-063). |
-| `4` | **Someone changed the test.** A locked definition moved without a recorded reason. | [`.prothesis/lock`](testdata/kvfixture/.prothesis/lock) digests every oracle definition and nine configuration keys (`harness.health`, `harness.role_probe`, `oracles.builtin`, `oracles.dir`, `perturber.allow`, `perturber.budget`, `perturber.deny`, `profiles`, `search`). Every `thesis run` re-derives the digest before any container starts; a mismatch is `4`. Only `thesis oracles lock --reason "…"` moves it, and the reason is committed with the lock. | Adversarial probe A4 widens a lock-covered budget and requires exit `4` ([`scripts/adversarial.ps1`](scripts/adversarial.ps1)); [`internal/lock/lock_test.go`](internal/lock/lock_test.go), [`cmd/thesis/oracles_test.go`](cmd/thesis/oracles_test.go). CI runs `thesis oracles verify` against both committed locks before any live world. |
+| `4` | **Someone changed the test.** A locked definition moved without a recorded reason. | [`.prothesis/lock`](testdata/kvfixture/.prothesis/lock) digests every oracle definition, ten configuration keys (`driver.cmd`, `harness.health`, `harness.role_probe`, `oracles.builtin`, `oracles.dir`, `perturber.allow`, `perturber.budget`, `perturber.deny`, `profiles`, `search`), and every driver profile a run profile names (D-090). Every `thesis run` re-derives the digest before any container starts; a mismatch is `4`. Only `thesis oracles lock --reason "…"` moves it, and the reason is committed with the lock. | Adversarial probe A4 widens a lock-covered budget and requires exit `4` ([`scripts/adversarial.ps1`](scripts/adversarial.ps1)); [`internal/lock/lock_test.go`](internal/lock/lock_test.go), [`cmd/thesis/oracles_test.go`](cmd/thesis/oracles_test.go). CI runs `thesis oracles verify` against both committed locks before any live world. |
 
 Two more codes are not verdicts. `3` (`BUDGET_EXHAUSTED`) means the run stopped
 before its worlds were done, so do not merge on it. `5` (`CONFIG_ERROR`) means
@@ -40,7 +40,10 @@ the configuration is invalid.
 the digest. A swapped, rebuilt or missing checker binary is a WARNING in the
 verdict (`oracle_lock.executables_moved`), not exit `4`, because a routine
 rebuild would otherwise be an incident that trains people to re-lock without
-reading (D-060; the measured gap is OQ-057). The lock is a review aid, not a
+reading (D-060; the measured gap is OQ-057). The load generator's program is
+fingerprinted the same way, as `driver.cmd`, and is a warning for the same reason
+(D-090). Neither the workload a driver compiles in for a profile name nor the
+environment it inherits is covered (OQ-076). The lock is a review aid, not a
 sandbox: see [Security model](#security-model).
 
 ---
@@ -415,10 +418,10 @@ The weaknesses that are open today, and how to report a new one, are in
 ## The ledgers
 
 - [`DECISIONS.md`](DECISIONS.md): every non-obvious choice, with what was
-  rejected and why, D-001 through D-089.
+  rejected and why, D-001 through D-090.
 - [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md): every requirement that could not
   be met as written, every defect found, and what was measured about it,
-  OQ-001 through OQ-075. Entries are never deleted; a resolution is appended.
+  OQ-001 through OQ-076. Entries are never deleted; a resolution is appended.
 
 ---
 

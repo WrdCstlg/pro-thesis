@@ -26,7 +26,9 @@ import (
 // the property that made OQ-057 exploitable rather than merely conceivable.
 type ExecutableFingerprint struct {
 	// Oracle is the definition's `name`, which is also the string the verdict's
-	// violations[].oracle carries.
+	// violations[].oracle carries, or the reserved DriverProgram for the load
+	// generator. The field keeps its name so a lock written before the driver
+	// was fingerprinted still reads, and one written after reads in older tools.
 	Oracle string `json:"oracle"`
 	// Cmd is the definition's `cmd` verbatim, so a reader can see what was
 	// written as well as what it became.
@@ -88,10 +90,30 @@ func FingerprintExecutables(projectDir, oraclesDir string) ([]ExecutableFingerpr
 	return out, nil
 }
 
-func fingerprintOne(projectDir string, d oracle.Definition) ExecutableFingerprint {
-	fp := ExecutableFingerprint{Oracle: d.Name, Cmd: d.Cmd}
+// DriverProgram is the name the load generator's fingerprint is recorded under.
+// It is the config path of the command it came from, and it cannot collide
+// with an oracle, because the driver is not declared under oracles.dir.
+const DriverProgram = "driver.cmd"
 
-	argv, err := driver.SplitCommand(d.Cmd)
+// FingerprintDriver hashes the program `driver.cmd` resolves to (OQ-076, D-090).
+//
+// The driver writes the history every consistency oracle judges, so a swapped
+// driver defeats the gate as surely as a swapped checker. It is fingerprinted
+// the same way and for the same reason: outside the digest, reported as a
+// WARNING, never silent. It resolves argv[0] with the resolver the supervisor
+// launches it through, so the file hashed is the file that will run.
+func FingerprintDriver(projectDir, cmd string) ExecutableFingerprint {
+	return fingerprintProgram(projectDir, DriverProgram, cmd)
+}
+
+func fingerprintOne(projectDir string, d oracle.Definition) ExecutableFingerprint {
+	return fingerprintProgram(projectDir, d.Name, d.Cmd)
+}
+
+func fingerprintProgram(projectDir, name, cmd string) ExecutableFingerprint {
+	fp := ExecutableFingerprint{Oracle: name, Cmd: cmd}
+
+	argv, err := driver.SplitCommand(cmd)
 	if err != nil || len(argv) == 0 || argv[0] == "" {
 		fp.Unresolved = "the cmd could not be split into an argv"
 		return fp
@@ -107,7 +129,7 @@ func fingerprintOne(projectDir string, d oracle.Definition) ExecutableFingerprin
 		// time and is a legitimate configuration; so is locking a project
 		// before its checker has been built. Both are recorded as
 		// un-fingerprinted, which is a fact a reader can act on.
-		fp.Unresolved = fmt.Sprintf("no file at %s (a PATH lookup or an unbuilt checker "+
+		fp.Unresolved = fmt.Sprintf("no file at %s (a PATH lookup or an unbuilt program "+
 			"resolves at run time and cannot be fingerprinted here)", fp.Resolved)
 		return fp
 	case info.IsDir():
@@ -223,13 +245,14 @@ func FormatExecutableChanges(changes []ExecutableChange) string {
 		return ""
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "thesis: WARNING: %d oracle program(s) differ from the lock:\n", len(changes))
+	fmt.Fprintf(&b, "thesis: WARNING: %d program(s) the verdict depends on differ from the lock:\n", len(changes))
 	for _, c := range changes {
 		fmt.Fprintf(&b, "  %s: %s\n", c.Oracle, c.Detail)
 	}
-	b.WriteString("  The lock hashes oracle DEFINITIONS; these digests are recorded outside it so a\n" +
-		"  rebuild is a warning rather than drift. A rebuilt checker is expected. A checker\n" +
-		"  you did not rebuild is the failure OQ-057 describes: the program deciding every\n" +
-		"  verdict was replaced. Confirm which, then re-lock with a reason that says so.\n")
+	b.WriteString("  The lock hashes oracle DEFINITIONS and the driver COMMAND; these program digests\n" +
+		"  are recorded outside it so a rebuild is a warning rather than drift. A rebuilt\n" +
+		"  program is expected. A checker you did not rebuild is the failure OQ-057 describes,\n" +
+		"  and a driver you did not rebuild can write a history the checker cannot fault\n" +
+		"  (OQ-076). Confirm which, then re-lock with a reason that says so.\n")
 	return b.String()
 }

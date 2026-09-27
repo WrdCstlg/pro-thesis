@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/WrdCstlg/pro-thesis/pkg/schema"
@@ -140,6 +141,15 @@ func Gate(opts GateOptions) (*Report, error) {
 	// answerable without it.
 	if fps, ferr := FingerprintExecutables(projectDir, oraclesDir); ferr == nil {
 		rep.ExecutablesNow = fps
+	}
+	// The driver writes the history the oracles judge, so its program is
+	// fingerprinted beside theirs (OQ-076, D-090). A project with no driver
+	// command has nothing to fingerprint, and that is not an error.
+	if cmd, cerr := DriverCmdFromConfig(data); cerr == nil && strings.TrimSpace(cmd) != "" {
+		rep.ExecutablesNow = append(rep.ExecutablesNow, FingerprintDriver(projectDir, cmd))
+		sort.Slice(rep.ExecutablesNow, func(i, j int) bool {
+			return rep.ExecutablesNow[i].Oracle < rep.ExecutablesNow[j].Oracle
+		})
 	}
 
 	locked, err := Read(projectDir)

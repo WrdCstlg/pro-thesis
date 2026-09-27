@@ -1,11 +1,18 @@
 {
   "schema": "prothesis.lock/v1",
-  "manifest_sha": "sha256:872c9151cf20d86ca84c0d82eee97255c3a7464cf44391ad4c65ff02d74b1823",
-  "reason": "D-066: the lock now covers harness.health and harness.role_probe; re-locked with no change to the oracle set",
-  "locked_at": "2026-09-15T12:23:18Z",
+  "manifest_sha": "sha256:877a12c5eb3ea29cdce76a4d81efe5dc6a3b4dc96e0bbce7b91ea2aecd264864",
+  "reason": "D-090: the lock now covers driver.cmd and every driver profile a run profile names (OQ-026, OQ-076). Measured by oracles verify with the D-090 build before this lock: 13 config entries ADDED, all under driver.cmd and driver.profiles.{linear,smoke,stale}; no previously covered value changed or was removed. The executables block now also fingerprints the driver program, as driver.cmd; the linearizable-kv binary is the one the previous lock fingerprinted.",
+  "locked_at": "2026-09-26T21:32:28Z",
   "tool_version": "0.1.0-phase0",
   "builtin_options_fingerprint": "sha256:ca5cba3edb828e29bd4b1357c9ff2d86ae2e3eb6a6bd009a2430b076304064bf",
   "executables": [
+    {
+      "oracle": "driver.cmd",
+      "cmd": "./bin/etcdload --history {history_path} --seed {seed} --profile {profile}",
+      "resolved": "bin/etcdload.exe",
+      "sha256": "sha256:80d4cb9a19f737234eb6c8fc4441b498af5116f81fcc61ee337fdcaf339ff455",
+      "size": 10477568
+    },
     {
       "oracle": "linearizable.kv",
       "cmd": "./bin/linearizable-kv",
@@ -15,6 +22,7 @@
     }
   ],
   "covers": [
+    "driver.cmd",
     "harness.health",
     "harness.role_probe",
     "oracles.builtin",
@@ -23,13 +31,14 @@
     "perturber.budget",
     "perturber.deny",
     "profiles",
-    "search"
+    "search",
+    "driver.profiles.<name>, for every <name> a profiles.*.driver_profile names"
   ],
   "limitations": [
     "The DIGEST does not cover the EXECUTABLE an oracle names. Files under oracles.dir are covered byte for byte; the binary, interpreter, shared library, container image or PATH entry an oracle resolves at run time is NOT hashed into manifest_sha, so swapping a checker does not produce ORACLE_DRIFT and never will: hashing it into the digest would make an ordinary rebuild exit 4 and turn re-locking into a reflex. Since D-060 the `executables` block above records each resolved program's SHA-256 OUTSIDE the digest, and `verify` and every run report a moved or missing one as a WARNING that also lands in the verdict. That removes the SILENCE OQ-057 measured; it does not make a swap impossible, and nothing short of signing would. Only the program is fingerprinted — not its arguments, its interpreter, or anything it loads.",
     "File modes are not covered. The executable bit does not survive a Windows checkout, so hashing it would fire a spurious ORACLE_DRIFT on a cross-platform clone.",
     "Built-in oracle thresholds are compiled in and reachable from no config key. builtin_options_fingerprint records them for review but is OUTSIDE the digest: including it would turn any release that adjusts a default into exit 4 on every downstream project at once. `thesis oracles verify` reports a moved fingerprint as a warning, never as drift.",
-    "driver.profiles (clients / ops / mix) is not covered. Shrinking a workload there is a gate weakening this lock does not catch. Logged as OQ-026.",
+    "The driver is covered by its COMMAND and by the driver profiles a run profile names (D-090). A driver profile no run profile names is not covered, because it is not the gate's workload and covering it would fire exit 4 on routine edits (OQ-026). The driver's PROGRAM is fingerprinted in the `executables` block as `driver.cmd`, outside the digest, so a rebuilt or swapped driver is a WARNING and not drift. Neither the workload a driver compiles in for a profile name nor the environment it inherits is covered: a driver that reads its workload from its own table or from environment variables can still be changed without moving this digest (OQ-076).",
     "The digest covers the USER-SUPPLIED prothesis.yaml with defaults NOT applied. A key you did not write contributes nothing, so upgrading thesis cannot move this digest by changing a compiled-in default."
   ],
   "manifest": {
@@ -42,6 +51,71 @@
       }
     ],
     "config": [
+      {
+        "path": "driver.cmd",
+        "kind": "scalar",
+        "value": "./bin/etcdload --history {history_path} --seed {seed} --profile {profile}"
+      },
+      {
+        "path": "driver.profiles.linear.clients",
+        "kind": "scalar",
+        "value": "16"
+      },
+      {
+        "path": "driver.profiles.linear.mix.read",
+        "kind": "scalar",
+        "value": "0.5"
+      },
+      {
+        "path": "driver.profiles.linear.mix.write",
+        "kind": "scalar",
+        "value": "0.5"
+      },
+      {
+        "path": "driver.profiles.linear.ops",
+        "kind": "scalar",
+        "value": "60000"
+      },
+      {
+        "path": "driver.profiles.smoke.clients",
+        "kind": "scalar",
+        "value": "4"
+      },
+      {
+        "path": "driver.profiles.smoke.mix.read",
+        "kind": "scalar",
+        "value": "0.5"
+      },
+      {
+        "path": "driver.profiles.smoke.mix.write",
+        "kind": "scalar",
+        "value": "0.5"
+      },
+      {
+        "path": "driver.profiles.smoke.ops",
+        "kind": "scalar",
+        "value": "500"
+      },
+      {
+        "path": "driver.profiles.stale.clients",
+        "kind": "scalar",
+        "value": "16"
+      },
+      {
+        "path": "driver.profiles.stale.mix.read_serializable",
+        "kind": "scalar",
+        "value": "0.5"
+      },
+      {
+        "path": "driver.profiles.stale.mix.write",
+        "kind": "scalar",
+        "value": "0.5"
+      },
+      {
+        "path": "driver.profiles.stale.ops",
+        "kind": "scalar",
+        "value": "60000"
+      },
       {
         "path": "harness.health[0].node",
         "kind": "scalar",

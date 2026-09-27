@@ -140,7 +140,11 @@ func TestManifestGolden(t *testing.T) {
 	// Moved on 2026-09-15 by D-066: CoveredPaths gained harness.health and
 	// harness.role_probe, and baseConfig carries a health entry. The previous
 	// value was sha256:eab904f2…262e86.
-	const golden = "sha256:1ce27e2ae493be47276cc73d6099e68cb4872e163933bcdd6add8f174fd7ef3b"
+	//
+	// Moved on 2026-09-26 by D-090: CoveredPaths gained driver.cmd, and the
+	// driver profiles a run profile names are covered by reference; baseConfig
+	// carries both. The previous value was sha256:1ce27e2a…fd7ef3b.
+	const golden = "sha256:2c1c14f77fe8f0a15230a674cfb33787ca8481eca6e5ff6682d4addf470c24e5"
 	got := digestOfConfig(t, baseConfig)
 	if got != golden {
 		t.Fatalf("manifest digest moved:\n  golden %s\n  got    %s\n"+
@@ -446,16 +450,18 @@ func TestAllowListReorderDoesNotMoveDigest(t *testing.T) {
 }
 
 // TestUncoveredEditsDoNotMoveDigest documents the scope honestly. An edit
-// outside CoveredPaths must not fire exit 4, including the driver profile
-// hole recorded as OQ-026, which is stated rather than hidden.
+// outside the covered set must not fire exit 4.
+//
+// The driver profile hole OQ-026 recorded was pinned here by a subtest that
+// asserted `ops: 500` -> `ops: 5` moved nothing. D-090 closed the hole, and the
+// subtest was removed deliberately, as OQ-026 said it must be. What stays
+// uncovered in the driver section, a profile no run profile names, is pinned by
+// TestOnlyDriverProfilesARunProfileNamesAreCovered.
 func TestUncoveredEditsDoNotMoveDigest(t *testing.T) {
 	for _, tc := range []struct{ name, from, to string }{
 		{"name", "name: locktest", "name: renamed"},
 		{"harness_file", "file: docker-compose.yaml", "file: other-compose.yaml"},
 		{"artifacts_dir", "dir: .prothesis/runs", "dir: .prothesis/elsewhere"},
-		// OQ-026: this SHOULD arguably be covered and is not. The test asserts
-		// the behaviour that exists so the hole cannot be forgotten.
-		{"driver_ops_OQ026", "ops: 500", "ops: 5"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			changed := strings.Replace(baseConfig, tc.from, tc.to, 1)
