@@ -19,9 +19,10 @@ of the same thing; the weaknesses that are open today are listed below.
 
 ## Status
 
-This is research software at `0.1.0-phase0`, under an Apache-2.0 licence whose
-Section 7 disclaimer applies in full. It has no release process, no versioned
-support window, and no security-update channel. Nothing here should be read as a
+This is research software at `0.1.0-phase0`, under the GNU AGPL v3.0, whose
+disclaimer of warranty and limitation of liability (sections 15 and 16) apply in
+full. It has no release process, no versioned support window, and no
+security-update channel. Nothing here should be read as a
 commitment to patch on a schedule.
 
 ## Reporting a vulnerability

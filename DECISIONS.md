@@ -3618,3 +3618,26 @@ checker's hashed and the driver's recorded, where it required one.
 
 **Review before commit.** Built by Claude Opus 5.5, the session that ran the 2026-09-25 evaluation.
 Not yet arbitrated; §9 requires a different model to judge it before merge.
+
+---
+
+## D-091: the project is licensed under the GNU Affero General Public License v3.0
+
+**Choice.** On the author's instruction of 2026-09-27, PRO-THESIS moves from the Apache License 2.0
+to the GNU Affero General Public License, version 3. `LICENSE` carries the full text as GitHub's
+license API serves it (`gh api licenses/agpl-3.0`, 34,523 characters), so GitHub's license
+detection reads the file as AGPL-3.0. The README's License section and SECURITY.md's status
+paragraph say so. No source file carried a license header, so none changes.
+
+**What does not change.** Everything published before this change, including the public
+repository's `master` at `7fb03ba`, was released under Apache-2.0, and copies of those versions keep
+that license. The one dependency, `gopkg.in/yaml.v3`, is covered by the MIT and Apache licenses,
+per its own LICENSE file.
+
+**What the AGPL adds**, stated so a reader does not have to look it up: beyond the GPL's terms,
+section 13 requires that a modified version offered to users over a network offers those users its
+corresponding source.
+
+**Not decided here.** Whether later versions of the AGPL may also apply ("or any later version").
+The text of `LICENSE` does not choose, no file carries a notice that does, and the author has not
+said.
