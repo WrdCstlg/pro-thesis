@@ -251,10 +251,12 @@ containers.
 
 ## 8. The lock, and what it is for
 
-`.prothesis/lock` hashes every oracle definition byte for byte plus exactly nine configuration keys,
-which the lock file lists under `covers`: `harness.health`, `harness.role_probe`, `oracles.builtin`,
-`oracles.dir`, `perturber.allow`, `perturber.budget`, `perturber.deny`, `profiles`, `search`. Every
-run re-derives the digest before a container starts. A mismatch is exit **4**: not "a test failed"
+`.prothesis/lock` hashes every oracle definition byte for byte plus exactly ten configuration keys,
+which the lock file lists under `covers`: `driver.cmd`, `harness.health`, `harness.role_probe`,
+`oracles.builtin`, `oracles.dir`, `perturber.allow`, `perturber.budget`, `perturber.deny`,
+`profiles`, `search`. It also hashes `driver.profiles.<name>` for every name a run profile's
+`driver_profile` names (D-090), because that is the workload the gate runs. Every run re-derives
+the digest before a container starts. A mismatch is exit **4**: not "a test failed"
 but "someone changed the test". Moving it is deliberate, and the reason lands in the diff:
 
 ```bash
@@ -267,11 +269,15 @@ go with it: a fix and a gate change never travel in the same commit, and CI runs
 
 Two holes the lock file states about itself, both of which matter to you:
 
-- **`driver.profiles` is not covered** (OQ-026). Shrinking `ops` from 60000 to 10 weakens the gate
-  and moves no digest. Review workload changes as gate changes.
-- **The digest covers oracle definitions, not the executables they name** (D-060). A rebuilt or
-  swapped checker is a warning in the verdict, never exit 4. Since D-060 each resolved program's
-  SHA-256 is recorded outside the digest, so the change is visible rather than silent.
+- **Your driver can still change the workload behind the lock's back** (OQ-076). The lock covers the
+  driver command and the driver profiles your run profiles name, but not a workload the driver
+  compiles in for a profile name, and not environment variables it reads. If your driver resolves a
+  profile name from its own table, as the fixture's `loadgen` does, review a change to that table
+  as a gate change. A driver profile that no run profile names is not covered at all (OQ-026).
+- **The digest covers oracle definitions and the driver command, not the executables they name**
+  (D-060, D-090). A rebuilt or swapped checker or driver is a warning in the verdict, never exit 4.
+  Each resolved program's SHA-256 is recorded outside the digest, the driver's as `driver.cmd`, so
+  the change is visible rather than silent.
 
 ---
 

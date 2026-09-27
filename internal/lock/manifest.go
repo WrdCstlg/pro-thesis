@@ -218,6 +218,22 @@ func hashFile(p string) (string, int64, error) {
 // a future change to DefaultOraclesDir moves no digest by itself. It would move
 // the file list if the two directories held different files, which is honest:
 // different oracles would then actually be in force.
+// DriverCmdFromConfig returns `driver.cmd` as the user wrote it, or "" when the
+// config names none. It reads the same projection the digest is built from, so
+// the command fingerprinted is the command digested.
+func DriverCmdFromConfig(configBytes []byte) (string, error) {
+	entries, err := ProjectConfig(configBytes)
+	if err != nil {
+		return "", err
+	}
+	for _, e := range entries {
+		if e.Path == "driver.cmd" && e.Kind == KindScalar {
+			return e.Value, nil
+		}
+	}
+	return "", nil
+}
+
 func OracleDirFromConfig(configBytes []byte) (string, error) {
 	entries, err := ProjectConfig(configBytes)
 	if err != nil {

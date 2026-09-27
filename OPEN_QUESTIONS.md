@@ -3523,3 +3523,55 @@ reachable when `oracles.builtin: []` and no external oracles are configured or v
 error, and scoring the world INCONCLUSIVE: the worse of that and any cause already recorded, so a HEAL
 failure is not overwritten. The reason is printed to stderr. A world that no oracle judged cannot pass:
 silence is the defect.
+
+---
+
+## OQ-076: the driver that writes the history sits outside the lock
+
+**Classification:** PARTIALLY RESOLVED (D-090). Measured 2026-09-25. The command and the profiles
+are now covered; the residual below is stated rather than closed.
+
+**Observed.** The lock covered the oracles that judge the history and not the program that writes
+it. `driver.cmd` was not in `CoveredPaths` (`"driver.cmd"` never appears under `internal/lock` in
+either history, measured with `git log -S`), and the `executables` block fingerprinted oracle
+programs only.
+
+**Measured, 2026-09-25, in a scratch copy of the fixture's configuration** (its compose build
+context pointed back at the fixture, so the committed corpus was untouched):
+- Editing `driver.cmd` from `--profile {profile}` to `--profile smoke`: `thesis oracles verify`
+  exit 0. Editing a covered key instead (`perturber.budget.max_faults_per_world`, 24 to 1): exit 4,
+  so the probe could fail.
+- Unedited baseline, `thesis run --profile linear --worlds 1 --fault
+  'net.partition(role:leader)@3000..7500'`: run `r_2026_09_25_fca5`, exit 1, a witnessed violation
+  on `k/0`.
+- The same edit over the full locked profile (5 worlds, so D-059 could not downgrade it): run
+  `r_2026_09_25_3fed`, in which `linearizable.kv` returned ok in all 4 worlds that booted, 500
+  operations each. The run ended at exit 2 only because two telemetry oracles refused in 3 worlds
+  and one world failed to boot. Nothing detected the edit.
+
+The two run bundles are kept outside the repository, with the evaluation's working files.
+
+**Residual, after D-090.** A driver can still change its workload without moving the digest in two
+ways the lock cannot see: a workload it compiles in for a profile name (the fixture's `loadgen`
+resolves its profile from its own table, `testdata/kvfixture/cmd/loadgen/main.go:207`), and
+environment variables it reads (the same resolver honours `PROTHESIS_CLIENTS`, `PROTHESIS_OPS`,
+`PROTHESIS_KEYS` and `PROTHESIS_MIX_*`). The driver's program is fingerprinted, so a rebuilt or
+swapped one is a WARNING and never exit 4, for the reason D-060 gives for checkers.
+
+**Found by** the 2026-09-25 evaluation (Claude Opus 5.5), where it was reported as finding E1.
+
+---
+
+## OQ-026 RESOLVED (D-090): the driver profiles a run profile names are covered
+
+**Classification:** RESOLVED in D-090.
+
+**Resolution.** Closed by the rule this entry recommended: the lock digests `driver.profiles.<name>`
+for every name a run profile's `driver_profile` names, and no other. A driver profile no run profile
+uses is still uncovered, so routine edits to one do not fire exit 4. `driver.cmd` is covered in
+whole (OQ-076).
+
+**The pinned subtest.** `TestUncoveredEditsDoNotMoveDigest/driver_ops_OQ026` asserted the hole and
+was removed deliberately, as this entry said it must be. `TestOnlyDriverProfilesARunProfileNamesAreCovered`
+now pins both halves: editing an unreferenced driver profile moves nothing, and the same edit moves
+the digest once a run profile names that profile.

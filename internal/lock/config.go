@@ -28,10 +28,16 @@ import (
 //     exactly this reason.
 //   - `oracles.dir`, because repointing it is how you swap the whole oracle
 //     set in one line.
+//   - `driver.cmd`, because the driver writes the history every consistency
+//     oracle judges. Pinning it to a smaller profile, or adding `--ops 10`,
+//     hid the planted defect with the digest unmoved (OQ-076, D-090).
 //
-// `driver.profiles` (clients / ops / mix) is NOT covered and that is a real
-// residual hole: OQ-026.
+// `driver.profiles` is covered BY REFERENCE, not here: ProjectConfig digests
+// `driver.profiles.<name>` for every name a run profile's `driver_profile`
+// names, and no other. A driver profile no run profile uses is not the gate's
+// workload, and covering it would fire exit 4 on routine edits (OQ-026, D-090).
 var CoveredPaths = []string{
+	"driver.cmd",
 	// D-066. harness.health is the URL availability_after_heal judges a node
 	// at (convergenceProbes), so repointing it at an always-200 path is a gate
 	// weakening; harness.role_probe decides which node `role:leader` hits.
@@ -99,8 +105,51 @@ func ProjectConfig(data []byte) ([]ConfigEntry, error) {
 			return nil, err
 		}
 	}
+	for _, name := range referencedDriverProfiles(root) {
+		n := lookup(root, []string{"driver", "profiles", name}, 0)
+		if n == nil {
+			// A run profile naming a driver profile that does not exist is the
+			// config decoder's to reject (exit 5). The reference itself is already
+			// covered under `profiles`, so absence stays absence here.
+			continue
+		}
+		if err := flatten(n, joinPath(DriverProfilesPath, name), &out, 0); err != nil {
+			return nil, err
+		}
+	}
 	sortEntries(out)
 	return out, nil
+}
+
+// DriverProfilesPath is the config section covered by reference.
+const DriverProfilesPath = "driver.profiles"
+
+// CoveredByReference describes, for the lock file's `covers` list, the entries
+// ProjectConfig digests by following a reference rather than a fixed path.
+const CoveredByReference = "driver.profiles.<name>, for every <name> a profiles.*.driver_profile names"
+
+// referencedDriverProfiles returns the driver profile names that some run
+// profile's `driver_profile` names, sorted and without duplicates, so the
+// projection is a total order whatever order the profiles were written in.
+func referencedDriverProfiles(root *yaml.Node) []string {
+	profiles := lookup(root, []string{"profiles"}, 0)
+	if profiles == nil || profiles.Kind != yaml.MappingNode {
+		return nil
+	}
+	seen := map[string]bool{}
+	for i := 0; i+1 < len(profiles.Content); i += 2 {
+		ref := lookup(profiles.Content[i+1], []string{"driver_profile"}, 1)
+		if ref == nil || ref.Kind != yaml.ScalarNode || ref.Tag == "!!null" || ref.Value == "" {
+			continue
+		}
+		seen[ref.Value] = true
+	}
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func sortEntries(e []ConfigEntry) {

@@ -201,7 +201,20 @@ func TestASwappedProgramIsWarnedAboutAndTheStatusStaysOK(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Gate: %v", err)
 	}
-	if len(rep.ExecutablesNow) != 1 || rep.ExecutablesNow[0].SHA256 == "" {
+	// Since D-090 the gate fingerprints the driver beside the checker. This
+	// project has no driver binary, so that entry is recorded unresolved; the
+	// checker must be the one that was hashed.
+	if len(rep.ExecutablesNow) != 2 {
+		t.Fatalf("the gate recorded %d program fingerprints, want 2 (the checker and the driver): %+v",
+			len(rep.ExecutablesNow), rep.ExecutablesNow)
+	}
+	var chk *ExecutableFingerprint
+	for i := range rep.ExecutablesNow {
+		if rep.ExecutablesNow[i].Oracle == "linearizable.kv" {
+			chk = &rep.ExecutablesNow[i]
+		}
+	}
+	if chk == nil || chk.SHA256 == "" {
 		t.Fatalf("the gate did not fingerprint the program: %+v", rep.ExecutablesNow)
 	}
 	if _, err := Write(WriteOptions{

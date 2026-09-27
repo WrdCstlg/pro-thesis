@@ -26,6 +26,10 @@
 //   - the whole top-level `search:` block, because `probe_budget_pct`,
 //     `max_mcts_depth` and every utility weight are reachable without touching
 //     a single oracle (DECISIONS.md D-028 item 8)
+//   - `driver.cmd`, and `driver.profiles.<name>` for every name a run
+//     profile's `driver_profile` names (D-090). The driver writes the history
+//     every consistency oracle judges; before D-090, pinning its command to a
+//     smaller profile hid the planted defect with the digest unmoved (OQ-076)
 //
 // # The USER-SUPPLIED config, with defaults NOT filled in (D-F, OQ-015.2)
 //
@@ -55,7 +59,7 @@
 // exists to prevent.
 //
 // Since D-060 the lock's `executables` block records each resolved program's
-// SHA-256 OUTSIDE the digest, `verify` and every run report a moved or missing
+// SHA-256 OUTSIDE the digest (and since D-090 the driver's, as `driver.cmd`), `verify` and every run report a moved or missing
 // one as a WARNING, and the verdict carries oracle_lock.executables_moved. That
 // is the whole of the mitigation and it must not be described as more: a
 // swapped checker still produces exit 0. What it can no longer do is produce a
@@ -75,8 +79,10 @@
 //     every `thesis` upgrade an exit-4 incident: the exact failure D-F
 //     forbids. `verify` reports a moved fingerprint as a warning, never as
 //     drift. See DECISIONS.md D-035.
-//   - `driver.profiles` (clients / ops / mix) is not covered. Logged as
-//     OQ-026.
+//   - A driver profile that no run profile names is not covered: it is not
+//     the gate's workload, and covering it would fire exit 4 on routine edits
+//     (OQ-026). Nor is the workload a driver compiles in for a profile name,
+//     or the environment it inherits (OQ-076).
 //
 // # Enforcement (D-I)
 //

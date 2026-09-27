@@ -3534,3 +3534,87 @@ per this entry's earlier text: Gemini 2.5 Pro. The worse-outcome change, the bou
 command seam, and this revision of the entry: Claude Opus 5.5, 2026-09-27.
 
 **Review before commit.** Not yet arbitrated by a model that did not build it (§9).
+
+---
+
+## D-090: the load generator is inside the lock
+
+**Choice.**
+1. `driver.cmd` joins `CoveredPaths` (`internal/lock/config.go`). Editing the command that runs the
+   workload is exit 4.
+2. `driver.profiles` is covered by reference, as OQ-026 recommended: `ProjectConfig` digests
+   `driver.profiles.<name>` for every name a run profile's `driver_profile` names, sorted, and no
+   other. The lock file's `covers` list states the rule.
+3. The driver's program is fingerprinted beside the oracles' (`FingerprintDriver`), resolved through
+   the same `driver.ResolveProgram` the supervisor launches it with, and recorded in the
+   `executables` block under the reserved name `driver.cmd`. It sits outside the digest: a rebuilt or
+   swapped driver is a WARNING in `verify`, in every run and in `oracle_lock.executables_moved`,
+   never exit 4. The field keeps its name, `oracle`, so lock files still read in both directions
+   across this change.
+4. Both committed locks were re-locked in this change, each with a reason stating what moved.
+
+**Rationale.** The driver writes the history every consistency oracle judges, so a lock that covers
+the oracles and not the driver covers the judge and not the evidence. OQ-076 measured the gap end to
+end: one edit to `driver.cmd` passed `oracles verify` and hid the planted defect. The author
+instructed on 2026-09-26 that the load generator be brought inside the lock.
+
+**Rejected.**
+- Covering `driver.profiles` in whole. OQ-026's objection stands: a workload no run profile uses is
+  edited during ordinary development, and covering it would fire exit 4 on those edits.
+- Making a moved driver program exit 4. CI builds its own binaries on Linux, so the fingerprint never
+  matches a lock written on the build host, and every CI run would exit 4. That is D-060's reasoning
+  for checkers. Whether a moved checker should downgrade a PASS is an open question for the author,
+  and the same answer should apply to the driver.
+
+**What this does not close.** The residual recorded in OQ-076: a workload the driver compiles in for
+a profile name, and environment variables it reads. A driver profile no run profile names. A swapped
+driver program is made visible, not prevented.
+
+**Measured effect.**
+- `thesis oracles verify` with this change, before re-locking: the fixture reported 20 config entries
+  ADDED and etcd 13, all under `driver.cmd` and `driver.profiles.*`, with no previously covered value
+  changed or removed. After re-locking, `verify` exits 0 in both projects. Covered config values:
+  fixture 37 to 57; etcd 29 to 42 (13 added, none removed).
+- `TestManifestGolden` moved from `sha256:1ce27e2a…fd7ef3b` to
+  `sha256:2c1c14f77fe8f0a15230a674cfb33787ca8481eca6e5ff6682d4addf470c24e5`.
+- The first D-090 lock of the fixture fingerprinted the Linux builds `bin/linearizable-kv` and
+  `bin/loadgen`, written 2026-09-24 09:32 for the container runs: the resolver takes an extensionless
+  file before its `.exe`, and the Windows build host cannot start them (measured on
+  `bin/linearizable-kv`: "not a valid application for this OS platform"). On the author's instruction
+  the two Linux builds were removed and the fixture re-locked. Its fingerprints are now of
+  `bin/linearizable-kv.exe` and `bin/loadgen.exe` (stamped commit 7fb03ba dirty=1), and the digest
+  did not move. The defect behind it remains: `thesis doctor` resolves the `.exe`
+  (`resolveForPlatform`, `internal/doctor/doctor.go:296`) while the harness takes the extensionless
+  file first, so whenever both exist, doctor vouches for a file the harness does not run.
+
+**Failing-first and mutation evidence.** `internal/lock/driver_lock_test.go` was written before the
+fix and failed against the unchanged code:
+```
+driver_lock_test.go:27: pinning driver.cmd to one profile did not move the digest; the command that writes the history every oracle judges must be covered (OQ-076)
+--- FAIL: TestADriverCommandEditMovesTheDigest (0.01s)
+driver_lock_test.go:46: editing the ops of a driver profile a run profile names did not move the digest (OQ-026)
+driver_lock_test.go:46: editing the clients of a driver profile a run profile names did not move the digest (OQ-026)
+driver_lock_test.go:46: editing the mix of a driver profile a run profile names did not move the digest (OQ-026)
+--- FAIL: TestShrinkingAReferencedDriverProfileMovesTheDigest (0.02s)
+driver_lock_test.go:84: once a run profile names the scratch driver profile, shrinking it must move the digest
+--- FAIL: TestOnlyDriverProfilesARunProfileNamesAreCovered (0.01s)
+driver_lock_test.go:108: the load generator was not fingerprinted: [{Oracle:linearizable.kv Cmd:./bin/checker Resolved:bin/checker SHA256:sha256:67cfa2ef… Size:17 Unresolved:}]
+--- FAIL: TestTheDriverProgramIsFingerprintedAndASwapIsWarnedAbout (0.01s)
+```
+Mutations, each reverted byte-identically afterwards:
+- M1, `driver.cmd` removed from `CoveredPaths`: `TestADriverCommandEditMovesTheDigest` fails, and so
+  does the fingerprint test, which reads the command from the covered projection.
+- M2, referenced driver profiles no longer projected: `TestShrinkingAReferencedDriverProfileMovesTheDigest`
+  and the referenced half of `TestOnlyDriverProfilesARunProfileNamesAreCovered` fail.
+- M3, the driver fingerprint no longer appended in `Gate`: the fingerprint test fails.
+- Restored: `internal/lock/config.go` SHA-256
+  `C48C74511FB09030F86AB61149D47FF35DD2F1AA260D9FECBBEC58D1C10092BB`, `internal/lock/check.go`
+  `85C6ACDBFF1CF494A3D1E86A7FF0A7D4045BFDEF43BF32EA9565777FFC8B135F`.
+
+**Tests changed deliberately.** `TestManifestGolden`, above. The `driver_ops_OQ026` subtest of
+`TestUncoveredEditsDoNotMoveDigest`, removed as OQ-026 required. The gate check in
+`TestASwappedProgramIsWarnedAboutAndTheStatusStaysOK` now requires exactly two fingerprints, the
+checker's hashed and the driver's recorded, where it required one.
+
+**Review before commit.** Built by Claude Opus 5.5, the session that ran the 2026-09-25 evaluation.
+Not yet arbitrated; §9 requires a different model to judge it before merge.

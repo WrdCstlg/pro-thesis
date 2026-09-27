@@ -110,8 +110,14 @@ var Limitations = []string{
 		"including it would turn any release that adjusts a default into exit 4 on every " +
 		"downstream project at once. `thesis oracles verify` reports a moved fingerprint as a " +
 		"warning, never as drift.",
-	"driver.profiles (clients / ops / mix) is not covered. Shrinking a workload there is a " +
-		"gate weakening this lock does not catch. Logged as OQ-026.",
+	"The driver is covered by its COMMAND and by the driver profiles a run profile names " +
+		"(D-090). A driver profile no run profile names is not covered, because it is not the " +
+		"gate's workload and covering it would fire exit 4 on routine edits (OQ-026). The " +
+		"driver's PROGRAM is fingerprinted in the `executables` block as `driver.cmd`, outside " +
+		"the digest, so a rebuilt or swapped driver is a WARNING and not drift. Neither the " +
+		"workload a driver compiles in for a profile name nor the environment it inherits is " +
+		"covered: a driver that reads its workload from its own table or from environment " +
+		"variables can still be changed without moving this digest (OQ-076).",
 	"The digest covers the USER-SUPPLIED prothesis.yaml with defaults NOT applied. A key you " +
 		"did not write contributes nothing, so upgrading thesis cannot move this digest by " +
 		"changing a compiled-in default.",
@@ -191,7 +197,7 @@ func Write(opts WriteOptions) (*File, error) {
 		ToolVersion:               opts.ToolVersion,
 		BuiltinOptionsFingerprint: opts.BuiltinOptionsFingerprint,
 		Executables:               append([]ExecutableFingerprint(nil), opts.Executables...),
-		Covers:                    append([]string(nil), CoveredPaths...),
+		Covers:                    append(append([]string(nil), CoveredPaths...), CoveredByReference),
 		Limitations:               append([]string(nil), Limitations...),
 		Manifest:                  opts.Manifest,
 	}

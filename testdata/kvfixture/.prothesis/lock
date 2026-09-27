@@ -1,20 +1,28 @@
 {
   "schema": "prothesis.lock/v1",
-  "manifest_sha": "sha256:0ebddd178fbacfaf419dc48981cc7394d794059f1827adc22a7e86bfb7af1766",
-  "reason": "Rebuilt at 63fcb9c by scripts/build.ps1. Source changed AND the stamp moved: 63fcb9c adds pkg/schema/knownproblems.go, which the checker links via pkg/schema (D-082); nothing under cmd/thesis-oracle-linearizable changed.",
-  "locked_at": "2026-09-22T10:10:17Z",
+  "manifest_sha": "sha256:a1b840c53a67061712b09b3abb2925007210103d11538917faef043e8aea62f3",
+  "reason": "D-090, second lock: the Linux (ELF) builds bin/linearizable-kv and bin/loadgen, left in bin/ by the 2026-09-24 container runs, were removed on the author's instruction, because the resolver took them before the .exe files and this Windows host cannot start them. Both program fingerprints now resolve to bin/linearizable-kv.exe and bin/loadgen.exe, whose -version stamps are commit 7fb03ba dirty=1. The manifest digest is unchanged from the first D-090 lock: no covered value moved.",
+  "locked_at": "2026-09-26T22:07:50Z",
   "tool_version": "0.1.0-phase0",
   "builtin_options_fingerprint": "sha256:ca5cba3edb828e29bd4b1357c9ff2d86ae2e3eb6a6bd009a2430b076304064bf",
   "executables": [
     {
+      "oracle": "driver.cmd",
+      "cmd": "./bin/loadgen --history {history_path} --seed {seed} --profile {profile}",
+      "resolved": "bin/loadgen.exe",
+      "sha256": "sha256:b3909d015f389479d8aeb14f14aac722ecefd11f5b7c75ae88718990b3d3a69d",
+      "size": 10180096
+    },
+    {
       "oracle": "linearizable.kv",
       "cmd": "./bin/linearizable-kv",
       "resolved": "bin/linearizable-kv.exe",
-      "sha256": "sha256:6570d3700af5f41922116cfaa53446a7df80e855d744c4f2c426ba89ea2dab3b",
+      "sha256": "sha256:a10120f80a16d17c23b4dff44e54ed70552e9e5bebe913d991f2e04179848107",
       "size": 4925440
     }
   ],
   "covers": [
+    "driver.cmd",
     "harness.health",
     "harness.role_probe",
     "oracles.builtin",
@@ -23,13 +31,14 @@
     "perturber.budget",
     "perturber.deny",
     "profiles",
-    "search"
+    "search",
+    "driver.profiles.<name>, for every <name> a profiles.*.driver_profile names"
   ],
   "limitations": [
     "The DIGEST does not cover the EXECUTABLE an oracle names. Files under oracles.dir are covered byte for byte; the binary, interpreter, shared library, container image or PATH entry an oracle resolves at run time is NOT hashed into manifest_sha, so swapping a checker does not produce ORACLE_DRIFT and never will: hashing it into the digest would make an ordinary rebuild exit 4 and turn re-locking into a reflex. Since D-060 the `executables` block above records each resolved program's SHA-256 OUTSIDE the digest, and `verify` and every run report a moved or missing one as a WARNING that also lands in the verdict. That removes the SILENCE OQ-057 measured; it does not make a swap impossible, and nothing short of signing would. Only the program is fingerprinted — not its arguments, its interpreter, or anything it loads.",
     "File modes are not covered. The executable bit does not survive a Windows checkout, so hashing it would fire a spurious ORACLE_DRIFT on a cross-platform clone.",
     "Built-in oracle thresholds are compiled in and reachable from no config key. builtin_options_fingerprint records them for review but is OUTSIDE the digest: including it would turn any release that adjusts a default into exit 4 on every downstream project at once. `thesis oracles verify` reports a moved fingerprint as a warning, never as drift.",
-    "driver.profiles (clients / ops / mix) is not covered. Shrinking a workload there is a gate weakening this lock does not catch. Logged as OQ-026.",
+    "The driver is covered by its COMMAND and by the driver profiles a run profile names (D-090). A driver profile no run profile names is not covered, because it is not the gate's workload and covering it would fire exit 4 on routine edits (OQ-026). The driver's PROGRAM is fingerprinted in the `executables` block as `driver.cmd`, outside the digest, so a rebuilt or swapped driver is a WARNING and not drift. Neither the workload a driver compiles in for a profile name nor the environment it inherits is covered: a driver that reads its workload from its own table or from environment variables can still be changed without moving this digest (OQ-076).",
     "The digest covers the USER-SUPPLIED prothesis.yaml with defaults NOT applied. A key you did not write contributes nothing, so upgrading thesis cannot move this digest by changing a compiled-in default."
   ],
   "manifest": {
@@ -42,6 +51,106 @@
       }
     ],
     "config": [
+      {
+        "path": "driver.cmd",
+        "kind": "scalar",
+        "value": "./bin/loadgen --history {history_path} --seed {seed} --profile {profile}"
+      },
+      {
+        "path": "driver.profiles.gate.clients",
+        "kind": "scalar",
+        "value": "16"
+      },
+      {
+        "path": "driver.profiles.gate.mix.read",
+        "kind": "scalar",
+        "value": "0.4"
+      },
+      {
+        "path": "driver.profiles.gate.mix.txn",
+        "kind": "scalar",
+        "value": "0.2"
+      },
+      {
+        "path": "driver.profiles.gate.mix.write",
+        "kind": "scalar",
+        "value": "0.4"
+      },
+      {
+        "path": "driver.profiles.gate.ops",
+        "kind": "scalar",
+        "value": "20000"
+      },
+      {
+        "path": "driver.profiles.linear.clients",
+        "kind": "scalar",
+        "value": "16"
+      },
+      {
+        "path": "driver.profiles.linear.mix.read",
+        "kind": "scalar",
+        "value": "0.5"
+      },
+      {
+        "path": "driver.profiles.linear.mix.write",
+        "kind": "scalar",
+        "value": "0.5"
+      },
+      {
+        "path": "driver.profiles.linear.ops",
+        "kind": "scalar",
+        "value": "60000"
+      },
+      {
+        "path": "driver.profiles.smoke.clients",
+        "kind": "scalar",
+        "value": "4"
+      },
+      {
+        "path": "driver.profiles.smoke.mix.read",
+        "kind": "scalar",
+        "value": "0.5"
+      },
+      {
+        "path": "driver.profiles.smoke.mix.write",
+        "kind": "scalar",
+        "value": "0.5"
+      },
+      {
+        "path": "driver.profiles.smoke.ops",
+        "kind": "scalar",
+        "value": "500"
+      },
+      {
+        "path": "driver.profiles.soak.clients",
+        "kind": "scalar",
+        "value": "64"
+      },
+      {
+        "path": "driver.profiles.soak.mix.admin",
+        "kind": "scalar",
+        "value": "0.1"
+      },
+      {
+        "path": "driver.profiles.soak.mix.read",
+        "kind": "scalar",
+        "value": "0.3"
+      },
+      {
+        "path": "driver.profiles.soak.mix.txn",
+        "kind": "scalar",
+        "value": "0.2"
+      },
+      {
+        "path": "driver.profiles.soak.mix.write",
+        "kind": "scalar",
+        "value": "0.4"
+      },
+      {
+        "path": "driver.profiles.soak.ops",
+        "kind": "scalar",
+        "value": "500000"
+      },
       {
         "path": "harness.health[0].node",
         "kind": "scalar",
