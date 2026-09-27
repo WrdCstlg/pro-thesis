@@ -3472,3 +3472,65 @@ worded differently by which signal fired, and the non-container arm deliberately
 `doctor` and the container verb inventory implemented by Gemini 3.8 Flash. The OQ-074 union, the
 bounded query, the range parsing and these corrections by Claude Opus 5, whose own build brief was
 the source of the `doctor` claim corrected above.
+
+---
+
+## D-089: a world that no oracle judged is INCONCLUSIVE, not PASS; the ASSERT-time container inspect is bounded
+
+**Choice.**
+1. When the oracle engine returns no findings and no error, `Runner.runWorld` scores the world
+   INCONCLUSIVE and prints the reason to stderr on every mode. The `OracleEngine` comment in
+   `internal/control/seams.go`, which credited a `worldRun.assertPhase` that never existed, now cites
+   `Runner.runWorld`.
+2. Both refusal branches, an engine error and no findings, take the worse of the world's current
+   outcome and INCONCLUSIVE rather than assigning it. A world HEAL already marked as a harness error
+   keeps that cause in `result.json`, which is what `thesis diagnose` attributes.
+3. The `docker inspect` that `buildOracleInput` runs on each bound container at ASSERT is bounded by
+   `dockerInspectTimeout` (five seconds) and reached through the `inspectDockerState` seam. D-073
+   bounded only image resolution; this call had no bound, and a sick daemon has been measured taking
+   32 s to answer `docker inspect` (OQ-067). On a timeout the node is recorded as unobserved, which
+   `no_crash` treats as unchecked, never as healthy.
+4. Unit worlds stay off the daemon: `newPerturbTestRunner` stubs the seam, and the "unreadable falls
+   back and says so" subtest in `internal/control/parallel_test.go` stubs the daemon port query, so it
+   no longer depends on which containers the host is running.
+
+**Rationale.** The refusal surface is the quality metric: a tool that cannot answer must say
+INCONCLUSIVE, and silence is the defect. A world initialised to `OutcomePass`, whose outcome only a
+finding could raise, scored an empty finding set as PASS. That is a false PASS whenever no oracle is
+configured, or when an engine returns no results without an error (OQ-075).
+
+**Failing-first and mutation evidence.**
+- `TestAWorldNoOracleJudgedIsInconclusiveNotPass` (`internal/control/vacuous_pass_test.go`) was
+  written on 2026-09-25, before any fix existed, and failed against the unpatched code:
+  ```
+  vacuous_pass_test.go:35: exit = 0 (verdict PASS), want 2: no oracle judged the world, so nothing was checked, and PASS would describe a system nobody looked at
+  --- FAIL: TestAWorldNoOracleJudgedIsInconclusiveNotPass (2.15s)
+  ```
+  A control world judged by one oracle that says ok still exits 0 in the same test.
+- `TestAnUnjudgedWorldKeepsTheWorseCauseItAlreadyHad` was written before item 2 and failed:
+  ```
+  vacuous_pass_test.go:72: result.json outcome = inconclusive, want "harness_error": the HEAL failure was overwritten by the lesser finding that no oracle judged the world
+  ```
+- `TestAnUnansweredInspectIsCutOffAtTheBound` (`internal/control/docker_timeout_test.go`) was written
+  after item 3's bound already existed, so its failing-first evidence is mutation MB below. It
+  replaces `TestInspectDockerStateErrorDoesNotStallWorld`, which timed a stub world: that world used
+  the stub oracle engine, which never calls `buildOracleInput`, so it passed with the bound removed
+  and with the seam bypassed (both measured 2026-09-26).
+- Mutations on 2026-09-27, each reverted afterwards with `internal/control/runner.go` restored
+  byte-identical (SHA-256 `396607E8CAFFB7F73BD8EFFFB80358FE5C5EF15770EF960E1503BDCC2D508A7B`):
+  - MA, the zero-findings branch assigns instead of taking the worse outcome:
+    `TestAnUnjudgedWorldKeepsTheWorseCauseItAlreadyHad` fails with `outcome = inconclusive`.
+  - MB, the context timeout removed: `TestAnUnansweredInspectIsCutOffAtTheBound` fails at its 10 s
+    guard.
+  - MC, the zero-findings branch removed: `TestAWorldNoOracleJudgedIsInconclusiveNotPass` fails with
+    `exit = 0 (verdict PASS)`.
+  - `TestBuildOracleInputCallsInspectDockerStateSeam` fails when `buildOracleInput` calls
+    `queryDockerState` directly (measured 2026-09-26).
+
+**Attribution.** The first test and its failing-first run: Claude Opus 5.5, 2026-09-25. The
+zero-findings fix, the inspect bound with its seam, the two unit-test stubs, and the first draft of
+this entry: Gemini 3.8 Flash (High). The stderr reasons, the ARCHITECTURE update and the seam test,
+per this entry's earlier text: Gemini 2.5 Pro. The worse-outcome change, the bound's test and
+command seam, and this revision of the entry: Claude Opus 5.5, 2026-09-27.
+
+**Review before commit.** Not yet arbitrated by a model that did not build it (§9).

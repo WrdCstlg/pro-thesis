@@ -3504,3 +3504,22 @@ the daemon half makes the second fail ("run succeeded when daemon reported port 
 and the source restored byte-identically after each (SHA-256
 `6C882E18E32F6A136ED43688D027841D5C782ED61B48AC02C0AD288F667A6BC1`). A clean parallel run proves
 nothing about detection and is not offered as evidence here.
+
+---
+
+## OQ-075: a world that no oracle judged leaves worldOutcome at PASS and exits 0
+
+**Classification:** RESOLVED in D-089.
+
+**Observed.** `internal/control/runner.go` initialized each world at `worldOutcome = OutcomePass`
+and folded in findings by taking the maximum severity rank. When `r.oracleEngine.Evaluate` returned
+an empty findings slice and a nil error, no findings were folded, leaving `worldOutcome` at `OutcomePass`.
+A run where no oracle judged the world therefore exited 0. `internal/control/seams.go` promised
+that returning no results and no error would be treated as inconclusive, citing a ghost function
+`worldRun.assertPhase` that has never existed in any revision. In production, this vacuous pass is
+reachable when `oracles.builtin: []` and no external oracles are configured or valid in ASSERT.
+
+**Resolution (D-089).** Closed by checking `len(oeFindings) == 0` when the oracle engine returns no
+error, and scoring the world INCONCLUSIVE: the worse of that and any cause already recorded, so a HEAL
+failure is not overwritten. The reason is printed to stderr. A world that no oracle judged cannot pass:
+silence is the defect.

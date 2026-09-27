@@ -55,7 +55,7 @@ additive read-only twin of the diagnose walk, and writes derived reports
 all gitignored) under `.prothesis/`. It never writes to the registry and never promotes a
 candidate; discover exits 2 when any CONTESTED outcome exists.
 
-## 2. World lifecycle and the six ways a verdict becomes INCONCLUSIVE
+## 2. World lifecycle and the seven ways a verdict becomes INCONCLUSIVE
 
 ```mermaid
 flowchart LR
@@ -70,15 +70,17 @@ flowchart LR
     INC4["4. narrowed budget: a PASS is downgraded (D-059)"]
     INC5["5. search completes zero worlds"]
     INC6["6. fail-closed default: undeclared outcome"]
+    INC7["7. no oracle produced a finding: vacuous PASS refused (D-089, OQ-075)"]
     RJ -.-> INC1
     BOOT -.-> INC2
     DRIVE -.-> INC3
     VJ -.-> INC4
     VJ -.-> INC5
     VJ -.-> INC6
+    ASSERT -.-> INC7
 ```
 
-Every one of the six is a refusal to judge, and since D-082 every recorded instance must
+Every one of the seven is a refusal to judge, and since D-082 every recorded instance must
 attribute to a known-problem entry or the diagnostic goes red.
 
 ## 3. Evidence and attribution dataflow

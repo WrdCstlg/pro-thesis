@@ -278,10 +278,9 @@ func (r OracleResult) Outcome() Outcome {
 // OracleEngine evaluates the configured oracles against one world's evidence.
 //
 // An engine-level error means ASSERT could not be carried out, which is
-// INCONCLUSIVE. Returning no results and no error for a config that lists
-// built-in oracles is treated by the runner as inconclusive too: see
-// worldRun.assertPhase. A vacuous pass over a system nobody checked is the most
-// dangerous output this tool can produce.
+// INCONCLUSIVE. Returning no results and no error is treated by the runner as
+// inconclusive too (Runner.runWorld, D-089, OQ-075). A vacuous pass over a
+// system nobody checked is the most dangerous output this tool can produce.
 type OracleEngine interface {
 	Evaluate(ctx context.Context, req EvalRequest) ([]OracleResult, error)
 }
