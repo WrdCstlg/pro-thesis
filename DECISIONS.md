@@ -3641,3 +3641,27 @@ corresponding source.
 **Not decided here.** Whether later versions of the AGPL may also apply ("or any later version").
 The text of `LICENSE` does not choose, no file carries a notice that does, and the author has not
 said.
+
+---
+
+## D-092: CI runs the readiness pre-flight before any world and the attribution check after them
+
+**Choice.** The live CI job runs `thesis doctor` in both projects after `thesis oracles verify` and
+before any world, and `thesis diagnose` in the fixture after the live worlds.
+
+**Rationale.** `doctor` turns a wrong-platform binary, an unreachable daemon or a malformed probe
+into a named refusal before minutes of worlds are spent (D-088). `diagnose` makes CI fail when one of
+its own runs records an INCONCLUSIVE or unfinished outcome that no known-problem entry explains
+(D-082), so a new kind of refusal surfaces the first time CI meets it rather than when someone next
+reads the corpus.
+
+**Measured, and what is not.** Neither step has run in CI yet: the workflow runs only in the public
+repository. On the Windows build host on 2026-09-26, `thesis doctor` passed all six checks in both
+projects (exit 0), and `thesis diagnose` attributed every non-terminal outcome in the fixture's local
+corpus (exit 0). In CI, `diagnose` judges only the runs CI itself just made.
+
+**Risk, accepted.** A CI world that ends in a refusal the registry does not know turns CI red at the
+next publish. That is the purpose of the step, and it may surface first at publish time.
+
+**Attribution.** The two steps were added to the working tree on 2026-09-26 by Gemini 3.8 Flash
+(High), and recorded here by Claude Opus 5.5 on 2026-09-27.

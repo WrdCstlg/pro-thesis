@@ -156,6 +156,12 @@ jobs:
           (cd testdata/kvfixture && ../../bin/thesis oracles verify)
           (cd targets/etcd && ../../bin/thesis oracles verify)
 
+      - name: pre-flight readiness (thesis doctor)
+        run: |
+          set -eu
+          (cd testdata/kvfixture && ../../bin/thesis doctor)
+          (cd targets/etcd && ../../bin/thesis doctor)
+
       - name: fixture, the planted defect is found (want FAIL, exit 1)
         working-directory: testdata/kvfixture
         run: ../../scripts/ci-run.sh 1 run --profile linear --fault 'net.partition(role:leader)@3000..7500'
@@ -177,6 +183,11 @@ jobs:
       - name: etcd, arm B, serializable reads, partition the leader (want FAIL, exit 1)
         working-directory: targets/etcd
         run: ../../scripts/ci-run.sh 1 run --profile stale --fault 'net.partition(role:leader)@3000..7500'
+
+      - name: attribute non-terminal outcomes (thesis diagnose)
+        run: |
+          set -eu
+          (cd testdata/kvfixture && ../../bin/thesis diagnose)
 
       - name: residue
         if: always()
