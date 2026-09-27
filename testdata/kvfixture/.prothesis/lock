@@ -1,8 +1,8 @@
 {
   "schema": "prothesis.lock/v1",
   "manifest_sha": "sha256:a1b840c53a67061712b09b3abb2925007210103d11538917faef043e8aea62f3",
-  "reason": "D-090, second lock: the Linux (ELF) builds bin/linearizable-kv and bin/loadgen, left in bin/ by the 2026-09-24 container runs, were removed on the author's instruction, because the resolver took them before the .exe files and this Windows host cannot start them. Both program fingerprints now resolve to bin/linearizable-kv.exe and bin/loadgen.exe, whose -version stamps are commit 7fb03ba dirty=1. The manifest digest is unchanged from the first D-090 lock: no covered value moved.",
-  "locked_at": "2026-09-26T22:07:50Z",
+  "reason": "Only the stamp moved: bin/linearizable-kv.exe and bin/loadgen.exe were rebuilt by scripts/build.ps1 -Verify at b619c28 with dirty=0 (previously 7fb03ba dirty=1). Measured with git diff --name-only 7fb03ba b619c28 over each program's in-module dependencies (go list -deps: the checker's internal/buildinfo, internal/recorder/cjson, pkg/schema and its own package; loadgen's seven fixture packages) and go.mod/go.sum: no non-test source changed. The manifest digest did not move.",
+  "locked_at": "2026-09-27T21:12:19Z",
   "tool_version": "0.1.0-phase0",
   "builtin_options_fingerprint": "sha256:ca5cba3edb828e29bd4b1357c9ff2d86ae2e3eb6a6bd009a2430b076304064bf",
   "executables": [
@@ -10,14 +10,14 @@
       "oracle": "driver.cmd",
       "cmd": "./bin/loadgen --history {history_path} --seed {seed} --profile {profile}",
       "resolved": "bin/loadgen.exe",
-      "sha256": "sha256:b3909d015f389479d8aeb14f14aac722ecefd11f5b7c75ae88718990b3d3a69d",
+      "sha256": "sha256:d948cec6ada7536d67eb161d5fe578b8ccdaf69a501375d42cbf3ccf57bfa74e",
       "size": 10180096
     },
     {
       "oracle": "linearizable.kv",
       "cmd": "./bin/linearizable-kv",
       "resolved": "bin/linearizable-kv.exe",
-      "sha256": "sha256:a10120f80a16d17c23b4dff44e54ed70552e9e5bebe913d991f2e04179848107",
+      "sha256": "sha256:8c31d34871fb698f5b6c1ad58707e5201f43fd5df78acc6fd11ff0d4d26b7a07",
       "size": 4925440
     }
   ],
