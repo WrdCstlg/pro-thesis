@@ -418,7 +418,7 @@ The weaknesses that are open today, and how to report a new one, are in
 ## The ledgers
 
 - [`DECISIONS.md`](DECISIONS.md): every non-obvious choice, with what was
-  rejected and why, D-001 through D-090.
+  rejected and why, D-001 through D-091.
 - [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md): every requirement that could not
   be met as written, every defect found, and what was measured about it,
   OQ-001 through OQ-076. Entries are never deleted; a resolution is appended.
@@ -474,4 +474,7 @@ work up: the doctrine, the development host, the state, and what is next.
 
 ## License
 
-Apache License 2.0. See [`LICENSE`](LICENSE).
+GNU Affero General Public License v3.0. See [`LICENSE`](LICENSE).
+
+Versions published before 2026-09-27, up to and including commit `7fb03ba`, were released
+under the Apache License 2.0, and copies of those versions keep that license (D-091).
