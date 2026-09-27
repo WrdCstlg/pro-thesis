@@ -237,6 +237,12 @@ func TestAMeasuredPoolTooSmallIsFatalButAnUnreadableOneIsNot(t *testing.T) {
 	})
 
 	t.Run("unreadable falls back and says so", func(t *testing.T) {
+		origPorts := daemonPublishedPorts
+		defer func() { daemonPublishedPorts = origPorts }()
+		daemonPublishedPorts = func(ctx context.Context) (map[int]bool, error) {
+			return map[int]bool{}, nil
+		}
+
 		backend := &stubBackend{}
 		var errOut strings.Builder
 		r, err := NewRunner(RunnerOptions{

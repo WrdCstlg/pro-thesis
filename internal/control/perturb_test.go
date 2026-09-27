@@ -315,6 +315,12 @@ func perturbTestConfig(t *testing.T) *schema.Config {
 
 func newPerturbTestRunner(t *testing.T, cfg *schema.Config, faults []string, injs ...perturber.Injector) (*Runner, *stubBackend) {
 	t.Helper()
+	origInspect := inspectDockerState
+	t.Cleanup(func() { inspectDockerState = origInspect })
+	inspectDockerState = func(context.Context, string) (*dockerContainerState, error) {
+		return nil, errors.New("stub backend has no docker containers")
+	}
+
 	backend := &stubBackend{nodes: []recorder.NodeBinding{
 		{ID: "kv-n1", ContainerID: "c1", HostPort: 18081, ContainerPort: 8080, Service: "kv-n1"},
 		{ID: "kv-n2", ContainerID: "c2", HostPort: 18082, ContainerPort: 8080, Service: "kv-n2"},

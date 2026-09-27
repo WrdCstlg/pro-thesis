@@ -1273,7 +1273,21 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 		Realized: realizedOf(perturb),
 	})
 	if err != nil {
-		worldOutcome = OutcomeInconclusive
+		// Engine-level failure is INCONCLUSIVE, not PASS. The reason goes to
+		// stderr on every mode: a silent INCONCLUSIVE is indistinguishable from
+		// a silent PASS to anyone reading only the exit code (D-089).
+		fmt.Fprintf(r.stderr, "thesis: world %d: ASSERT: oracle engine error, treating as INCONCLUSIVE: %v\n", ordinal+1, err)
+		// Worse, not assignment: a world HEAL already marked as a harness error
+		// keeps that cause in result.json, which is what diagnose attributes.
+		worldOutcome = worldOutcome.Worse(OutcomeInconclusive)
+	} else if len(oeFindings) == 0 {
+		// A world that no oracle judged cannot pass; silence is the defect
+		// (D-089, OQ-075). This path is reached with `oracles.builtin: []` and
+		// no external oracles, or when the engine returned successfully but
+		// produced no findings.
+		fmt.Fprintf(r.stderr, "thesis: world %d: ASSERT: no oracle produced a finding; INCONCLUSIVE, not PASS (D-089)\n", ordinal+1)
+		findings = oeFindings
+		worldOutcome = worldOutcome.Worse(OutcomeInconclusive)
 	} else {
 		findings = oeFindings
 		for _, f := range findings {
@@ -1765,7 +1779,7 @@ func buildOracleInput(ctx context.Context, req EvalRequest) (*oracle.Input, erro
 
 		// Query container state via docker inspect
 		if containerID != "" {
-			inspectState, err := queryDockerState(ctx, containerID)
+			inspectState, err := inspectDockerState(ctx, containerID)
 			if err == nil && inspectState != nil {
 				obs.StateObserved = true
 				obs.Running = inspectState.Running
@@ -1871,8 +1885,28 @@ type dockerContainerState struct {
 	RestartCount int    `json:"RestartCount"`
 }
 
+// inspectDockerState is the seam buildOracleInput reads a container's state
+// through. Unit tests replace it, so a stub-backed world never reaches a daemon.
+var inspectDockerState = queryDockerState
+
+// dockerInspectTimeout bounds one `docker inspect` of a container's state
+// (D-089). A sick daemon has been measured taking 32 s to answer `docker
+// inspect` (OQ-067); unbounded, this call would spend the world's budget at
+// ASSERT. D-073 bounded only image resolution, so this call needed its own. On
+// a timeout the node is recorded as unobserved, and no_crash treats an
+// unobserved node as unchecked, never as healthy (internal/oracle/no_crash.go).
+var dockerInspectTimeout = 5 * time.Second
+
+// dockerInspectCommand builds the inspect command, so a test can substitute one
+// that never answers.
+var dockerInspectCommand = func(ctx context.Context, container string) *exec.Cmd {
+	return exec.CommandContext(ctx, "docker", "inspect", "--format", "{{json .State}}", container)
+}
+
 func queryDockerState(ctx context.Context, container string) (*dockerContainerState, error) {
-	cmd := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{json .State}}", container)
+	cctx, cancel := context.WithTimeout(ctx, dockerInspectTimeout)
+	defer cancel()
+	cmd := dockerInspectCommand(cctx, container)
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, err
