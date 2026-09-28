@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="815" height="496" viewBox="0 0 815 496" role="img" aria-labelledby="t d">
+<title id="t">replay the failure</title>
+<desc id="d">Terminal recording made 2026-09-28T00:10:28.729Z on Windows_NT 10.0.26200 x64. Every line is shown as recorded; on playback, pauses longer than 1 s are shortened, output that arrived at once but is taller than the screen is shown a screen at a time (5 s per screen), and long lines wrap. Colours are the renderer's, keyed off each line's text; any colour in the recording is dropped. The recording with its measured timestamps is 05-replay.cast.</desc>
+<style>
+text{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;font-size:13px;fill:#c9d1d9;white-space:pre}
+.ps{fill:#3fb950}.cmd{fill:#f0f6fc;font-weight:600}.dim{fill:#8b949e}.op{fill:#8b949e}.phase{fill:#79c0ff}
+.fault{fill:#d2a8ff}.ok{fill:#3fb950;font-weight:600}.bad{fill:#ff7b72;font-weight:600}.warn{fill:#e3b341;font-weight:600}
+.drift{fill:#f778ba;font-weight:600}.head{fill:#f0f6fc;font-weight:600}.title{fill:#8b949e;font-size:12px}
+.l{opacity:0;animation-duration:26.029s;animation-iteration-count:infinite;animation-timing-function:steps(1,end)}
+.strip{animation:scroll 26.029s steps(1,end) infinite}
+@keyframes scroll{0%{transform:translateY(0)}0.000%{transform:translateY(-0px)}57.739%{transform:translateY(-270px)}76.949%{transform:translateY(-360px)}100%{transform:translateY(-360px)}}
+@keyframes r0{0%,100%{opacity:1}}
+@keyframes r1{0%{opacity:0}0.111%,100%{opacity:1}}
+@keyframes r2{0%{opacity:0}3.953%,100%{opacity:1}}
+@keyframes r3{0%{opacity:0}7.795%,100%{opacity:1}}
+@keyframes r4{0%{opacity:0}11.637%,100%{opacity:1}}
+@keyframes r5{0%{opacity:0}15.479%,100%{opacity:1}}
+@keyframes r6{0%{opacity:0}19.321%,100%{opacity:1}}
+@keyframes r7{0%{opacity:0}23.163%,100%{opacity:1}}
+@keyframes r8{0%{opacity:0}27.004%,100%{opacity:1}}
+@keyframes r9{0%{opacity:0}30.846%,100%{opacity:1}}
+@keyframes r10{0%{opacity:0}34.688%,100%{opacity:1}}
+@keyframes r11{0%{opacity:0}38.530%,100%{opacity:1}}
+@keyframes r12{0%{opacity:0}42.372%,100%{opacity:1}}
+@keyframes r13{0%{opacity:0}46.214%,100%{opacity:1}}
+@keyframes r14{0%{opacity:0}50.056%,100%{opacity:1}}
+@keyframes r15{0%{opacity:0}53.898%,100%{opacity:1}}
+@keyframes r16{0%{opacity:0}57.739%,100%{opacity:1}}
+@keyframes r17{0%{opacity:0}76.949%,100%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.l{animation:none;opacity:1}.strip{animation:none;transform:translateY(-360px)}}
+</style>
+<defs><clipPath id="screen"><rect x="10" y="49" width="795" height="434"/></clipPath></defs>
+<rect x="0.5" y="0.5" width="814" height="495" rx="10" fill="#0d1117" stroke="#30363d"/>
+<path d="M0.5 34H814.5" stroke="#30363d"/>
+<circle cx="20" cy="17" r="6" fill="#ff5f57"/><circle cx="40" cy="17" r="6" fill="#febc2e"/><circle cx="60" cy="17" r="6" fill="#28c840"/>
+<text class="title" x="407.5" y="21" text-anchor="middle">replay the failure</text>
+<g clip-path="url(#screen)"><g class="strip">
+<text class="l cmd" x="16" y="63" style="animation-name:r0"><tspan class="ps">$ </tspan>thesis replay .prothesis/runs/r_2026_09_28_2071/world-0001/world.thesis -k 3 --expect</text>
+<text class="l cmd" x="16" y="81" style="animation-name:r0">    linearizable.kv</text>
+<text class="l" x="16" y="99" style="animation-name:r1">thesis: world 1 (seed 2337997644773862495, 1 fault(s))</text>
+<text class="l" x="16" y="117" style="animation-name:r2">thesis: world 1: perturbing with 1 fault(s), peak concurrency 1</text>
+<text class="l" x="16" y="135" style="animation-name:r3">perturber: t+3000ms inject net.partition(kv-n2)@3000..7500 [f001] -&gt; kv-n2</text>
+<text class="l" x="16" y="153" style="animation-name:r4">perturber: t+7500ms withdraw net.partition(kv-n2)@3000..7500 [f001]</text>
+<text class="l" x="16" y="171" style="animation-name:r5">thesis: world 1: QUIESCE: the driver drained in 13ms; every issued operation has a completion record</text>
+<text class="l" x="16" y="189" style="animation-name:r6">thesis: world 2 (seed 2337997644773862495, 1 fault(s))</text>
+<text class="l" x="16" y="207" style="animation-name:r7">thesis: world 2: perturbing with 1 fault(s), peak concurrency 1</text>
+<text class="l" x="16" y="225" style="animation-name:r8">perturber: t+3000ms inject net.partition(kv-n2)@3000..7500 [f001] -&gt; kv-n2</text>
+<text class="l" x="16" y="243" style="animation-name:r9">perturber: t+7500ms withdraw net.partition(kv-n2)@3000..7500 [f001]</text>
+<text class="l" x="16" y="261" style="animation-name:r10">thesis: world 2: QUIESCE: the driver drained in 15ms; every issued operation has a completion record</text>
+<text class="l" x="16" y="279" style="animation-name:r11">thesis: world 3 (seed 2337997644773862495, 1 fault(s))</text>
+<text class="l" x="16" y="297" style="animation-name:r12">thesis: world 3: perturbing with 1 fault(s), peak concurrency 1</text>
+<text class="l" x="16" y="315" style="animation-name:r13">perturber: t+3000ms inject net.partition(kv-n2)@3000..7500 [f001] -&gt; kv-n2</text>
+<text class="l" x="16" y="333" style="animation-name:r14">perturber: t+7500ms withdraw net.partition(kv-n2)@3000..7500 [f001]</text>
+<text class="l" x="16" y="351" style="animation-name:r15">thesis: world 3: QUIESCE: the driver drained in 17ms; every issued operation has a completion record</text>
+<text class="l" x="16" y="369" style="animation-name:r16"></text>
+<text class="l" x="16" y="387" style="animation-name:r16">--- PRO-THESIS REPLAY ---</text>
+<text class="l" x="16" y="405" style="animation-name:r16">World:      C:\AI Projects\pro-thesis\testdata\kvfixture\.prothesis\runs\r_2026_09_28_2071\world-000</text>
+<text class="l" x="16" y="423" style="animation-name:r16">    1\world.thesis</text>
+<text class="l" x="16" y="441" style="animation-name:r16">Identity:   sha256:8278df99c3ffa49272ecd7a86d212cb1a78fe6d1154d09b1403d5872c80da1dd (seed</text>
+<text class="l" x="16" y="459" style="animation-name:r16">    2337997644773862495)</text>
+<text class="l" x="16" y="477" style="animation-name:r16">Schedule:   1 fault(s) from fault_schedule.realized</text>
+<text class="l" x="16" y="495" style="animation-name:r16">              net.partition(kv-n2)@3000..7500</text>
+<text class="l" x="16" y="513" style="animation-name:r16">  note:     replaying fault_schedule.realized: 1 fault(s) as they were ACTUALLY injected, against</text>
+<text class="l" x="16" y="531" style="animation-name:r16">    the nodes the original run bound them to.</text>
+<text class="l" x="16" y="549" style="animation-name:r16">  note:     1 planned target(s) were dynamic and are replayed against the RECORDED node instead of</text>
+<text class="l" x="16" y="567" style="animation-name:r16">    being resolved again: role:leader -&gt; kv-n2</text>
+<text class="l" x="16" y="585" style="animation-name:r16">Match rule: a violation matching linearizable.kv on oracle</text>
+<text class="l" x="16" y="603" style="animation-name:r16"></text>
+<text class="l" x="16" y="621" style="animation-name:r16">Attempts:</text>
+<text class="l" x="16" y="639" style="animation-name:r16">  1/3  reproduced           violation      22.216s</text>
+<text class="l" x="16" y="657" style="animation-name:r16">        violation: linearizable.kv (consistency) key=k/0 ops=[4034,4137,4142]</text>
+<text class="l" x="16" y="675" style="animation-name:r16">  2/3  reproduced           violation      22.147s</text>
+<text class="l" x="16" y="693" style="animation-name:r16">        violation: linearizable.kv (consistency) key=k/0 ops=[4078,4173,4194]</text>
+<text class="l" x="16" y="711" style="animation-name:r16">  3/3  reproduced           violation      21.742s</text>
+<text class="l" x="16" y="729" style="animation-name:r16">        violation: linearizable.kv (consistency) key=k/0 ops=[4083,4160,4194]</text>
+<text class="l" x="16" y="747" style="animation-name:r16"></text>
+<text class="l" x="16" y="765" style="animation-name:r17">Reproduced: 3/3</text>
+<text class="l" x="16" y="783" style="animation-name:r17"></text>
+<text class="l bad" x="16" y="801" style="animation-name:r17">Verdict:    FAIL (exit 1)</text>
+<text class="l cmd" x="16" y="819" style="animation-name:r17"><tspan class="ps">$ </tspan>echo $?</text>
+<text class="l bad" x="16" y="837" style="animation-name:r17">1</text>
+</g></g>
+</svg>

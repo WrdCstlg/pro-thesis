@@ -38,6 +38,9 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 $env:GOTMPDIR = Join-Path $root 'bin'
 $outDir = Join-Path $root 'bin'
+# bin/ is gitignored, so a fresh clone does not have it, and without it every
+# package fails with "creating work dir" before a test runs (OQ-084).
+New-Item -ItemType Directory -Force $outDir | Out-Null
 
 # BOTH modules, not just this one. testdata/kvfixture is a separate module
 # (prothesis.dev/kvfixture) and `go list ./...` from the root never sees it, so

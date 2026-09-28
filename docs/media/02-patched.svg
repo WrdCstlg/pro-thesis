@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="815" height="496" viewBox="0 0 815 496" role="img" aria-labelledby="t d">
+<title id="t">patch the defect and prove the fix</title>
+<desc id="d">Terminal recording made 2026-09-28T00:08:14.356Z on Windows_NT 10.0.26200 x64. Every line is shown as recorded; on playback, pauses longer than 1 s are shortened, and long lines wrap. Colours are the renderer's, keyed off each line's text; any colour in the recording is dropped. The recording with its measured timestamps is 02-patched.cast.</desc>
+<style>
+text{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;font-size:13px;fill:#c9d1d9;white-space:pre}
+.ps{fill:#3fb950}.cmd{fill:#f0f6fc;font-weight:600}.dim{fill:#8b949e}.op{fill:#8b949e}.phase{fill:#79c0ff}
+.fault{fill:#d2a8ff}.ok{fill:#3fb950;font-weight:600}.bad{fill:#ff7b72;font-weight:600}.warn{fill:#e3b341;font-weight:600}
+.drift{fill:#f778ba;font-weight:600}.head{fill:#f0f6fc;font-weight:600}.title{fill:#8b949e;font-size:12px}
+.l{opacity:0;animation-duration:31.062s;animation-iteration-count:infinite;animation-timing-function:steps(1,end)}
+.strip{animation:scroll 31.062s steps(1,end) infinite}
+@keyframes scroll{0%{transform:translateY(0)}0.000%{transform:translateY(-0px)}74.147%{transform:translateY(-18px)}77.367%{transform:translateY(-36px)}80.586%{transform:translateY(-54px)}80.672%{transform:translateY(-144px)}80.672%{transform:translateY(-216px)}80.684%{transform:translateY(-234px)}80.684%{transform:translateY(-252px)}100%{transform:translateY(-252px)}}
+@keyframes r0{0%,100%{opacity:1}}
+@keyframes r1{0%{opacity:0}0.101%,100%{opacity:1}}
+@keyframes r2{0%{opacity:0}3.320%,100%{opacity:1}}
+@keyframes r3{0%{opacity:0}6.540%,100%{opacity:1}}
+@keyframes r4{0%{opacity:0}9.759%,100%{opacity:1}}
+@keyframes r5{0%{opacity:0}12.978%,100%{opacity:1}}
+@keyframes r6{0%{opacity:0}16.198%,100%{opacity:1}}
+@keyframes r7{0%{opacity:0}19.417%,100%{opacity:1}}
+@keyframes r8{0%{opacity:0}22.637%,100%{opacity:1}}
+@keyframes r9{0%{opacity:0}25.856%,100%{opacity:1}}
+@keyframes r10{0%{opacity:0}29.076%,100%{opacity:1}}
+@keyframes r11{0%{opacity:0}32.295%,100%{opacity:1}}
+@keyframes r12{0%{opacity:0}35.514%,100%{opacity:1}}
+@keyframes r13{0%{opacity:0}38.734%,100%{opacity:1}}
+@keyframes r14{0%{opacity:0}41.953%,100%{opacity:1}}
+@keyframes r15{0%{opacity:0}45.173%,100%{opacity:1}}
+@keyframes r16{0%{opacity:0}48.392%,100%{opacity:1}}
+@keyframes r17{0%{opacity:0}51.611%,100%{opacity:1}}
+@keyframes r18{0%{opacity:0}54.831%,100%{opacity:1}}
+@keyframes r19{0%{opacity:0}58.050%,100%{opacity:1}}
+@keyframes r20{0%{opacity:0}61.270%,100%{opacity:1}}
+@keyframes r21{0%{opacity:0}64.489%,100%{opacity:1}}
+@keyframes r22{0%{opacity:0}67.708%,100%{opacity:1}}
+@keyframes r23{0%{opacity:0}70.928%,100%{opacity:1}}
+@keyframes r24{0%{opacity:0}74.147%,100%{opacity:1}}
+@keyframes r25{0%{opacity:0}77.367%,100%{opacity:1}}
+@keyframes r26{0%{opacity:0}80.586%,100%{opacity:1}}
+@keyframes r27{0%{opacity:0}80.672%,100%{opacity:1}}
+@keyframes r28{0%{opacity:0}80.672%,100%{opacity:1}}
+@keyframes r29{0%{opacity:0}80.684%,100%{opacity:1}}
+@keyframes r30{0%{opacity:0}80.684%,100%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.l{animation:none;opacity:1}.strip{animation:none;transform:translateY(-252px)}}
+</style>
+<defs><clipPath id="screen"><rect x="10" y="49" width="795" height="434"/></clipPath></defs>
+<rect x="0.5" y="0.5" width="814" height="495" rx="10" fill="#0d1117" stroke="#30363d"/>
+<path d="M0.5 34H814.5" stroke="#30363d"/>
+<circle cx="20" cy="17" r="6" fill="#ff5f57"/><circle cx="40" cy="17" r="6" fill="#febc2e"/><circle cx="60" cy="17" r="6" fill="#28c840"/>
+<text class="title" x="407.5" y="21" text-anchor="middle">patch the defect and prove the fix</text>
+<g clip-path="url(#screen)"><g class="strip">
+<text class="l cmd" x="16" y="63" style="animation-name:r0"><tspan class="ps">$ </tspan>KV_VARIANT=kvfixed thesis run --profile linear --fault 'net.partition(role:leader)@3000..7500'</text>
+<text class="l" x="16" y="81" style="animation-name:r1">thesis: entering world 1 (seed 12852042024197135123, profile linear)</text>
+<text class="l" x="16" y="99" style="animation-name:r2">thesis: world 1: perturbing with 1 fault(s), peak concurrency 1</text>
+<text class="l" x="16" y="117" style="animation-name:r3">perturber: t+3016ms inject net.partition(role:leader)@3000..7500 [f001] -&gt; kv-n2</text>
+<text class="l" x="16" y="135" style="animation-name:r4">perturber: t+7500ms withdraw net.partition(role:leader)@3000..7500 [f001]</text>
+<text class="l" x="16" y="153" style="animation-name:r5">thesis: world 1: QUIESCE: the driver drained in 15ms; every issued operation has a completion record</text>
+<text class="l" x="16" y="171" style="animation-name:r6">thesis: entering world 2 (seed 4846583540259519026, profile linear)</text>
+<text class="l" x="16" y="189" style="animation-name:r7">thesis: world 2: perturbing with 1 fault(s), peak concurrency 1</text>
+<text class="l" x="16" y="207" style="animation-name:r8">perturber: t+3012ms inject net.partition(role:leader)@3000..7500 [f001] -&gt; kv-n2</text>
+<text class="l" x="16" y="225" style="animation-name:r9">perturber: t+7500ms withdraw net.partition(role:leader)@3000..7500 [f001]</text>
+<text class="l" x="16" y="243" style="animation-name:r10">thesis: world 2: QUIESCE: the driver drained in 14ms; every issued operation has a completion record</text>
+<text class="l" x="16" y="261" style="animation-name:r11">thesis: entering world 3 (seed 8391473926352060060, profile linear)</text>
+<text class="l" x="16" y="279" style="animation-name:r12">thesis: world 3: perturbing with 1 fault(s), peak concurrency 1</text>
+<text class="l" x="16" y="297" style="animation-name:r13">perturber: t+3028ms inject net.partition(role:leader)@3000..7500 [f001] -&gt; kv-n2</text>
+<text class="l" x="16" y="315" style="animation-name:r14">perturber: t+7500ms withdraw net.partition(role:leader)@3000..7500 [f001]</text>
+<text class="l" x="16" y="333" style="animation-name:r15">thesis: world 3: QUIESCE: the driver drained in 20ms; every issued operation has a completion record</text>
+<text class="l" x="16" y="351" style="animation-name:r16">thesis: entering world 4 (seed 17679147989185202734, profile linear)</text>
+<text class="l" x="16" y="369" style="animation-name:r17">thesis: world 4: perturbing with 1 fault(s), peak concurrency 1</text>
+<text class="l" x="16" y="387" style="animation-name:r18">perturber: t+3010ms inject net.partition(role:leader)@3000..7500 [f001] -&gt; kv-n2</text>
+<text class="l" x="16" y="405" style="animation-name:r19">perturber: t+7500ms withdraw net.partition(role:leader)@3000..7500 [f001]</text>
+<text class="l" x="16" y="423" style="animation-name:r20">thesis: world 4: QUIESCE: the driver drained in 13ms; every issued operation has a completion record</text>
+<text class="l" x="16" y="441" style="animation-name:r21">thesis: entering world 5 (seed 10039654620654389028, profile linear)</text>
+<text class="l" x="16" y="459" style="animation-name:r22">thesis: world 5: perturbing with 1 fault(s), peak concurrency 1</text>
+<text class="l" x="16" y="477" style="animation-name:r23">perturber: t+3012ms inject net.partition(role:leader)@3000..7500 [f001] -&gt; kv-n2</text>
+<text class="l" x="16" y="495" style="animation-name:r24">perturber: t+7500ms withdraw net.partition(role:leader)@3000..7500 [f001]</text>
+<text class="l" x="16" y="513" style="animation-name:r25">thesis: world 5: QUIESCE: the driver drained in 17ms; every issued operation has a completion record</text>
+<text class="l" x="16" y="531" style="animation-name:r26">thesis: stopping world loop: planned world count reached (5)</text>
+<text class="l" x="16" y="549" style="animation-name:r27"></text>
+<text class="l head" x="16" y="567" style="animation-name:r27">--- PRO-THESIS VERDICT ---</text>
+<text class="l" x="16" y="585" style="animation-name:r27">Run ID:     r_2026_09_28_d64c</text>
+<text class="l" x="16" y="603" style="animation-name:r27">Profile:    linear</text>
+<text class="l" x="16" y="621" style="animation-name:r27">Commit:     b619c28</text>
+<text class="l ok" x="16" y="639" style="animation-name:r28">Verdict:    PASS (exit 0)</text>
+<text class="l" x="16" y="657" style="animation-name:r28">Budget:     112s used / 600s wall, 5 worlds run / 5 planned</text>
+<text class="l" x="16" y="675" style="animation-name:r28"></text>
+<text class="l" x="16" y="693" style="animation-name:r28">Artifacts:  .prothesis/runs/r_2026_09_28_d64c/</text>
+<text class="l cmd" x="16" y="711" style="animation-name:r29"><tspan class="ps">$ </tspan>echo $?</text>
+<text class="l ok" x="16" y="729" style="animation-name:r30">0</text>
+</g></g>
+</svg>

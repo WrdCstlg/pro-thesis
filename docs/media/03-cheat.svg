@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="815" height="496" viewBox="0 0 815 496" role="img" aria-labelledby="t d">
+<title id="t">try to weaken the test</title>
+<desc id="d">Terminal recording made 2026-09-28T00:10:06.265Z on Windows_NT 10.0.26200 x64. Every line is shown as recorded; on playback, pauses longer than 1 s are shortened, and long lines wrap. Colours are the renderer's, keyed off each line's text; any colour in the recording is dropped. The recording with its measured timestamps is 03-cheat.cast.</desc>
+<style>
+text{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;font-size:13px;fill:#c9d1d9;white-space:pre}
+.ps{fill:#3fb950}.cmd{fill:#f0f6fc;font-weight:600}.dim{fill:#8b949e}.op{fill:#8b949e}.phase{fill:#79c0ff}
+.fault{fill:#d2a8ff}.ok{fill:#3fb950;font-weight:600}.bad{fill:#ff7b72;font-weight:600}.warn{fill:#e3b341;font-weight:600}
+.drift{fill:#f778ba;font-weight:600}.head{fill:#f0f6fc;font-weight:600}.title{fill:#8b949e;font-size:12px}
+.l{opacity:0;animation-duration:6.030s;animation-iteration-count:infinite;animation-timing-function:steps(1,end)}
+.strip{animation:scroll 6.030s steps(1,end) infinite}
+@keyframes scroll{0%{transform:translateY(0)}0.001%{transform:translateY(-0px)}100%{transform:translateY(-0px)}}
+@keyframes r0{0%{opacity:0}0.001%,100%{opacity:1}}
+@keyframes r1{0%{opacity:0}0.007%,100%{opacity:1}}
+@keyframes r2{0%{opacity:0}0.477%,100%{opacity:1}}
+@keyframes r3{0%{opacity:0}0.496%,100%{opacity:1}}
+@keyframes r4{0%{opacity:0}0.496%,100%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.l{animation:none;opacity:1}.strip{animation:none;transform:translateY(-0px)}}
+</style>
+<defs><clipPath id="screen"><rect x="10" y="49" width="795" height="434"/></clipPath></defs>
+<rect x="0.5" y="0.5" width="814" height="495" rx="10" fill="#0d1117" stroke="#30363d"/>
+<path d="M0.5 34H814.5" stroke="#30363d"/>
+<circle cx="20" cy="17" r="6" fill="#ff5f57"/><circle cx="40" cy="17" r="6" fill="#febc2e"/><circle cx="60" cy="17" r="6" fill="#28c840"/>
+<text class="title" x="407.5" y="21" text-anchor="middle">try to weaken the test</text>
+<g clip-path="url(#screen)"><g class="strip">
+<text class="l cmd" x="16" y="63" style="animation-name:r0"><tspan class="ps">$ </tspan>sed -i 's/--profile {profile}/--profile smoke/' prothesis.yaml</text>
+<text class="l cmd" x="16" y="81" style="animation-name:r1"><tspan class="ps">$ </tspan>thesis run --profile linear --fault 'net.partition(role:leader)@3000..7500'</text>
+<text class="l drift" x="16" y="99" style="animation-name:r2">ORACLE DRIFT — the gate has moved since it was last locked.</text>
+<text class="l" x="16" y="117" style="animation-name:r2">  locked   sha256:a1b840c53a67061712b09b3abb2925007210103d11538917faef043e8aea62f3</text>
+<text class="l" x="16" y="135" style="animation-name:r2">  computed sha256:e2436e8c3ebf3e0145104a90e9b4cb26c10dd326594a8aead443a6279418bc11</text>
+<text class="l" x="16" y="153" style="animation-name:r2">  last locked 2026-09-27T21:12:19Z: Only the stamp moved: bin/linearizable-kv.exe and</text>
+<text class="l" x="16" y="171" style="animation-name:r2">    bin/loadgen.exe were rebuilt by scripts/build.ps1 -Verify at b619c28 with dirty=0 (previously</text>
+<text class="l" x="16" y="189" style="animation-name:r2">    7fb03ba dirty=1). Measured with git diff --name-only 7fb03ba b619c28 over each program's</text>
+<text class="l" x="16" y="207" style="animation-name:r2">    in-module dependencies (go list -deps: the checker's internal/buildinfo,</text>
+<text class="l" x="16" y="225" style="animation-name:r2">    internal/recorder/cjson, pkg/schema and its own package; loadgen's seven fixture packages) and</text>
+<text class="l" x="16" y="243" style="animation-name:r2">    go.mod/go.sum: no non-test source changed. The manifest digest did not move.</text>
+<text class="l" x="16" y="261" style="animation-name:r2">  What moved (1):</text>
+<text class="l drift" x="16" y="279" style="animation-name:r2">    - config CHANGED:       driver.cmd: ./bin/loadgen --history {history_path} --seed {seed}</text>
+<text class="l drift" x="16" y="297" style="animation-name:r2">    --profile {profile} -&gt; ./bin/loadgen --history {history_path} --seed {seed} --profile smoke</text>
+<text class="l" x="16" y="315" style="animation-name:r2">  Exit 4 is never auto-resolved. Either revert the change above, or, if it is intended, record it in</text>
+<text class="l" x="16" y="333" style="animation-name:r2">    a reviewable commit:</text>
+<text class="l" x="16" y="351" style="animation-name:r2">      thesis oracles lock --reason "...why this gate change is correct..."</text>
+<text class="l cmd" x="16" y="369" style="animation-name:r3"><tspan class="ps">$ </tspan>echo $?</text>
+<text class="l drift" x="16" y="387" style="animation-name:r4">4</text>
+</g></g>
+</svg>

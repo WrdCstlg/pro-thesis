@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="480" viewBox="0 0 920 480" role="img" aria-labelledby="wt wd">
+<title id="wt">A stale read, caught: key k/0</title>
+<desc id="wd">linearizable.kv exhausted its search of the 542 operations on k/0 (1,578 states) and found no order a correct register could produce. At that point the register held 14000167, written by op 2480, and op 2493 (process 13, read) returned 15000136. That value was written by op 2331, which every linearization places before the value the register held. Drawn from verdict.json of run r_2026_09_28_2071.</desc>
+<style>
+:root{--bg:#ffffff;--fg:#1f2328;--muted:#59636e;--hair:#d1d9e0;--band:rgba(191,135,0,0.10);--bandedge:rgba(191,135,0,0.45);--bandfg:#7d4e00;--write:#0969da;--maybe:#9a6700;--read:#cf222e}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1117;--fg:#e6edf3;--muted:#9198a1;--hair:#30363d;--band:rgba(210,153,34,0.12);--bandedge:rgba(210,153,34,0.45);--bandfg:#e3b341;--write:#4493f8;--maybe:#d29922;--read:#ff7b72}}
+text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;fill:var(--fg)}
+.bg{fill:var(--bg);stroke:var(--hair)}.h1{font-size:19px;font-weight:600}.sub{font-size:13px;fill:var(--muted)}
+.grid{stroke:var(--hair);stroke-width:1}.tick{font-size:11px;fill:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.band{fill:var(--band);stroke:var(--bandedge);stroke-width:1}.bandlabel{font-size:12px;fill:var(--bandfg);font-weight:600}
+.bandspec{font-size:11px;fill:var(--bandfg);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}.gap{font-size:13px;fill:var(--fg);font-weight:600}
+.rowlabel{font-size:12.5px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:var(--fg)}
+.write{fill:var(--write)}.read{fill:var(--read)}.maybe{fill:none;stroke:var(--maybe);stroke-width:2;stroke-dasharray:5 4}
+.note{font-size:12.5px;fill:var(--muted)}.noteread{fill:var(--read);font-weight:600}
+.when{font-size:11px;fill:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.quote{font-size:12.5px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:var(--fg)}.foot{font-size:11px;fill:var(--muted)}
+</style>
+<rect class="bg" x="0.5" y="0.5" width="919" height="479" rx="10"/>
+<text class="h1" x="28" y="42">A stale read, caught: key k/0</text>
+<text class="sub" x="28" y="66">linearizable.kv exhausted its search of the 542 operations on k/0 (1,578 states) and found no order a correct register could produce.</text>
+<text class="sub" x="28" y="86">Below: the three operations where its deepest attempt broke. They point at the failure; the proof is the whole search.</text>
+<text class="sub" x="28" y="106">Times are from the start of the client load (t+0), as the run recorded them.</text>
+<line class="grid" x1="188" y1="126" x2="188" y2="330"/><text class="tick" x="188" y="346" text-anchor="middle">t+2 s</text>
+<line class="grid" x1="262.1538461538462" y1="126" x2="262.1538461538462" y2="330"/><text class="tick" x="262.1538461538462" y="346" text-anchor="middle">t+3 s</text>
+<line class="grid" x1="336.3076923076923" y1="126" x2="336.3076923076923" y2="330"/><text class="tick" x="336.3076923076923" y="346" text-anchor="middle">t+4 s</text>
+<line class="grid" x1="410.46153846153845" y1="126" x2="410.46153846153845" y2="330"/><text class="tick" x="410.46153846153845" y="346" text-anchor="middle">t+5 s</text>
+<line class="grid" x1="484.61538461538464" y1="126" x2="484.61538461538464" y2="330"/><text class="tick" x="484.61538461538464" y="346" text-anchor="middle">t+6 s</text>
+<line class="grid" x1="558.7692307692307" y1="126" x2="558.7692307692307" y2="330"/><text class="tick" x="558.7692307692307" y="346" text-anchor="middle">t+7 s</text>
+<line class="grid" x1="632.9230769230769" y1="126" x2="632.9230769230769" y2="330"/><text class="tick" x="632.9230769230769" y="346" text-anchor="middle">t+8 s</text>
+<rect class="band" x="262.7470769230769" y="132" width="333.0990769230769" height="198" rx="3"/><text class="bandlabel" x="272.7470769230769" y="152">network partition: kv-n2 cut off</text><text class="bandspec" x="272.7470769230769" y="169">net.partition(role:leader) · t+3008..7500 ms</text>
+<text class="rowlabel" x="174" y="199" text-anchor="end">op 2331 · process 15</text><rect class="write" x="292.77938461538463" y="185" width="4" height="18" rx="4"/><text class="note " x="304.1883076923077" y="194" text-anchor="start">write 15000136 · ok</text><text class="when" x="304.1883076923077" y="208" text-anchor="start">t+3413..3432 ms</text>
+<text class="rowlabel" x="174" y="243" text-anchor="end">op 2480 · process 14</text><rect class="maybe" x="392.2938461538462" y="229" width="74.22800000000001" height="18" rx="4"/><text class="note " x="476.5218461538462" y="238" text-anchor="start">write 14000167 · timed out, may or may not have applied</text><text class="when" x="476.5218461538462" y="252" text-anchor="start">t+4755..5756 ms</text>
+<text class="rowlabel" x="174" y="287" text-anchor="end">op 2493 · process 13</text><rect class="read" x="411.35138461538463" y="273" width="4" height="18" rx="4"/><text class="note noteread" x="421.4255384615385" y="282" text-anchor="start">read returned 15000136</text><text class="when" x="421.4255384615385" y="296" text-anchor="start">t+5012..5013 ms</text>
+<text class="gap" x="28" y="378">op 2480 timed out, so the checker tried it both applied and not applied; neither gives this history a valid order.</text>
+<text class="quote" x="28" y="408">“At that point the register held 14000167, written by op 2480, and op 2493 (process 13, read) returned 15000136. That</text>
+<text class="quote" x="28" y="426">value was written by op 2331, which every linearization places before the value the register held.”</text>
+<text class="foot" x="28" y="462">The checker’s words, quoted from verdict.json of run r_2026_09_28_2071. Drawn by scripts/demo/witness-svg.mjs.</text>
+</svg>

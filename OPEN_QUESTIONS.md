@@ -3575,3 +3575,132 @@ whole (OQ-076).
 was removed deliberately, as this entry said it must be. `TestOnlyDriverProfilesARunProfileNamesAreCovered`
 now pins both halves: editing an unreferenced driver profile moves nothing, and the same edit moves
 the digest once a run profile names that profile.
+
+---
+
+## OQ-077: a driver that fails, or is killed at the drain deadline, is not folded into the world's outcome
+
+**Classification:** OPEN; recorded from the code by the 2026-09-25 evaluation, re-located at `b619c28`.
+
+**Observed.** `worldOutcome` is assigned only at `internal/control/runner.go:789`, `1148`, `1282`, `1290`
+and `1295`, and none of those reads the driver's result. `Result.ExitCodeHint`
+(`internal/driver/supervise.go:128`) has no production caller. The drain comment at
+`runner.go:1404-1405` says an undrained world's best answer drops from PASS to INCONCLUSIVE; no code
+does that. The fixture's history writer flushes every 256 records
+(`testdata/kvfixture/internal/history/writer.go:58`) and syncs only on close (`:85`), so a driver
+killed at the drain deadline can leave a history cut cleanly on a record boundary, which nothing
+detects.
+
+**Consequence.** A shortened history is judged as if it were complete. Losing trailing reads can hide
+a stale read; losing trailing writes can make a read look unexplainable.
+
+**What would close it.** Score a driver that exited non-zero, was killed, or did not drain as
+INCONCLUSIVE, and end each history with a record count the harness checks.
+
+---
+
+## OQ-078: nothing checks that load overlapped a realized fault, and a verdict cannot say what a PASS checked
+
+**Classification:** OPEN; recorded from the code and one recorded run by the 2026-09-25 evaluation.
+
+**Observed.** A world's outcome is computed from oracle findings alone; no code compares operation
+times with realized fault windows. The fixture's own configuration notes that `smoke` "retires 500
+ops in ~700ms, finishing long before a fault window". `verdict.json` records the budget, violations,
+coverage and lock status, but no fault count, operation count or list of the oracles evaluated.
+
+**Measured.** A run against an experimental third target, `r_2026_09_24_5fde` (kept outside the
+repository), is a PASS with zero faults planned or realized, three seconds of smoke load, and only
+crash and liveness oracles. Its `verdict.json` has the same shape as a linearizable PASS under a
+leader partition.
+
+**What would close it.** Score a faulted world in which no operation was in flight during any realized
+window as INCONCLUSIVE, and add `faults_realized`, `ops_judged` and `oracles_evaluated` to the verdict.
+
+---
+
+## OQ-079: the checker leaves the register's initial value undetermined, and a missing `t_ns` loads as 0
+
+**Classification:** OPEN; recorded from the code by the 2026-09-25 evaluation.
+
+**Observed.** `cmd/thesis-oracle-linearizable/search.go:23-29` lets the first read establish any
+value, so that a history beginning mid-stream is not falsely failed. Every world the harness runs
+boots fresh volumes, so for its own worlds the initial value is known to be empty, and the trade buys
+nothing there: a first read that returns a value only a failed write carried is accepted. A missing
+`t_ns` decodes as 0 with no check (`load.go:560`), which stretches that operation's interval back to
+the epoch. `thesis history verify` detects a missing timestamp, but `internal/historycheck` is imported
+only by the offline `cmd/thesis/history.go`.
+
+**What would close it.** A known-empty initial state when the harness booted fresh volumes, and the
+history validator run before the oracle.
+
+---
+
+## OQ-080: a failure to write `verdict.json` is discarded
+
+**Classification:** OPEN; recorded from the code by the 2026-09-25 evaluation.
+
+**Observed.** `internal/control/runner.go:504` is `_ = WriteVerdictFile(...)`. On a full disk, which
+this repository has suffered once (AGENTS.md section 2), the run exits with its verdict code and
+leaves no verdict file behind it.
+
+**What would close it.** Exit 2 when the verdict cannot be written.
+
+---
+
+## OQ-081: `thesis search --strategy` overrides the lock-covered `search.strategy` without narrowing the run
+
+**Classification:** OPEN; recorded from the code by the 2026-09-25 evaluation.
+
+**Observed.** `internal/search/engine/engine.go:345` prefers the command-line strategy over
+`cfg.Search.Strategy`. D-059's narrowing rule covers only `--budget` and `--worlds`, so a search run
+under a different strategy can report PASS with `oracle_lock` ok.
+
+**What would close it.** Treat a strategy override as narrowing: no PASS, and `oracle_lock` bypassed.
+
+---
+
+## OQ-082: an unrecovered panic exits 2, the INCONCLUSIVE code, and writes no verdict
+
+**Classification:** OPEN; recorded from the code by the 2026-09-25 evaluation.
+
+**Observed.** `cmd/thesis` has no `recover` (`recover()` never appears there in either history,
+measured with `git log -S`). Go exits 2 on an unrecovered panic, so a loop reads a crash of the
+harness itself as INCONCLUSIVE, and no `verdict.json` says why.
+
+**What would close it.** Recover in `main`, write an INCONCLUSIVE verdict that names the panic, and
+exit 2 deliberately.
+
+---
+
+## OQ-083: `thesis doctor` checks a different file than the harness runs when a program exists with and without `.exe`
+
+**Classification:** OPEN; measured 2026-09-26; latent since the files that exposed it were removed.
+
+**Observed.** `driver.ResolveProgram` (`internal/driver/supervise.go:432`) takes an extensionless file
+before its `.exe` on every operating system, while `doctor`'s `resolveForPlatform`
+(`internal/doctor/doctor.go:296`) prefers the `.exe` on Windows. With Linux builds left in the
+fixture's `bin/` by the 2026-09-24 container runs, the harness resolved the checker and the driver to
+ELF files the Windows build host cannot start ("not a valid application for this OS platform",
+measured on `bin/linearizable-kv`), while `doctor` reported both ready. The Linux builds were removed
+on 2026-09-26 (D-090 records the second lock), so nothing is broken today.
+
+**What would close it.** One resolver, shared by the harness, the lock and `doctor`, that prefers the
+host's executable format or refuses a file it cannot run.
+
+---
+
+## OQ-084: `scripts/run-tests.ps1` could not run on a fresh clone
+
+**Classification:** RESOLVED in the change that records it; measured 2026-09-27.
+
+**Observed.** The wrapper points `GOTMPDIR` at `bin/`, which is gitignored and so absent from a fresh
+clone. On an exported tree without it, every package failed before a single test ran:
+`go: creating work dir: GetFileAttributesEx ...\bin: The system cannot find the file specified`,
+0 ok, 43 not ok.
+
+**Resolution.** The wrapper creates `bin/` before it does anything else. On a copy made with
+`git archive` and no `bin/`, the packages then built and ran. The first such run failed one test,
+correctly: the fix's comment cited this entry before its heading existed, and
+`TestEveryLedgerCitationInTheTreeResolves` refused it. With the heading in place, measured again on
+2026-09-27 on a fresh copy of the working tree (526 files taken with `git ls-files -co
+--exclude-standard`, no `bin/`): `PACKAGES: 37 ok, 0 not ok, 43 total`, exit 0.
