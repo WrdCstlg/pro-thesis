@@ -464,9 +464,9 @@ Research software at `0.1.0-phase0`, under active development.
 
 | | |
 |---|---|
-| Tests, hosted Linux CI | 1,566 pass · 3 skip · 0 fail on Go 1.27.1 with the Docker-backed tests and the race detector; 1,564 pass · 5 skip · 0 fail on Go 1.22.12 (first public commit, 2026-09-21) |
+| Tests, hosted Linux CI | 1,694 pass · 7 skip · no failures on Go 1.27.1 with the Docker-backed tests, and the race detector green as its own step; 1,692 pass · 9 skip · no failures on Go 1.22.12 (run `36364989749` on `5ffeb3f`, 2026-09-28). The skips are the tests that read the run corpus, which a CI checkout does not have, and on Go 1.22 the two Docker-backed tests CI runs on stable only (D-093) |
 | Tests, build host | 37 packages ok · 0 not ok · 43 total (six packages carry no tests), `scripts/run-tests.ps1`, 2026-09-27; the same on a fresh copy of the tree with no `bin/` (OQ-084) |
-| Live worlds, hosted Linux CI | Fixture defect found (exit 1), patched control passes (exit 0), etcd smoke passes, both etcd arms as pre-registered; every exit code asserted, not observed |
+| Live worlds, hosted Linux CI | Fixture defect found (exit 1), patched control passes (exit 0), etcd smoke passes, both etcd arms as pre-registered; every exit code asserted, not observed; `thesis doctor` before the worlds and `thesis diagnose` after them, both green on their first run (D-092, D-093). CI builds its own binaries, and all five of that run's verdicts carry the lock's executables warning (OQ-057) |
 | Live worlds, recorded | Two observation bundles with an independent observer's cross-check; a twenty-world sample with every world file and exit code recorded (OQ-054); the ten worlds of the first five minutes above, with their measurements |
 | Go | 1.22 minimum · one dependency (`gopkg.in/yaml.v3`) · the fixture has none |
 | Platforms | Developed on Windows + Docker Desktop; CI on Ubuntu 24.04; the fault injectors target Linux containers |
@@ -535,7 +535,7 @@ are open today, and how to report a new one, are in [`SECURITY.md`](SECURITY.md)
 ## The ledgers
 
 - [`DECISIONS.md`](DECISIONS.md): every non-obvious choice, with what was rejected and why,
-  D-001 through D-092.
+  D-001 through D-093.
 - [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md): every requirement that could not be met as written,
   every defect found, and what was measured about it, OQ-001 through OQ-084. Entries are never
   deleted; a resolution is appended.
@@ -560,9 +560,9 @@ tree, not asserted:
   `Co-Authored-By` trailer names the model exactly as the tool reported it: Claude Opus 5,
   Claude Opus 5 (1M context) and Claude Fable 5.1 through v0.1.0; Kimi Code CLI for the test
   protocol adoption D-081, the attribution system D-082/D-083 and the clustering engine D-084;
-  Claude Opus 5 (1M context) for D-085 to D-088; Claude Opus 5.5 (1M context) from D-089 on,
-  including the recordings and this page; Gemini 3.8 Flash on D-088, D-089 and D-092, and Gemini
-  2.5 Pro on D-089. The author reviewed, redirected and
+  Claude Opus 5 (1M context) for D-085 to D-088; Claude Opus 5.5 (1M context) for D-089 to D-092,
+  the recordings and this page; Claude Opus 5.5 for D-093; Gemini 3.8 Flash on D-088, D-089 and
+  D-092, and Gemini 2.5 Pro on D-089. The author reviewed, redirected and
   rejected throughout: the pivot from "drive the corpus to zero inconclusive" to "every recorded
   refusal must attribute to a known problem" (D-082) was his instruction, and the system changed
   course because of it.

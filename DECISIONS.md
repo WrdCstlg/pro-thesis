@@ -3665,3 +3665,50 @@ next publish. That is the purpose of the step, and it may surface first at publi
 
 **Attribution.** The two steps were added to the working tree on 2026-09-26 by Gemini 3.8 Flash
 (High), and recorded here by Claude Opus 5.5 on 2026-09-27.
+
+---
+
+## D-093: D-092's readiness and attribution steps ran in hosted CI for the first time, and passed
+
+**What this records.** D-092 said that neither `thesis doctor` nor `thesis diagnose` had run in CI,
+because the workflow runs only in the public repository. That is no longer true, and this entry
+supersedes that sentence; D-092's text is left as written.
+
+**Measured.** Public repository run `36364989749` on `5ffeb3f`, 2026-09-28 from 01:10:49Z to
+01:21:28Z, conclusion `success`, all three jobs green (`gh run view 36364989749 -R
+WrdCstlg/pro-thesis --json jobs`). In the live job every step succeeded, among them
+`pre-flight readiness (thesis doctor)` before any world, which printed `thesis doctor: ready (6
+checks passed)` in each project; the five asserted worlds (the fixture's planted defect, want FAIL
+exit 1; the patched fixture, want PASS exit 0; etcd with no faults, want PASS exit 0; etcd arm A,
+want PASS exit 0; etcd arm B, want FAIL exit 1); then
+`attribute non-terminal outcomes (thesis diagnose)`, which runs in the fixture only and printed
+`diagnose: 2 bundles, 6 worlds examined` and `every non-terminal outcome attributed to a known
+problem`; and `residue`. The three etcd worlds are not diagnosed.
+
+**What these verdicts carry.** Every run in the live job printed `thesis: WARNING: 2 program(s)
+the verdict depends on differ from the lock` before its first world, `thesis oracles verify`
+printed the same warning once per project after `oracle lock OK`, and each of the five verdicts
+names `driver.cmd` and `linearizable.kv` on its `Checker:` line as changed since the lock was
+written. CI builds its own Linux binaries and both locks were written on the Windows build host,
+so this is the accepted condition of OQ-057 and D-060: the fingerprints are a warning, never exit
+4, and a gate that reads only the exit code learns nothing from them. "Passed" here means every
+asserted exit code was the wanted one under binaries the lock did not fingerprint.
+
+The unit jobs' own `--- test results` step counts subtests with `uniq -c`, which prints no line
+for a count of zero: Go 1.27.1 with the Docker-backed tests, 1,694 pass and 7 skip; Go 1.22.12,
+1,692 pass and 9 skip; neither printed a failing-test line, and both jobs succeeded. These counts
+are the main module's test step only; the fixture module and, on Go 1.27.1, the race detector are
+separate steps, and both succeeded. At the first public commit the same step counted 1,566 pass,
+3 skip on Go 1.27.1 and 1,564 pass, 5 skip on Go 1.22.12.
+
+**The skips.** The seven on Go 1.27.1 are the tests that read the recorded run corpus, which is
+gitignored, so a CI checkout has none and they skip: `TestEveryRecordedSearchRecordIsConsistent`,
+`TestEveryRecordedVerdictIsWellFormed` and `TestNoRecordedRunLeakedABridgeNetwork` (present at the
+first public commit), `TestTheRealCorpusIsFullyAttributed` and `TestRecordedCorpusHonorsItsCensus`
+(added with D-082 and D-083), and `TestScanAgreesWithDiagnoseOnTheRealCorpus` and
+`TestPipelineAgainstTheRealCorpusIsReadOnly` (added with D-084); measured with `git grep` at the
+first public commit and `git log -S`. The Go 1.22.12 job also skips the two Docker-backed fixture
+tests in `internal/control`, which `ci.yml` runs on the stable job only. One consequence, stated
+rather than fixed: D-083's census floor guards the build host's corpus and checks nothing in CI.
+
+**Attribution.** Recorded by Claude Opus 5.5 on 2026-09-28.
