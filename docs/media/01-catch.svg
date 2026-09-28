@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="815" height="496" viewBox="0 0 815 496" role="img" aria-labelledby="t d">
+<title id="t">catch the planted stale read</title>
+<desc id="d">Terminal recording made 2026-09-28T00:07:48.638Z on Windows_NT 10.0.26200 x64. Every line is shown as recorded; on playback, pauses longer than 1 s are shortened, output that arrived at once but is taller than the screen is shown a screen at a time (5 s per screen), and long lines wrap. Colours are the renderer's, keyed off each line's text; any colour in the recording is dropped. The recording with its measured timestamps is 01-catch.cast.</desc>
+<style>
+text{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;font-size:13px;fill:#c9d1d9;white-space:pre}
+.ps{fill:#3fb950}.cmd{fill:#f0f6fc;font-weight:600}.dim{fill:#8b949e}.op{fill:#8b949e}.phase{fill:#79c0ff}
+.fault{fill:#d2a8ff}.ok{fill:#3fb950;font-weight:600}.bad{fill:#ff7b72;font-weight:600}.warn{fill:#e3b341;font-weight:600}
+.drift{fill:#f778ba;font-weight:600}.head{fill:#f0f6fc;font-weight:600}.title{fill:#8b949e;font-size:12px}
+.l{opacity:0;animation-duration:21.029s;animation-iteration-count:infinite;animation-timing-function:steps(1,end)}
+.strip{animation:scroll 21.029s steps(1,end) infinite}
+@keyframes scroll{0%{transform:translateY(0)}0.000%{transform:translateY(-0px)}23.916%{transform:translateY(-126px)}47.692%{transform:translateY(-522px)}71.468%{transform:translateY(-558px)}100%{transform:translateY(-558px)}}
+@keyframes r0{0%,100%{opacity:1}}
+@keyframes r1{0%{opacity:0}0.140%,100%{opacity:1}}
+@keyframes r2{0%{opacity:0}4.895%,100%{opacity:1}}
+@keyframes r3{0%{opacity:0}9.650%,100%{opacity:1}}
+@keyframes r4{0%{opacity:0}14.405%,100%{opacity:1}}
+@keyframes r5{0%{opacity:0}19.161%,100%{opacity:1}}
+@keyframes r6{0%{opacity:0}23.916%,100%{opacity:1}}
+@keyframes r7{0%{opacity:0}47.692%,100%{opacity:1}}
+@keyframes r8{0%{opacity:0}71.468%,100%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.l{animation:none;opacity:1}.strip{animation:none;transform:translateY(-558px)}}
+</style>
+<defs><clipPath id="screen"><rect x="10" y="49" width="795" height="434"/></clipPath></defs>
+<rect x="0.5" y="0.5" width="814" height="495" rx="10" fill="#0d1117" stroke="#30363d"/>
+<path d="M0.5 34H814.5" stroke="#30363d"/>
+<circle cx="20" cy="17" r="6" fill="#ff5f57"/><circle cx="40" cy="17" r="6" fill="#febc2e"/><circle cx="60" cy="17" r="6" fill="#28c840"/>
+<text class="title" x="407.5" y="21" text-anchor="middle">catch the planted stale read</text>
+<g clip-path="url(#screen)"><g class="strip">
+<text class="l cmd" x="16" y="63" style="animation-name:r0"><tspan class="ps">$ </tspan>thesis run --profile linear --worlds 1 --seed 1 --fault 'net.partition(role:leader)@3000..7500'</text>
+<text class="l warn" x="16" y="81" style="animation-name:r1">thesis: WARNING: the command line narrowed profile "linear" (worlds 5 -&gt; 1, wall 10m0s -&gt; 10m0s). A</text>
+<text class="l warn" x="16" y="99" style="animation-name:r1">    run that finds no violation under a narrowed budget cannot report PASS, because it did not</text>
+<text class="l warn" x="16" y="117" style="animation-name:r1">    perform the gate the profile specifies.</text>
+<text class="l" x="16" y="135" style="animation-name:r1">thesis: entering world 1 (seed 2337997644773862495, profile linear)</text>
+<text class="l" x="16" y="153" style="animation-name:r2">thesis: world 1: perturbing with 1 fault(s), peak concurrency 1</text>
+<text class="l" x="16" y="171" style="animation-name:r3">perturber: t+3008ms inject net.partition(role:leader)@3000..7500 [f001] -&gt; kv-n2</text>
+<text class="l" x="16" y="189" style="animation-name:r4">perturber: t+7500ms withdraw net.partition(role:leader)@3000..7500 [f001]</text>
+<text class="l" x="16" y="207" style="animation-name:r5">thesis: world 1: QUIESCE: the driver drained in 13ms; every issued operation has a completion record</text>
+<text class="l" x="16" y="225" style="animation-name:r6"></text>
+<text class="l head" x="16" y="243" style="animation-name:r6">--- PRO-THESIS VERDICT ---</text>
+<text class="l" x="16" y="261" style="animation-name:r6">Run ID:     r_2026_09_28_2071</text>
+<text class="l" x="16" y="279" style="animation-name:r6">Profile:    linear</text>
+<text class="l" x="16" y="297" style="animation-name:r6">Commit:     b619c28</text>
+<text class="l bad" x="16" y="315" style="animation-name:r6">Verdict:    FAIL (exit 1)</text>
+<text class="l" x="16" y="333" style="animation-name:r6">Budget:     26s used / 600s wall, 1 worlds run / 1 planned</text>
+<text class="l" x="16" y="351" style="animation-name:r6">            NARROWED from the command line: profile "linear" specifies 5 world(s). A clean run under</text>
+<text class="l" x="16" y="369" style="animation-name:r6">    a narrowed budget cannot report PASS.</text>
+<text class="l" x="16" y="387" style="animation-name:r6">Lock:       bypassed</text>
+<text class="l" x="16" y="405" style="animation-name:r6"></text>
+<text class="l" x="16" y="423" style="animation-name:r6">Violations (1):</text>
+<text class="l" x="16" y="441" style="animation-name:r6">  [v1] linearizable.kv (consistency, severity: high)</text>
+<text class="l" x="16" y="459" style="animation-name:r6">       key "k/0": no linearization exists for the 542 operation(s) on this key under a</text>
+<text class="l" x="16" y="477" style="animation-name:r6">    last-write-wins register. The search space was exhausted (1578 state(s) explored over 5055</text>
+<text class="l" x="16" y="495" style="animation-name:r6">    step(s)) with every branch rejected; this is a WITNESSED failure, not a timeout and not a</text>
+<text class="l" x="16" y="513" style="animation-name:r6">    budget. The deepest partial linearization the search reached placed 291 of 542 operation(s) on</text>
+<text class="l" x="16" y="531" style="animation-name:r6">    this key. At that point the register held 14000167, written by op 2480, and op 2493 (process 13,</text>
+<text class="l" x="16" y="549" style="animation-name:r6">    read) returned 15000136. That value was written by op 2331, which every linearization places</text>
+<text class="l" x="16" y="567" style="animation-name:r6">    before the value the register held. The witness op_ids point at the failure; the proof is the</text>
+<text class="l" x="16" y="585" style="animation-name:r6">    exhausted search over the whole key, not those operations alone. Evidence: 2199 determinate</text>
+<text class="l" x="16" y="603" style="animation-name:r6">    read(s), 2182 determinate write(s), 58 indeterminate write(s) explored on both the applied and</text>
+<text class="l" x="16" y="621" style="animation-name:r7">    the not-applied branch; 15 failed operation(s) dropped; 8 indeterminate read(s) dropped.</text>
+<text class="l" x="16" y="639" style="animation-name:r7">       Causal Timeline (16 events):</text>
+<text class="l phase" x="16" y="657" style="animation-name:r7">         t+-9788ms [phase] BOOT begins (window -9788..-489 ms)</text>
+<text class="l phase" x="16" y="675" style="animation-name:r7">         t+-489ms [phase] SEED begins (window -489..0 ms)</text>
+<text class="l phase" x="16" y="693" style="animation-name:r7">         t+   0ms [phase] DRIVE begins (window 0..8149 ms)</text>
+<text class="l phase" x="16" y="711" style="animation-name:r7">         t+   1ms [phase] PERTURB begins (window 1..8149 ms)</text>
+<text class="l fault" x="16" y="729" style="animation-name:r7">         t+3008ms [fault] inject net.partition(role:leader)@3000..7500 -&gt; kv-n2</text>
+<text class="l op" x="16" y="747" style="animation-name:r7">         t+3413ms [op] process 15 write k/0 -&gt; 15000136 [invoke op_id=2331]</text>
+<text class="l op" x="16" y="765" style="animation-name:r7">         t+3432ms [op] process 15 write k/0 -&gt; 15000136 [ok op_id=2331]</text>
+<text class="l op" x="16" y="783" style="animation-name:r7">         t+4755ms [op] process 14 write k/0 -&gt; 14000167 [invoke op_id=2480]</text>
+<text class="l op" x="16" y="801" style="animation-name:r7">         t+5012ms [op] process 13 read k/0 [invoke op_id=2493]</text>
+<text class="l op" x="16" y="819" style="animation-name:r7">         t+5013ms [op] process 13 read k/0 -&gt; 15000136 [ok op_id=2493]</text>
+<text class="l op" x="16" y="837" style="animation-name:r7">         t+5756ms [op] process 14 write k/0 -&gt; 14000167 [info op_id=2480 error=timeout]</text>
+<text class="l fault" x="16" y="855" style="animation-name:r7">         t+7500ms [fault] withdraw net.partition(role:leader)@3000..7500 -&gt; kv-n2</text>
+<text class="l phase" x="16" y="873" style="animation-name:r7">         t+8149ms [phase] HEAL begins (window 8149..11430 ms)</text>
+<text class="l phase" x="16" y="891" style="animation-name:r7">         t+11430ms [phase] QUIESCE begins (window 11430..13449 ms)</text>
+<text class="l phase" x="16" y="909" style="animation-name:r7">         t+13449ms [phase] ASSERT begins (window 13449..13449 ms)</text>
+<text class="l bad" x="16" y="927" style="animation-name:r7">         t+13449ms [oracle] linearizable.kv (consistency) reported a violation in ASSERT: key "k/0":</text>
+<text class="l bad" x="16" y="945" style="animation-name:r7">    no linearization exists for the 542 operation(s) on this key under a last-write-wins register.</text>
+<text class="l bad" x="16" y="963" style="animation-name:r7">    The search space was exhausted (1578 state(s) explored over 5055 step(s)…</text>
+<text class="l" x="16" y="981" style="animation-name:r7"></text>
+<text class="l" x="16" y="999" style="animation-name:r7">Artifacts:  .prothesis/runs/r_2026_09_28_2071/</text>
+<text class="l cmd" x="16" y="1017" style="animation-name:r8"><tspan class="ps">$ </tspan>echo $?</text>
+<text class="l bad" x="16" y="1035" style="animation-name:r8">1</text>
+</g></g>
+</svg>

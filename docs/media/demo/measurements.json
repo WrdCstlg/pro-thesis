@@ -1,0 +1,250 @@
+{
+  "schema": "prothesis.demo_measurements/v1",
+  "recorded_at": "2026-09-27T20:07:47.6343801-04:00",
+  "host": {
+    "os": "Microsoft Windows NT 10.0.26200.0",
+    "cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "logical_cpus": 8,
+    "docker_server": "29.1.3",
+    "docker_ncpu": "8",
+    "docker_mem_bytes": 32271196160
+  },
+  "build": {
+    "thesis": "build: commit b619c28, source date 2026-09-27T21:11:36Z",
+    "tree_dirty": true
+  },
+  "build_cache_before": {
+    "size": "11.14GB",
+    "reclaimable": "10.02GB"
+  },
+  "steps": [
+    {
+      "step": "01-catch",
+      "title": "catch the planted stale read",
+      "expected_exit": 1,
+      "exit": 1,
+      "seconds": 25.603,
+      "runs": [
+        {
+          "run_id": "r_2026_09_28_2071",
+          "verdict": "FAIL",
+          "commit": "b619c28",
+          "used_s": 26,
+          "worlds": [
+            {
+              "world": "world-0001",
+              "outcome": "violation",
+              "phase_ms": {
+                "BOOT": 9299,
+                "SEED": 489,
+                "DRIVE": 8149,
+                "PERTURB": 8148,
+                "HEAL": 3281,
+                "QUIESCE": 2019,
+                "ASSERT": 0
+              },
+              "bytes": 2464301.0
+            }
+          ],
+          "bytes": 2469273.0,
+          "oracle_lock": "bypassed"
+        }
+      ]
+    },
+    {
+      "step": "02-patched",
+      "title": "patch the defect and prove the fix",
+      "expected_exit": 0,
+      "exit": 0,
+      "seconds": 111.835,
+      "runs": [
+        {
+          "run_id": "r_2026_09_28_d64c",
+          "verdict": "PASS",
+          "commit": "b619c28",
+          "used_s": 112,
+          "worlds": [
+            {
+              "world": "world-0001",
+              "outcome": "pass",
+              "phase_ms": {
+                "BOOT": 8618,
+                "SEED": 242,
+                "DRIVE": 8002,
+                "PERTURB": 8000,
+                "HEAL": 1755,
+                "QUIESCE": 2019,
+                "ASSERT": 0
+              },
+              "bytes": 2522065.0
+            },
+            {
+              "world": "world-0002",
+              "outcome": "pass",
+              "phase_ms": {
+                "BOOT": 8360,
+                "SEED": 159,
+                "DRIVE": 7904,
+                "PERTURB": 7903,
+                "HEAL": 1771,
+                "QUIESCE": 2018,
+                "ASSERT": 0
+              },
+              "bytes": 3158969.0
+            },
+            {
+              "world": "world-0003",
+              "outcome": "pass",
+              "phase_ms": {
+                "BOOT": 8366,
+                "SEED": 178,
+                "DRIVE": 7888,
+                "PERTURB": 7888,
+                "HEAL": 1850,
+                "QUIESCE": 2025,
+                "ASSERT": 0
+              },
+              "bytes": 3075532.0
+            },
+            {
+              "world": "world-0004",
+              "outcome": "pass",
+              "phase_ms": {
+                "BOOT": 8408,
+                "SEED": 174,
+                "DRIVE": 7878,
+                "PERTURB": 7878,
+                "HEAL": 1720,
+                "QUIESCE": 2017,
+                "ASSERT": 0
+              },
+              "bytes": 3141589.0
+            },
+            {
+              "world": "world-0005",
+              "outcome": "pass",
+              "phase_ms": {
+                "BOOT": 8039,
+                "SEED": 156,
+                "DRIVE": 7949,
+                "PERTURB": 7948,
+                "HEAL": 2177,
+                "QUIESCE": 2022,
+                "ASSERT": 0
+              },
+              "bytes": 3189412.0
+            }
+          ],
+          "bytes": 15088167.0,
+          "oracle_lock": "ok"
+        }
+      ]
+    },
+    {
+      "step": "03-cheat",
+      "title": "try to weaken the test",
+      "expected_exit": 4,
+      "exit": 4,
+      "seconds": 0.029,
+      "runs": []
+    },
+    {
+      "step": "04-narrowed",
+      "title": "test less, prove less",
+      "expected_exit": 2,
+      "exit": 2,
+      "seconds": 22.338,
+      "runs": [
+        {
+          "run_id": "r_2026_09_28_3c56",
+          "verdict": "INCONCLUSIVE",
+          "commit": "b619c28",
+          "used_s": 22,
+          "worlds": [
+            {
+              "world": "world-0001",
+              "outcome": "pass",
+              "phase_ms": {
+                "BOOT": 8477,
+                "SEED": 180,
+                "DRIVE": 7900,
+                "PERTURB": 7899,
+                "HEAL": 1685,
+                "QUIESCE": 2021,
+                "ASSERT": 0
+              },
+              "bytes": 3188329.0
+            }
+          ],
+          "bytes": 3189018.0,
+          "oracle_lock": "bypassed"
+        }
+      ]
+    },
+    {
+      "step": "05-replay",
+      "title": "replay the failure",
+      "expected_exit": 1,
+      "exit": 1,
+      "seconds": 66.138,
+      "runs": [
+        {
+          "run_id": "r_2026_09_28_4dd7",
+          "verdict": null,
+          "commit": null,
+          "used_s": null,
+          "worlds": [
+            {
+              "world": "world-0001",
+              "outcome": "violation",
+              "phase_ms": {
+                "BOOT": 8343,
+                "SEED": 158,
+                "DRIVE": 7897,
+                "PERTURB": 7897,
+                "HEAL": 1746,
+                "QUIESCE": 2018,
+                "ASSERT": 0
+              },
+              "bytes": 3153551.0
+            },
+            {
+              "world": "world-0002",
+              "outcome": "violation",
+              "phase_ms": {
+                "BOOT": 8341,
+                "SEED": 153,
+                "DRIVE": 7939,
+                "PERTURB": 7938,
+                "HEAL": 1677,
+                "QUIESCE": 2019,
+                "ASSERT": 0
+              },
+              "bytes": 3259116.0
+            },
+            {
+              "world": "world-0003",
+              "outcome": "violation",
+              "phase_ms": {
+                "BOOT": 7788,
+                "SEED": 150,
+                "DRIVE": 7896,
+                "PERTURB": 7895,
+                "HEAL": 1687,
+                "QUIESCE": 2022,
+                "ASSERT": 0
+              },
+              "bytes": 3203763.0
+            }
+          ],
+          "bytes": 9616430.0,
+          "oracle_lock": null
+        }
+      ]
+    }
+  ],
+  "build_cache_after": {
+    "size": "11.14GB",
+    "reclaimable": "10.02GB"
+  }
+}
