@@ -284,3 +284,10 @@ list printed `0`; and a SHA-256 comparison of every `src/*.ts` against the scrat
 Limits: whether each mutant failed on the assertion meant for it, and not on an incidental one, was
 checked only through the first failing test name in the log, which named the intended test in every
 case. Mutants are a hand-picked set, not a generated one.
+
+## D-020 Line endings are never converted by git (2026-10-06)
+
+`.gitattributes` contains `* -text`. Reason: DEF-002. Every digest faultline checks
+(`GATE.lock`, lock entries, world files) is over raw bytes, so a checkout must reproduce the committed
+bytes exactly whatever the cloning machine's `core.autocrlf` is. This entry is written before the
+re-measurement; the result is appended as the next entry, not edited into this one.
