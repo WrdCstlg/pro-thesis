@@ -1,0 +1,75 @@
+[
+  { "id": "A01", "due": "M2", "args": ["run", "--profile", "baseline"], "env": {}, "expectedExit": 0 },
+  { "id": "A02", "due": "M3", "args": ["run", "--profile", "disconnect"], "env": {}, "expectedExit": 0 },
+  { "id": "A03", "due": "M3", "args": ["run", "--profile", "disconnect"], "env": { "FIXTURE_DEFECTS": "d1" }, "expectedExit": 1, "expectedOracle": "edit-integrity" },
+  { "id": "A04", "due": "M3", "args": ["run", "--profile", "crash"], "env": {}, "expectedExit": 0 },
+  { "id": "A05", "due": "M3", "args": ["run", "--profile", "crash"], "env": { "FIXTURE_DEFECTS": "d2" }, "expectedExit": 1, "expectedOracle": "no-provider-retry-after-crash" },
+  {
+    "id": "A06", "due": "M3",
+    "args": ["run", "--profile", "disconnect", "--fault", "stream.disconnect(afterChunks=2)@t=999999"],
+    "env": {}, "expectedExit": 2,
+    "extraAssert": [{ "kind": "inconclusiveReason", "reason": "fault-missed-load" }]
+  },
+  { "id": "A07", "due": "M4", "args": ["run", "--profile", "idempotency"], "env": {}, "expectedExit": 0 },
+  { "id": "A08", "due": "M4", "args": ["run", "--profile", "idempotency"], "env": { "FIXTURE_DEFECTS": "d3" }, "expectedExit": 1, "expectedOracle": "exactly-once-admission" },
+  {
+    "id": "A09", "due": "M4", "args": ["run", "--profile", "ext-timeout"], "env": {}, "expectedExit": 2,
+    "extraAssert": [
+      { "kind": "inconclusiveReason", "reason": "oracle-timeout", "oracle": "sleep-forever" },
+      { "kind": "oracleProcessesGone", "min": 1 }
+    ]
+  },
+  {
+    "id": "A10", "due": "M4", "args": ["run", "--profile", "ext-malformed"], "env": {}, "expectedExit": 2,
+    "extraAssert": [{ "kind": "inconclusiveReason", "reason": "oracle-malformed-output", "oracle": "truncated-ok" }]
+  },
+  {
+    "id": "A11", "due": "M4", "args": ["run", "--profile", "no-oracles"], "env": {}, "expectedExit": 2,
+    "extraAssert": [{ "kind": "inconclusiveReason", "reason": "no-oracle-judged" }]
+  },
+  {
+    "id": "A12", "due": "M4", "args": ["run", "--profile", "disconnect-ext-inconclusive"], "env": { "FIXTURE_DEFECTS": "d1" },
+    "expectedExit": 1, "expectedOracle": "edit-integrity",
+    "extraAssert": [{ "kind": "inconclusiveReason", "reason": "missing-probe", "oracle": "always-inconclusive" }]
+  },
+  {
+    "id": "A13", "due": "M5", "args": ["run", "--profile", "disconnect", "--worlds", "1"], "env": {}, "expectedExit": 2,
+    "extraAssert": [
+      { "kind": "inconclusiveReason", "reason": "narrowed-run" },
+      { "kind": "lockStatus", "status": "bypassed" }
+    ]
+  },
+  {
+    "id": "A14", "due": "M5", "args": ["run", "--profile", "disconnect"], "env": {}, "expectedExit": 4,
+    "extraAssert": [
+      { "kind": "bumpProfileWorlds", "profile": "disconnect", "delta": 1 },
+      { "kind": "reportNamesOnly", "keys": ["profiles"] },
+      { "kind": "noWorldStarted" }
+    ]
+  },
+  {
+    "id": "A15", "due": "M5", "args": ["lock", "--reason", ""], "env": {}, "expectedExit": 64,
+    "extraAssert": [{ "kind": "lockFileUnchanged" }]
+  },
+  { "id": "A16", "due": "M5", "args": ["run", "--profile", "crash", "--budget", "1"], "env": {}, "expectedExit": 3 },
+  {
+    "id": "A17", "due": "M5", "args": ["run", "--profile", "disconnect"], "env": {}, "expectedExit": 2,
+    "extraAssert": [
+      { "kind": "interruptAfterMs", "ms": 2000, "signal": "SIGINT" },
+      { "kind": "workspaceExistsAtInterrupt" },
+      { "kind": "inconclusiveReason", "reason": "interrupted" }
+    ]
+  },
+  {
+    "id": "A18", "due": "M5", "args": ["replay", "{A03.world}", "-k", "3", "--expect", "edit-integrity"], "env": {}, "expectedExit": 1,
+    "extraAssert": [{ "kind": "stdoutMatches", "pattern": "^reproduced ([1-3])/3$", "record": "m" }]
+  },
+  {
+    "id": "A19", "due": "M5", "args": ["explain", "{A03.verdict}"], "env": {}, "expectedExit": 0,
+    "extraAssert": [{ "kind": "stdoutExcludes", "text": "WITNESS NOT SELF-SUFFICIENT" }]
+  },
+  {
+    "id": "A20", "due": "M5", "args": ["replay", "{A03.tampered}", "-k", "1", "--expect", "edit-integrity"], "env": {}, "expectedExit": 4,
+    "extraAssert": [{ "kind": "tamperWorldSeedDigit", "from": "A03" }]
+  }
+]
