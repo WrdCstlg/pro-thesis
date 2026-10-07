@@ -291,3 +291,12 @@ case. Mutants are a hand-picked set, not a generated one.
 (`GATE.lock`, lock entries, world files) is over raw bytes, so a checkout must reproduce the committed
 bytes exactly whatever the cloning machine's `core.autocrlf` is. This entry is written before the
 re-measurement; the result is appended as the next entry, not edited into this one.
+
+## D-021 D-020 measured: a fresh clone now reproduces the locked bytes (2026-10-06)
+
+After commit `ed9eca8` (`.gitattributes` `* -text`), `git clone` of the repository on this host
+(`core.autocrlf=true`) and `Get-FileHash` on the checkout printed
+`d28062d568d9f88ebdc4a3f9c5c1fc21224fbddf4a49187a82d1d6e18aa115dc` for `acceptance.json` and
+`a9b90f558b4a624c844a98a8fd93d0c9162708a35e0b14e6fda28d34989481bc` for `scripts/gate.ts`, equal to
+`GATE.lock`. Before the fix the same procedure printed `8f6e2794...` and `e3367362...` (DEF-002).
+Measured on Windows only; a POSIX clone does not convert line endings by default and was not tried.
