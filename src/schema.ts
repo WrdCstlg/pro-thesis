@@ -1,4 +1,4 @@
-import { Schema } from "effect"
+import { Brand, Schema } from "effect"
 
 // Every type that crosses a boundary (config, lock file, world file, history line, verdict file,
 // external-oracle stdout) is defined here once; TypeScript types are derived with `typeof X.Type`.
@@ -101,6 +101,7 @@ export const InconclusiveReason = Schema.Literals([
   "provider-not-exercised",
   "narrowed-run",
   "interrupted",
+  "history-malformed",
 ])
 export type InconclusiveReason = typeof InconclusiveReason.Type
 
@@ -260,3 +261,120 @@ export const LockFile = Schema.Struct({
   history: Schema.Array(LockHistoryEntry),
 })
 export type LockFile = typeof LockFile.Type
+
+// ---- M2: history payloads (D-018 finalised by D-024) ----------------------------------------
+// Oracles read only invoke values; completion values are informative and stay Schema.Json.
+// Ids reported by the SUT are untrusted text, so they are kept as strings: a garbage id must be
+// recordable, because recording it is how a violation is shown.
+
+const TurnIndex = Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0), Schema.isLessThanOrEqualTo(MAX_PARAM)))
+
+export const PromptValue = Schema.Struct({ session: SessionId, messageId: MessageId, text: Schema.String })
+export type PromptValue = typeof PromptValue.Type
+
+export const ProviderTurnValue = Schema.Struct({
+  session: SessionId,
+  k: TurnIndex,
+  turnKey: Sha256,
+  // Ids in the request's assistant tool_calls, in message order: what the SUT says it was given.
+  echoed: Schema.Array(Schema.String),
+})
+export type ProviderTurnValue = typeof ProviderTurnValue.Type
+
+export const ToolCallValue = Schema.Struct({ session: SessionId, k: TurnIndex, toolCallId: ToolCallId, marker: Schema.String, turnOp: OpId })
+export type ToolCallValue = typeof ToolCallValue.Type
+
+// One per role:"tool" message in a request, linked to the provider-turn op that carried it.
+export const ToolResultValue = Schema.Struct({ session: SessionId, reportedId: Schema.String, turnOp: OpId })
+export type ToolResultValue = typeof ToolResultValue.Type
+
+// ---- M2: the OpenAI-compatible subset (POST /v1/chat/completions, stream: true) ----------------
+// The stub reads `messages` and `tools` and nothing else; excess request fields are ignored.
+
+export const ChatToolCall = Schema.Struct({
+  id: Schema.String,
+  type: Schema.Literal("function"),
+  function: Schema.Struct({ name: Schema.String, arguments: Schema.String }),
+})
+export type ChatToolCall = typeof ChatToolCall.Type
+
+export const ChatMessage = Schema.Union([
+  Schema.Struct({ role: Schema.Literals(["system", "user"]), content: Schema.String }),
+  Schema.Struct({ role: Schema.Literal("assistant"), content: Schema.NullOr(Schema.String), tool_calls: Schema.optionalKey(Schema.Array(ChatToolCall)) }),
+  Schema.Struct({ role: Schema.Literal("tool"), tool_call_id: Schema.String, content: Schema.String }),
+])
+export type ChatMessage = typeof ChatMessage.Type
+
+export const ChatRequest = Schema.Struct({ messages: Schema.Array(ChatMessage), tools: Schema.optionalKey(Schema.Json) })
+export type ChatRequest = typeof ChatRequest.Type
+
+export const ChunkToolCall = Schema.Struct({
+  index: Schema.Int,
+  id: Schema.optionalKey(Schema.String),
+  type: Schema.optionalKey(Schema.Literal("function")),
+  function: Schema.optionalKey(Schema.Struct({ name: Schema.optionalKey(Schema.String), arguments: Schema.optionalKey(Schema.String) })),
+})
+export type ChunkToolCall = typeof ChunkToolCall.Type
+
+export const FinishReason = Schema.Literals(["tool_calls", "stop"])
+export type FinishReason = typeof FinishReason.Type
+
+export const ChatChunk = Schema.Struct({
+  choices: Schema.Array(
+    Schema.Struct({
+      index: Schema.Int,
+      delta: Schema.Struct({
+        role: Schema.optionalKey(Schema.Literal("assistant")),
+        content: Schema.optionalKey(Schema.String),
+        tool_calls: Schema.optionalKey(Schema.Array(ChunkToolCall)),
+      }),
+      finish_reason: Schema.NullOr(FinishReason),
+    }),
+  ),
+})
+export type ChatChunk = typeof ChatChunk.Type
+
+// The one tool the script calls. The path is a bare file name so a tool call cannot leave the
+// workspace.
+export const AppendLineArgs = Schema.Struct({ path: Schema.String.pipe(Schema.check(Schema.isPattern(/^[A-Za-z0-9._-]+$/))), line: Schema.String })
+export type AppendLineArgs = typeof AppendLineArgs.Type
+
+// ---- M2: the reference fixture's HTTP bodies and launch handshake (D-023) ---------------------
+
+export const PromptBody = Schema.Struct({ messageId: MessageId, text: Schema.String })
+export type PromptBody = typeof PromptBody.Type
+
+// Written by the SUT to FAULTLINE_PORT_FILE once it listens; the harness decodes it, then polls
+// /health. The port is a launch detail, not evidence of anything.
+export const PortAnnouncement = Schema.Struct({ port: Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(1), Schema.isLessThanOrEqualTo(65535))) })
+export type PortAnnouncement = typeof PortAnnouncement.Type
+
+export const FixtureDefect = Schema.Literals(["d1", "d2", "d3"])
+export type FixtureDefect = typeof FixtureDefect.Type
+
+// ---- M2: what a built-in oracle is given besides the history ---------------------------------
+
+// File name to content, read from the workspace after load. Keys are sorted when built.
+export const WorkspaceSnapshot = Schema.Struct({ files: Schema.Record(Schema.String, Schema.String) })
+export type WorkspaceSnapshot = typeof WorkspaceSnapshot.Type
+
+export type OracleContext = { readonly workspace: WorkspaceSnapshot }
+
+// ---- Total constructors for ids built from numbers or fixed names ----------------------------
+// Decoding would return a Result for values that are well-formed by construction; these build the
+// brand without a check instead. test/schema.test.ts decodes their output with the real schemas,
+// so a constructor that drifts from its pattern fails the suite.
+
+const nominalOpId = Brand.nominal<OpId>()
+const nominalSessionId = Brand.nominal<SessionId>()
+const nominalWorldId = Brand.nominal<WorldId>()
+const nominalOracleName = Brand.nominal<OracleName>()
+
+const positiveIndex = (n: number): number => (Number.isSafeInteger(n) && n >= 1 ? n : 1)
+
+// A non-positive or non-integer index is clamped to 1 rather than producing an id outside the
+// pattern; callers count from 1, and the tests pin both the normal and the clamped case.
+export const opIdOf = (n: number): OpId => nominalOpId(`op-${positiveIndex(n)}`)
+export const sessionIdOf = (n: number): SessionId => nominalSessionId(`session-${positiveIndex(n)}`)
+export const worldIdOf = (n: number): WorldId => nominalWorldId(`world-${positiveIndex(n)}`)
+export const builtinOracleName = (name: BuiltinOracleName): OracleName => nominalOracleName(name)

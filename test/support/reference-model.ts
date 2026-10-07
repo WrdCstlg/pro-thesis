@@ -1,62 +1,78 @@
 import { Result, Schema } from "effect"
 import { digestOf } from "../../src/canonical"
 import { nextBelow, seedPrng, type Prng } from "../../src/prng"
-import { MessageId, Sha256, SessionId, ToolCallId, type HistoryEvent, type OpKind, type OpType } from "../../src/schema"
+import type { HistoryEvent, OpId, OpKind, OpType } from "../../src/schema"
 import { opId, sessionId } from "./ids"
 
-// A correct run of the tool loop, as the stub would record it, with sessions interleaved by the
-// seeded PRNG. It exists so the oracle-soundness properties of M2 to M4 have a model to start from.
+// A correct run of the tool loop, recorded the way the stub and the runner record it (D-024), with
+// sessions interleaved by the seeded PRNG. The oracle-soundness properties start from it.
 //
-// The payload shapes below are PROVISIONAL (D-018): the specification types `value` as unknown and
-// the oracles that read it do not exist yet. They move to schema.ts, with a ledger entry, when the
-// first oracle needs them.
-const Turn = Schema.Int.pipe(Schema.check(Schema.isGreaterThanOrEqualTo(0)))
-export const PromptValue = Schema.Struct({ session: SessionId, messageId: MessageId, text: Schema.String })
-export const ProviderTurnValue = Schema.Struct({ session: SessionId, k: Turn, turnKey: Sha256 })
-export const ToolCallValue = Schema.Struct({ session: SessionId, k: Turn, toolCallId: ToolCallId, marker: Schema.String })
-export const ToolResultValue = Schema.Struct({ session: SessionId, toolCallId: ToolCallId })
+// Turn k of a session: the stub records the provider-turn invoke with every tool-call id the
+// request echoes (calls 0..k-1), then one tool-result per role "tool" message in the request
+// (again calls 0..k-1, each linked to this turn's op), then for k < T-1 the tool-call it issues,
+// then the completions. Values that link to another op name it, and names become op ids only after
+// interleaving, because ids are assigned in order of first appearance.
 
 export type ReferenceParams = { readonly seed: bigint; readonly sessions: number; readonly turnsPerSession: number }
+
+type IdOf = (op: string) => OpId
 
 type Template = {
   readonly op: string
   readonly process: HistoryEvent["process"]
   readonly type: OpType
   readonly f: OpKind
-  readonly value: Schema.Json
+  readonly value: (idOf: IdOf) => Schema.Json
 }
 type Step = ReadonlyArray<Template>
 
 const hex = (value: unknown, length: number): string => Result.getOrThrow(digestOf(value)).slice(0, length)
 
-const pair = (op: string, process: HistoryEvent["process"], f: OpKind, invoke: Schema.Json, complete: Schema.Json): Step => [
-  { op, process, type: "invoke", f, value: invoke },
-  { op, process, type: "ok", f, value: complete },
-]
+const fixed = (value: Schema.Json) => (): Schema.Json => value
 
 const sessionSteps = (seed: bigint, index: number, turns: number): ReadonlyArray<Step> => {
   const session = sessionId(index)
   const at = (name: string) => `${session}/${name}`
   const callOf = (k: number) => `call_${hex({ seed: seed.toString(), session, k }, 16)}`
   const promptValue = { session, messageId: `msg-${session}-0`, text: `prompt for ${session}` }
+  const prompt: Step = [{ op: at("prompt"), process: session, type: "invoke", f: "prompt", value: fixed(promptValue) }]
   const turnSteps = Array.from({ length: turns }, (_, k): ReadonlyArray<Step> => {
-    const turn = { session, k, turnKey: hex({ session, k }, 64) }
+    const turnOp = at(`turn-${k}`)
+    const prior = Array.from({ length: k }, (_, j) => callOf(j))
     const begin: Step = [
-      { op: at(`turn-${k}`), process: "stub", type: "invoke", f: "provider-turn", value: turn },
-      ...(k === 0 ? [] : pair(at(`result-${k - 1}`), "stub", "tool-result", { session, toolCallId: callOf(k - 1) }, { session, toolCallId: callOf(k - 1) })),
+      { op: turnOp, process: "stub", type: "invoke", f: "provider-turn", value: fixed({ session, k, turnKey: hex({ session, k }, 64), echoed: prior }) },
     ]
+    const results = prior.map((reportedId, j): Step => {
+      const value = (idOf: IdOf): Schema.Json => ({ session, reportedId, turnOp: idOf(turnOp) })
+      return [
+        { op: at(`turn-${k}/result-${j}`), process: "stub", type: "invoke", f: "tool-result", value },
+        { op: at(`turn-${k}/result-${j}`), process: "stub", type: "ok", f: "tool-result", value },
+      ]
+    })
     const issue: ReadonlyArray<Step> =
       k < turns - 1
-        ? [pair(at(`call-${k}`), "stub", "tool-call", { session, k, toolCallId: callOf(k), marker: `${session}:op-${k}` }, { session, k, toolCallId: callOf(k), marker: `${session}:op-${k}` })]
+        ? [
+            [
+              {
+                op: at(`call-${k}`),
+                process: "stub",
+                type: "invoke",
+                f: "tool-call",
+                value: (idOf) => ({ session, k, toolCallId: callOf(k), marker: `${session}:op-${k}`, turnOp: idOf(turnOp) }),
+              },
+            ],
+            [{ op: at(`call-${k}`), process: "stub", type: "ok", f: "tool-call", value: fixed({ frames: 5 }) }],
+          ]
         : []
-    const end: Step = [{ op: at(`turn-${k}`), process: "stub", type: "ok", f: "provider-turn", value: turn }]
-    return [begin, ...issue, end]
+    const end: Step = [{ op: turnOp, process: "stub", type: "ok", f: "provider-turn", value: fixed({ finish: k < turns - 1 ? "tool_calls" : "stop" }) }]
+    return [begin, ...results, ...issue, end]
   }).flat()
-  return [pair(at("prompt"), session, "prompt", promptValue, promptValue), ...turnSteps]
+  const answered: Step = [{ op: at("prompt"), process: session, type: "ok", f: "prompt", value: fixed({ status: 200 }) }]
+  return [prompt, ...turnSteps, answered]
 }
 
 // Picks a session that still has steps left, uniformly, until none do. A step is atomic, so the
-// two halves of one operation can be separated by another session's steps but never reordered.
+// events of one session keep their order while other sessions' steps fall between them.
 const interleave = (prng: Prng, queues: ReadonlyArray<ReadonlyArray<Step>>, out: ReadonlyArray<Template>): ReadonlyArray<Template> => {
   const live = queues.flatMap((queue, index) => (queue.length > 0 ? [index] : []))
   if (live.length === 0) return out
@@ -74,6 +90,7 @@ export const referenceHistory = (params: ReferenceParams): ReadonlyArray<History
   const queues = Array.from({ length: params.sessions }, (_, index) => sessionSteps(params.seed, index + 1, params.turnsPerSession))
   const templates = interleave(prng, queues, [])
   const ops = Array.from(new Set(templates.map((template) => template.op)))
+  const idOf: IdOf = (op) => opId(ops.indexOf(op) + 1)
   // Each event is 0 to 4 ms after the one before it, so t is non-decreasing and has ties.
   const timed = templates.reduce<{ readonly t: number; readonly prng: Prng; readonly events: ReadonlyArray<HistoryEvent> }>(
     (acc, template) => {
@@ -82,7 +99,7 @@ export const referenceHistory = (params: ReferenceParams): ReadonlyArray<History
       return {
         t,
         prng: next,
-        events: [...acc.events, { id: opId(ops.indexOf(template.op) + 1), process: template.process, type: template.type, f: template.f, value: template.value, t }],
+        events: [...acc.events, { id: idOf(template.op), process: template.process, type: template.type, f: template.f, value: template.value(idOf), t }],
       }
     },
     { t: 0, prng: seedPrng(params.seed ^ 0x5eedn), events: [] },

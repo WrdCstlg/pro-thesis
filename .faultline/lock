@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "entries": {
+    "driver": "f2065a24a90aa02c199027bec76cfd79984227a8f8e6aa91f28cd9e95d39684f",
+    "profiles": "1724c2f088570320e9c88fc99d6e67b53674aa502ea88761ae87b270c86c6e95",
+    "oracles.builtin": "3e0c396d04da925be3fa9eb4482bebf52cbb617ca5be9454447a6dc759a807d9",
+    "oracles.external": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "faults.allow": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "faults.deny": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "budget": "44087d7d86f4a45685569f8d6973ab8a4de47481b5e31c7a09910e5b18d90d09"
+  },
+  "history": [
+    {
+      "at": "2026-10-07T01:02:37.864Z",
+      "key": "driver",
+      "from": null,
+      "to": "f2065a24a90aa02c199027bec76cfd79984227a8f8e6aa91f28cd9e95d39684f",
+      "reason": "first lock: baseline profile (M2, D-022)"
+    },
+    {
+      "at": "2026-10-07T01:02:37.864Z",
+      "key": "profiles",
+      "from": null,
+      "to": "1724c2f088570320e9c88fc99d6e67b53674aa502ea88761ae87b270c86c6e95",
+      "reason": "first lock: baseline profile (M2, D-022)"
+    },
+    {
+      "at": "2026-10-07T01:02:37.864Z",
+      "key": "oracles.builtin",
+      "from": null,
+      "to": "3e0c396d04da925be3fa9eb4482bebf52cbb617ca5be9454447a6dc759a807d9",
+      "reason": "first lock: baseline profile (M2, D-022)"
+    },
+    {
+      "at": "2026-10-07T01:02:37.864Z",
+      "key": "oracles.external",
+      "from": null,
+      "to": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "first lock: baseline profile (M2, D-022)"
+    },
+    {
+      "at": "2026-10-07T01:02:37.864Z",
+      "key": "faults.allow",
+      "from": null,
+      "to": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "first lock: baseline profile (M2, D-022)"
+    },
+    {
+      "at": "2026-10-07T01:02:37.864Z",
+      "key": "faults.deny",
+      "from": null,
+      "to": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "first lock: baseline profile (M2, D-022)"
+    },
+    {
+      "at": "2026-10-07T01:02:37.864Z",
+      "key": "budget",
+      "from": null,
+      "to": "44087d7d86f4a45685569f8d6973ab8a4de47481b5e31c7a09910e5b18d90d09",
+      "reason": "first lock: baseline profile (M2, D-022)"
+    }
+  ]
+}

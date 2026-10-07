@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import { Result, Schema } from "effect"
 import {
+  AppendLineArgs,
+  builtinOracleName,
+  BuiltinOracleName,
   ExitCode,
   Fault,
   FAULT_KINDS,
@@ -8,15 +11,20 @@ import {
   InconclusiveReason,
   MessageId,
   OpId,
+  opIdOf,
   OracleName,
   OracleVerdict,
+  PortAnnouncement,
   RunId,
   RunVerdict,
   Seed,
   SessionId,
+  sessionIdOf,
   Sha256,
   ToolCallId,
+  ToolResultValue,
   WorldId,
+  worldIdOf,
 } from "../src/schema"
 
 const accepts = <A, I>(schema: Schema.Codec<A, I>, input: unknown): boolean =>
@@ -129,9 +137,59 @@ describe("OracleVerdict", () => {
     expect(accepts(OracleVerdict, { _tag: "Pass", oracle })).toBe(false)
   })
 
-  test("the listed inconclusive reasons are the thirteen the aggregation names", () => {
-    expect(InconclusiveReason.literals).toHaveLength(13)
-    expect(new Set(InconclusiveReason.literals).size).toBe(13)
+  // Thirteen from M1 plus history-malformed, added in M2 for an oracle handed a history it cannot
+  // decode (D-024). Pinned by name so that a renamed or dropped reason fails here.
+  test("the listed inconclusive reasons are exactly the fourteen named", () => {
+    const named = [
+      "oracle-crashed",
+      "oracle-nonzero-exit",
+      "oracle-timeout",
+      "oracle-malformed-output",
+      "missing-probe",
+      "unsupported-platform",
+      "history-unsplittable",
+      "no-oracle-judged",
+      "world-not-asserted",
+      "fault-missed-load",
+      "provider-not-exercised",
+      "narrowed-run",
+      "interrupted",
+      "history-malformed",
+    ]
+    expect(InconclusiveReason.literals.map(String).sort()).toEqual(named.sort())
+    expect(new Set(InconclusiveReason.literals).size).toBe(14)
+  })
+})
+
+describe("nominal id constructors", () => {
+  test("their output decodes under the real schemas for indexes from 1 up", () => {
+    const indexes = [1, 2, 9, 10, 99, 123456]
+    expect(indexes.every((n) => accepts(OpId, opIdOf(n)) && accepts(SessionId, sessionIdOf(n)) && accepts(WorldId, worldIdOf(n)))).toBe(true)
+    expect([opIdOf(7), sessionIdOf(7), worldIdOf(7)].map(String)).toEqual(["op-7", "session-7", "world-7"])
+    expect(BuiltinOracleName.literals.every((name) => accepts(OracleName, builtinOracleName(name)))).toBe(true)
+  })
+
+  test("an index that is not a positive safe integer is clamped to 1 and stays inside the pattern", () => {
+    const odd = [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 60]
+    expect(odd.map(opIdOf).map(String)).toEqual(odd.map(() => "op-1"))
+    expect(odd.every((n) => accepts(OpId, opIdOf(n)) && accepts(SessionId, sessionIdOf(n)) && accepts(WorldId, worldIdOf(n)))).toBe(true)
+  })
+})
+
+describe("M2 boundary payloads", () => {
+  test("append_line paths are bare file names", () => {
+    expect(accepts(AppendLineArgs, { path: "log.txt", line: "session-1:op-0" })).toBe(true)
+    expect(["../log.txt", "a/b", "a\\b", "", "C:log"].map((path) => accepts(AppendLineArgs, { path, line: "x" }))).toEqual([false, false, false, false, false])
+  })
+
+  test("a tool result keeps the SUT's reported id as untrusted text and needs its turn link", () => {
+    expect(accepts(ToolResultValue, { session: "session-1", reportedId: "not even an id", turnOp: "op-3" })).toBe(true)
+    expect(accepts(ToolResultValue, { session: "session-1", reportedId: "call_1" })).toBe(false)
+  })
+
+  test("a port announcement is one port in 1..65535", () => {
+    expect([1, 65535].map((port) => accepts(PortAnnouncement, { port }))).toEqual([true, true])
+    expect([0, 65536, 1.5, "80"].map((port) => accepts(PortAnnouncement, { port }))).toEqual([false, false, false, false])
   })
 })
 

@@ -33,3 +33,21 @@ Defects found in faultline's own harness while building it belong here first.
 - Fix: `.gitattributes` with `* -text`, so git never converts line endings in this repository (D-020).
 - Guard: the clone-and-hash measurement is repeated after the fix and recorded in D-020. There is no
   `bun test` guard, because the condition depends on the cloning machine's git config.
+
+## DEF-003 Provider traffic the stub refused was left out of the history and never reported (2026-10-06)
+
+- Found by: reviewing the M2 mutation survivor `runner-stub-problems-ignored` (D-025). While writing a
+  world test in which the stub reports a problem, it turned out that two kinds of request reached the
+  stub and left no trace in either the history or `problems`.
+- Symptom: a `POST /v1/chat/completions` whose body did not decode as a chat request got a 400, and a
+  request to any other method or path got a 404. Neither was recorded or reported. A world whose SUT
+  sent such requests could still reach ASSERT and be judged on a history that left them out.
+- Cause: in `src/provider/stub.ts`, the two refusal branches returned a response without updating the
+  `problems` ref. The session-tag and out-of-script branches did update it.
+- Fix: both branches now append a problem: "a request body this stub does not read", and
+  "`<METHOD> <path>`: not a route this stub serves". Any problem stops the world before judgement
+  (D-023).
+- Guard: test "a refused body and a request to any other route are not in the history, so each is
+  reported as a problem" in `test/stub.test.ts`. Before the fix it failed with `Expected length: 2`,
+  `Received length: 0`. Mutants `stub-unreadable-body-not-reported` and `stub-other-route-not-reported`
+  were each caught (D-025).

@@ -1,0 +1,31 @@
+{
+  "driver": {
+    "cmd": ["bun", "fixture/runtime.ts"],
+    "envAllow": ["PATH", "SYSTEMROOT", "TEMP", "TMP", "FIXTURE_DEFECTS"]
+  },
+  "profiles": {
+    "baseline": {
+      "worlds": 3,
+      "sessions": 4,
+      "turnsPerSession": 6,
+      "minProviderTurns": 24,
+      "quiesceMs": 5000,
+      "faults": [],
+      "oracles": ["tool-pairing"]
+    }
+  },
+  "oracles": {
+    "builtin": ["tool-pairing"],
+    "external": []
+  },
+  "oracle": {
+    "timeoutMs": 10000
+  },
+  "faults": {
+    "allow": [],
+    "deny": []
+  },
+  "budget": {
+    "wallClockMs": 600000
+  }
+}

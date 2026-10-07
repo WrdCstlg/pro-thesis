@@ -1,5 +1,7 @@
-import { Data, Result, Schema } from "effect"
-import { HistoryEvent } from "./schema"
+import { appendFile, writeFile } from "node:fs/promises"
+import { Data, Effect, Ref, Result, Schema, Semaphore } from "effect"
+import { Clock } from "./clock"
+import { HistoryEvent, opIdOf, type HistoryProcess, type OpId, type OpKind } from "./schema"
 
 export type History = ReadonlyArray<HistoryEvent>
 
@@ -94,3 +96,69 @@ export const decodeHistory = (text: string): Result.Result<History, HistoryError
     (fold) => fold.events,
   )
 }
+
+// ---- Recorder (effectful) --------------------------------------------------------------------
+
+export class RecorderError extends Data.TaggedError("RecorderError")<{
+  readonly reason: "write-failed" | "encode-failed" | "window-already-open"
+  readonly detail: string
+}> {}
+
+export type Recorder = {
+  readonly path: string
+  // Moves the origin of `t` to now. Only allowed before the first event, so no recorded t is ever
+  // re-based.
+  readonly openWindow: Effect.Effect<void, RecorderError>
+  readonly invoke: (process: HistoryProcess, f: OpKind, value: Schema.Json) => Effect.Effect<OpId, RecorderError>
+  readonly complete: (id: OpId, process: HistoryProcess, type: "ok" | "fail" | "info", f: OpKind, value: Schema.Json) => Effect.Effect<void, RecorderError>
+  readonly events: Effect.Effect<ReadonlyArray<HistoryEvent>>
+}
+
+type RecorderState = { readonly origin: number; readonly lastT: number; readonly nextId: number; readonly events: ReadonlyArray<HistoryEvent> }
+
+// Appends one line per event to `path` (created empty here). Every append takes the single permit,
+// reads the clock inside it, and writes before releasing, so the order of lines in the file is the
+// order of ids, and t never decreases down the file even when fibers race. t is whole milliseconds
+// since the window opened, clamped to the previous event's t.
+export const makeRecorder = (path: string): Effect.Effect<Recorder, RecorderError, Clock> =>
+  Effect.gen(function* () {
+    const clock = yield* Clock
+    const origin = yield* clock.monotonicMs
+    const state = yield* Ref.make<RecorderState>({ origin, lastT: 0, nextId: 1, events: [] })
+    const permit = yield* Semaphore.make(1)
+    yield* Effect.tryPromise({
+      try: () => writeFile(path, "", { flag: "wx" }),
+      catch: (error) => new RecorderError({ reason: "write-failed", detail: `${path}: ${String(error)}` }),
+    })
+
+    const append = (build: (id: OpId) => Omit<HistoryEvent, "t">, reuse: OpId | undefined): Effect.Effect<OpId, RecorderError> =>
+      Semaphore.withPermits(permit, 1)(
+        Effect.gen(function* () {
+          const now = yield* clock.monotonicMs
+          const current = yield* Ref.get(state)
+          const id = reuse ?? opIdOf(current.nextId)
+          const t = Math.max(current.lastT, Math.floor(now - current.origin))
+          const event: HistoryEvent = { ...build(id), t }
+          const line = yield* Effect.fromResult(encodeHistoryLine(event))
+          yield* Effect.tryPromise({
+            try: () => appendFile(path, `${line}\n`),
+            catch: (error) => new RecorderError({ reason: "write-failed", detail: `${path}: ${String(error)}` }),
+          })
+          yield* Ref.set(state, { origin: current.origin, lastT: t, nextId: reuse === undefined ? current.nextId + 1 : current.nextId, events: [...current.events, event] })
+          return id
+        }),
+      ).pipe(Effect.mapError((error) => (error._tag === "HistoryError" ? new RecorderError({ reason: "encode-failed", detail: error.detail }) : error)))
+
+    return {
+      path,
+      openWindow: Effect.gen(function* () {
+        const now = yield* clock.monotonicMs
+        const current = yield* Ref.get(state)
+        if (current.events.length > 0) return yield* Effect.fail(new RecorderError({ reason: "window-already-open", detail: `${current.events.length} events already recorded` }))
+        yield* Ref.set(state, { origin: now, lastT: 0, nextId: 1, events: [] })
+      }),
+      invoke: (process, f, value) => append((id) => ({ id, process, type: "invoke", f, value }), undefined),
+      complete: (id, process, type, f, value) => Effect.asVoid(append(() => ({ id, process, type, f, value }), id)),
+      events: Effect.map(Ref.get(state), (current) => current.events),
+    }
+  })

@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import { Result, Schema } from "effect"
 import { decodeHistory, encodeHistory } from "../src/history"
-import type { HistoryEvent } from "../src/schema"
+import { PromptValue, ProviderTurnValue, ToolCallValue, ToolResultValue, type HistoryEvent } from "../src/schema"
 import { isRecord, type Json } from "./support/json"
 import { opId } from "./support/ids"
-import { PromptValue, ProviderTurnValue, ToolCallValue, ToolResultValue, referenceHistory, type ReferenceParams } from "./support/reference-model"
+import { referenceHistory, type ReferenceParams } from "./support/reference-model"
 
 const params = (seed: bigint, sessions = 4, turnsPerSession = 6): ReferenceParams => ({ seed, sessions, turnsPerSession })
 
@@ -35,15 +35,16 @@ describe("referenceHistory", () => {
     expect(distinct.size).toBeGreaterThan(20)
   })
 
-  test("each session has one prompt, T provider turns, T-1 tool calls and T-1 tool results, every operation invoked then completed", () => {
+  test("each session has one prompt, T provider turns, T-1 tool calls and k tool results in turn k, every operation invoked then completed", () => {
     const sessions = 3
     const turns = 5
+    const results = (turns * (turns - 1)) / 2
     const history = referenceHistory(params(9n, sessions, turns))
     expect(ofKind(history, "prompt", "invoke")).toHaveLength(sessions)
     expect(ofKind(history, "provider-turn", "invoke")).toHaveLength(sessions * turns)
     expect(ofKind(history, "tool-call", "invoke")).toHaveLength(sessions * (turns - 1))
-    expect(ofKind(history, "tool-result", "invoke")).toHaveLength(sessions * (turns - 1))
-    expect(history).toHaveLength(2 * sessions * (1 + turns + 2 * (turns - 1)))
+    expect(ofKind(history, "tool-result", "invoke")).toHaveLength(sessions * results)
+    expect(history).toHaveLength(2 * sessions * (1 + turns + (turns - 1) + results))
     const perId = Object.values(Object.groupBy(history, (event) => event.id)).map((events) => (events ?? []).map((event) => event.type))
     expect(perId.every((types) => types.length === 2 && types[0] === "invoke" && types[1] === "ok")).toBe(true)
   })
@@ -54,18 +55,20 @@ describe("referenceHistory", () => {
     expect(firstSeen).toEqual(firstSeen.map((_, index) => opId(index + 1)))
   })
 
-  test("every value decodes with the payload schema for its operation kind", () => {
+  test("every invoke value decodes with the payload schema for its operation kind", () => {
     const history = referenceHistory(params(11n))
     const schemas = { prompt: PromptValue, "provider-turn": ProviderTurnValue, "tool-call": ToolCallValue, "tool-result": ToolResultValue } as const
-    const results = history.map((event) =>
+    const invokes = history.filter((event) => event.type === "invoke")
+    const results = invokes.map((event) =>
       event.f === "prompt" || event.f === "provider-turn" || event.f === "tool-call" || event.f === "tool-result"
         ? Result.isSuccess(Schema.decodeUnknownResult(schemas[event.f], { onExcessProperty: "error" })(event.value))
         : false,
     )
+    expect(invokes.length).toBeGreaterThan(0)
     expect(results.every((decoded) => decoded)).toBe(true)
   })
 
-  test("provider turns of a session run k = 0..T-1 in order, and each tool call is reported back after it was issued", () => {
+  test("provider turns of a session run k = 0..T-1 in order, and call k is reported back once in each later turn, after it was issued", () => {
     const turns = 6
     const history = referenceHistory(params(13n, 4, turns))
     const sessions = Array.from(new Set(history.flatMap((event) => valueSessionOf(event) ?? [])))
@@ -74,15 +77,17 @@ describe("referenceHistory", () => {
       const mine = history.filter((event) => valueSessionOf(event) === session)
       const ks = mine.flatMap((event) => (event.f === "provider-turn" && event.type === "invoke" ? [fieldOf(event.value, "k")] : []))
       expect(ks).toEqual(Array.from({ length: turns }, (_, k) => k))
-      const calls = mine.filter((event) => event.f === "tool-call" && event.type === "ok")
-      const results = mine.filter((event) => event.f === "tool-result" && event.type === "ok")
+      const calls = mine.filter((event) => event.f === "tool-call" && event.type === "invoke")
+      const results = mine.filter((event) => event.f === "tool-result" && event.type === "invoke")
       expect(calls).toHaveLength(turns - 1)
       calls.forEach((call) => {
         const callId = fieldOf(call.value, "toolCallId")
-        const reported = results.filter((result) => fieldOf(result.value, "toolCallId") === callId)
-        expect(reported).toHaveLength(1)
-        expect((reported[0]?.t ?? -1) >= call.t).toBe(true)
-        expect(history.indexOf(reported[0] ?? call)).toBeGreaterThan(history.indexOf(call))
+        const k = fieldOf(call.value, "k")
+        const reported = results.filter((result) => fieldOf(result.value, "reportedId") === callId)
+        expect(typeof k).toBe("number")
+        expect(reported).toHaveLength(turns - 1 - (typeof k === "number" ? k : turns))
+        expect(reported.every((result) => result.t >= call.t && history.indexOf(result) > history.indexOf(call))).toBe(true)
+        expect(new Set(reported.map((result) => fieldOf(result.value, "turnOp"))).size).toBe(reported.length)
       })
     })
   })

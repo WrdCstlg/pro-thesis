@@ -300,3 +300,103 @@ After commit `ed9eca8` (`.gitattributes` `* -text`), `git clone` of the reposito
 `a9b90f558b4a624c844a98a8fd93d0c9162708a35e0b14e6fda28d34989481bc` for `scripts/gate.ts`, equal to
 `GATE.lock`. Before the fix the same procedure printed `8f6e2794...` and `e3367362...` (DEF-002).
 Measured on Windows only; a POSIX clone does not convert line endings by default and was not tried.
+
+## D-022 The lock write path moves from M5 to M2; MILESTONE is M2 (2026-10-06)
+
+`HALT: SPEC_CONTRADICTION` was raised at the start of M2 between `<ACCEPTANCE_MATRIX>` row A01 (due M2,
+expected exit 0) and the build order (M5: "lock CLI"). Exit 0 requires "The lock status is ok"
+(`<EXIT_CODE_CONTRACT>`), and the gate refuses a PASS whose `verdict.json` does not say
+`lockStatus: "ok"`; a lock status of ok needs a lock file, and "faultline lock --reason" is "the only
+command that moves the lock". The author chose option A: only the write path,
+`faultline lock --reason "<text>"` (an empty or missing reason exits 64), is built in M2 and is used to
+create the first lock. `faultline lock verify` and row A15 stay in M5. `MILESTONE` now reads `M2`.
+
+## D-023 The driver protocol between faultline and a SUT (2026-10-06)
+
+What `src/runner.ts` does in M2, with the constant or test that pins each part:
+
+- Environment: only names listed in `driver.envAllow` reach the SUT, matched without regard to case
+  because Windows spells `PATH` as `Path`. Four launch variables are then set by faultline and win over
+  any inherited value: `PROVIDER_BASE_URL` (the stub, `http://127.0.0.1:<port>`), `FAULTLINE_WORKSPACE`
+  (`<workspace>/files`, the only directory ASSERT snapshots), `FAULTLINE_STATE`
+  (`<workspace>/state.sqlite`) and `FAULTLINE_PORT_FILE` (`<workspace>/port.json`). Tests: the two
+  `driverEnvOf` cases in `test/runner.test.ts`.
+- Workspace: `mkdtemp(join(os.tmpdir(), "faultline-"))`, removed when the world's scope closes with
+  `rm` (`maxRetries: 20`, `retryDelay: 100`).
+- Spawn: `cwd` is the project directory, stdin is ignored, stdout and stderr go to `sut.stdout.log` and
+  `sut.stderr.log` in the world directory.
+- Boot: the SUT writes `{"port":n}` to the port file. faultline polls it every 25 ms, then polls
+  `GET /health` until it answers 200, both inside one 15 000 ms budget (`BOOT_TIMEOUT_MS`). A SUT that
+  exits during boot fails boot at once with its exit named.
+- Load: one prompt per session, all sessions at once, `POST /session/<id>/prompt` with
+  `{messageId, text}`, 60 000 ms each (`PROMPT_TIMEOUT_MS`). The prompt op completes `ok` on a 2xx,
+  `fail` on any other status, and `info` on a timeout or transport error.
+- Teardown: `kill(9)` if the SUT is still running, then wait for its exit for at most 5 000 ms
+  (`KILL_WAIT_MS`). Resources are released in reverse order, so the SUT dies before its workspace is
+  removed.
+- Record, then close: the stub appends the `ok` completions of a streamed turn to `history.jsonl`
+  before it closes the stream. Test: "the completions are on disk by the time the client has read the
+  end of the stream". Mutant `stub-close-before-record` was caught (D-025).
+- ASSERT order: first the stub's problems (any problem means the world is not asserted, DEF-003), then
+  the workspace snapshot (an entry that is not a regular file fails it), then the history file read back
+  from disk, then `judgeHistory` (a file that does not decode gives every oracle `history-malformed`),
+  then the `provider-not-exercised` guard when the stub counted fewer requests than `minProviderTurns`.
+
+None of these timeouts can be configured in M2, and none is a locked key.
+
+## D-024 Final M2 payload shapes, and why the reference-model test changed (2026-10-06)
+
+This finalises D-018 for M2.
+
+- Inconclusive reason `history-malformed` is added, for a history that an oracle or `judgeHistory`
+  cannot decode. There are now 14 reasons, pinned by name in `test/schema.test.ts`.
+- Nominal constructors `opIdOf`, `sessionIdOf`, `worldIdOf` and `builtinOracleName` build branded ids
+  from values faultline itself generated.
+- Invoke values: `prompt` `{session, messageId, text}`; `provider-turn` `{session, k, turnKey, echoed}`;
+  `tool-call` `{session, k, toolCallId, marker, turnOp}`; `tool-result` `{session, reportedId, turnOp}`.
+  Completion values differ from invoke values (for example `{finish}` on a provider turn), so only
+  invoke values are decoded with these schemas.
+- `test/support/reference-model.ts` was rewritten to match what the stub records. An OpenAI-shaped
+  request resends the whole conversation, so turn k carries k tool results, one for every earlier call,
+  not one. Measured: `test/runner.test.ts` counts 6 tool-result invokes for 2 sessions x 3 turns
+  (0 + 1 + 2 per session).
+- `test/reference-model.test.ts` changed as follows:
+  - The tool-result count went from T-1 to T(T-1)/2 per session, and the total length moved to match.
+  - "every value decodes" became "every invoke value decodes", with a new check that the invoke set is
+    not empty.
+  - The pairing check now requires call k to be reported exactly once in each of the T-1-k later turns,
+    each time in a distinct turn, and after the call.
+
+  This is not a weakening. Every changed assertion is still an exact count, or an every-check over a
+  population asserted to be non-empty. The counts are those the live stub produces, not smaller ones.
+
+## D-025 M2 mutation results (2026-10-06)
+
+Method: `scratch/mut/run-m2-mutations.ps1`, which works the way D-019 describes but covers `src/`
+subdirectories. The `scratch/` paths in D-019 and in this entry are in the agent's working directory,
+not in this repository. They are named so that the method can be read, not so that it can be re-run
+from a clone.
+
+Round 1 (`scratch/mut/m2-mutations-round1.log`): 23 mutants, 21 gave `bun-exit=1`. Two survived:
+- `runner-stub-problems-ignored`: deleting the stub-problems check in ASSERT.
+- `runner-allowlist-case-sensitive`: no longer upper-casing the allow-list entries.
+
+New tests were added for both: "a request the stub could not attribute leaves the world not asserted,
+with the stub's problem named" and "an allow-list entry spelled in lower or mixed case matches the
+inherited name in any case". The first survivor also led to DEF-003.
+
+Round 2 (`scratch/mut/m2-mutations-round2.log`): the two survivors, plus one mutant for each DEF-003 fix
+site. All 4 gave `bun-exit=1` and the survivor list printed `0`. After each round, a SHA-256 comparison
+of the repository source against the scratch source printed `identical` for every file.
+
+| File | Mutants (each name is one change) |
+|---|---|
+| `oracle/builtin/tool-pairing.ts` (7) | many results accepted; foreign result accepted; later calls count as issued; orphan result accepted; excess value field ignored; always Ok; echoed ids ignored |
+| `runner.ts` (8) | provider-not-exercised dropped; stub problems ignored; undecodable history judged Ok; SUT not killed; workspace not removed; allow-list case-sensitive; allow-list passes everything; SUT exit not noticed at boot |
+| `provider/stub.ts` (6) | echoed ids dropped; tool results not recorded; stream closed before the record; k counts user messages; unreadable body not reported; other route not reported |
+| `cli.ts` (4) | drift not enforced; missing lock moves nothing; config excess key ignored; corrupt lock overwritten |
+
+The full suite after the fixes (`scratch/mut/m2-full-after-def003.log`): `bun run typecheck` exit 0;
+`bun test` printed `216 pass`, `0 fail`, `Ran 216 tests across 14 files`.
+
+Limits: the mutants were picked by hand, and the fixture (`fixture/runtime.ts`) was not mutated.
