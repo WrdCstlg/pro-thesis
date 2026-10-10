@@ -339,13 +339,17 @@ func New(o Options) (*Engine, error) {
 		unsupported: unsupported,
 	}
 	e.budget = e.resolveBudget(prof)
-	e.tracker = control.NewBudgetTracker(e.budget, o.Runner.Clock())
-	e.split = saboteur.SplitBudget(e.budget.Wall, e.budget.Worlds, cfg.Search.ProbeBudgetPct)
 
 	strat := o.Strategy
 	if strat == "" {
 		strat = cfg.Search.Strategy
+	} else if strat != cfg.Search.Strategy {
+		e.budget.Narrowed = true
 	}
+
+	e.tracker = control.NewBudgetTracker(e.budget, o.Runner.Clock())
+	e.split = saboteur.SplitBudget(e.budget.Wall, e.budget.Worlds, cfg.Search.ProbeBudgetPct)
+
 	if err := e.buildStrategy(strat); err != nil {
 		return nil, err
 	}

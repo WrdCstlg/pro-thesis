@@ -408,6 +408,23 @@ func TestTheCLIBudgetOnlyNarrows(t *testing.T) {
 	}
 }
 
+func TestTheCLIStrategyOverrideNarrows(t *testing.T) {
+	cfg := engineTestConfig(t, true)
+	cfg.Search.Strategy = "saboteur"
+	cfg.Search.LLM.Endpoint = "http://localhost:1234"
+	cfg.Search.LLM.TimeoutMS = 1000
+
+	e, err := New(Options{
+		Runner: newEngineRunner(t, cfg), Strategy: "llm", Quiet: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if !e.budget.Narrowed {
+		t.Fatal("overriding the lock-covered strategy from the CLI did not mark the budget as narrowed (OQ-081)")
+	}
+}
+
 // hasDrive is the line between "a world that observed the system" and "a world
 // that failed to boot", and it must not be fooled by a zero-length window.
 func TestHasDriveNeedsADriveWindow(t *testing.T) {
