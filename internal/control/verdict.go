@@ -29,6 +29,11 @@ type VerdictInput struct {
 	Violations []schema.Violation
 	// Artifacts is the run bundle path, as directive 4.6 renders it.
 	Artifacts string
+	
+	FaultsRealized   int
+	OpsJudged        int
+	OraclesEvaluated []string
+
 	// OracleLock is the drift check made before the run started, verbatim.
 	//
 	// The ZERO VALUE normalizes to "absent", not "ok". That default is
@@ -118,6 +123,10 @@ func BuildVerdict(in VerdictInput) schema.Verdict {
 		Verdict:    outcome.VerdictResult(),
 		Budget:     in.Budget,
 		Violations: violations,
+
+		FaultsRealized:   in.FaultsRealized,
+		OpsJudged:        in.OpsJudged,
+		OraclesEvaluated: in.OraclesEvaluated,
 
 		Coverage:                schema.Coverage{},
 		CoverageDeltaVsBaseline: nil,

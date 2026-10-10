@@ -3704,3 +3704,15 @@ correctly: the fix's comment cited this entry before its heading existed, and
 `TestEveryLedgerCitationInTheTreeResolves` refused it. With the heading in place, measured again on
 2026-09-27 on a fresh copy of the working tree (526 files taken with `git ls-files -co
 --exclude-standard`, no `bin/`): `PACKAGES: 37 ok, 0 not ok, 43 total`, exit 0.
+
+---
+
+## OQ-079 RESOLVED (D-095): the checker now enforces strict initial values for harness worlds
+
+**Resolution.** Harness runs now validate history data via `historycheck` prior to engine evaluation.
+
+---
+
+## OQ-080 RESOLVED (D-095): a failure to write `verdict.json` drops a fallback or fails loudly
+
+**Resolution.** `WriteVerdictFile` implements a fallback mechanism that writes an INCONCLUSIVE stub on error. If this stub fails, the process propagates the write error.

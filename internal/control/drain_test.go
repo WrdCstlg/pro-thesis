@@ -213,6 +213,9 @@ func TestADriverThatRefusesToDrainIsStoppedAtTheDeadlineAndRecorded(t *testing.T
 		t.Fatalf("the refusal was not reported on stderr:\n%s", errOut.String())
 	}
 	res := readResultDoc(t, r, 1)
+	if res["outcome"] != string(OutcomeInconclusive) {
+		t.Fatalf("world outcome is %v, want INCONCLUSIVE; a driver that refuses to drain must fail the world (OQ-077)", res["outcome"])
+	}
 	drvDoc, _ := res["driver"].(map[string]any)
 	if drvDoc == nil {
 		t.Fatalf("result.json has no driver record:\n%v", res)

@@ -5,6 +5,9 @@
   "commit": "9c1e0f2",
   "verdict": "FAIL",
   "budget": { "wall_s": 600, "used_s": 412, "worlds_planned": 30, "worlds_run": 22 },
+  "faults_realized": 0,
+  "ops_judged": 0,
+  "oracles_evaluated": [],
   "violations": [
     {
       "id": "v1",

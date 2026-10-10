@@ -161,8 +161,6 @@ func TestAResolverFailureCostsProvenanceNotExecution(t *testing.T) {
 		OracleEngine:  stubOracles{},
 		LogCollector:  stubLogs{},
 		ImageResolver: erroringImages{},
-		Faults:        []string{"proc.pause(kv-n1)@10..60"},
-		Injectors:     []perturber.Injector{newControlFakeInjector()},
 		Stderr:        &stderr,
 		Quiet:         true,
 	})

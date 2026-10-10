@@ -8,6 +8,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // Writer appends records to a JSONL file. LF only, no BOM, one trailing
@@ -77,6 +78,16 @@ func (w *Writer) Close() error {
 	if w.f == nil {
 		return nil
 	}
+	eof := Record{
+		TNS:   time.Now().UnixNano(),
+		Type:  TypeInfo,
+		Event: "EOF",
+		Meta:  &Meta{Count: w.n},
+	}
+	eofB, _ := json.Marshal(eof)
+	w.bw.Write(eofB)
+	w.bw.WriteByte('\n')
+
 	if err := w.bw.Flush(); err != nil {
 		w.f.Close()
 		w.f = nil

@@ -3712,3 +3712,19 @@ tests in `internal/control`, which `ci.yml` runs on the stable job only. One con
 rather than fixed: D-083's census floor guards the build host's corpus and checks nothing in CI.
 
 **Attribution.** Recorded by Claude Opus 5.5 on 2026-09-28.
+
+## D-094: OQ-078 and OQ-083 are resolved
+
+**What it fixes.** OQ-078 (a world where no operation was in flight during any realized fault window is INCONCLUSIVE) and OQ-083 (`thesis doctor` checks a different file than the harness runs when a program exists with and without `.exe`) are resolved in the implementation.
+
+**Decision.** The harness now requires operations to overlap the realized fault window, returning INCONCLUSIVE if they do not. The `driver.ResolveProgram` logic was updated to prefer the host's executable format, unifying the check for both the harness and `thesis doctor`.
+
+**What this means.** A PASS requires both that operations were executed and that they overlapped with the injected fault. `thesis doctor` and the runtime harness check the exact same executable path on all platforms.
+
+## D-095: OQ-079 and OQ-080 are resolved
+
+**What it fixes.** OQ-079 (the checker leaves the register's initial value undetermined) and OQ-080 (a fatal error creating verdict.json leaves the run with no verdict rather than an INCONCLUSIVE verdict) are resolved in the implementation.
+
+**Decision.** The harness now enforces `historycheck` before oracle evaluation (fulfilling OQ-079's 'history validator run before the oracle' requirement). The harness `WriteVerdictFile` function has a fallback mechanism: if the full `verdict.json` fails to write, it writes a minimal INCONCLUSIVE verdict to the file. If that also fails, the error propagates and forces an exit code rather than silence.
+
+**What this means.** Harness-driven runs now enforce strictly valid histories before any oracle check occurs. Unrecorded or interrupted worlds due to a `verdict.json` serialization error will now correctly be recorded as INCONCLUSIVE.
