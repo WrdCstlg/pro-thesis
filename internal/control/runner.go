@@ -501,7 +501,9 @@ func (r *Runner) Run(ctx context.Context) (schema.Verdict, schema.ExitCode, erro
 
 	// Write verdict.json
 	verdictPath := filepath.Join(r.runDir, VerdictFileName)
-	_ = WriteVerdictFile(verdictPath, &verdict)
+	if err := WriteVerdictFile(verdictPath, &verdict); err != nil {
+		return verdict, schema.ExitInconclusive, fmt.Errorf("write verdict: %w", err)
+	}
 
 	return verdict, verdict.Verdict.ExitCode(), nil
 }
