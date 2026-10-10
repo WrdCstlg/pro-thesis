@@ -69,6 +69,7 @@ type Meta struct {
 	Status    int    `json:"status,omitempty"`
 	Code      string `json:"code,omitempty"`
 	Seq       uint64 `json:"seq,omitempty"`
+	Count     uint64 `json:"count,omitempty"`
 }
 
 // RawInt64 wraps an integer as a history value.

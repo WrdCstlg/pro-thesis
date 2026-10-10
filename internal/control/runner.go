@@ -19,6 +19,7 @@ import (
 	"github.com/WrdCstlg/pro-thesis/internal/buildinfo"
 	"github.com/WrdCstlg/pro-thesis/internal/driver"
 	"github.com/WrdCstlg/pro-thesis/internal/harness"
+	"github.com/WrdCstlg/pro-thesis/internal/historycheck"
 	"github.com/WrdCstlg/pro-thesis/internal/oracle"
 	"github.com/WrdCstlg/pro-thesis/internal/perturber"
 	"github.com/WrdCstlg/pro-thesis/internal/probehost"
@@ -450,6 +451,30 @@ func (r *Runner) Run(ctx context.Context) (schema.Verdict, schema.ExitCode, erro
 	// Build violations list from findings
 	var violations []schema.Violation
 	vIdx := 1
+	
+	totalFaults := 0
+	totalOps := 0
+	oraclesMap := make(map[string]bool)
+
+	for _, wres := range worldResults {
+		totalFaults += len(wres.realized)
+		if wres.history != nil {
+			for _, entry := range wres.history.Entries {
+				if entry.RecordKind() == schema.RecordOperation && entry.Type == schema.HistoryInvoke {
+					totalOps++
+				}
+			}
+		}
+		for _, f := range wres.findings {
+			oraclesMap[f.Output.Oracle] = true
+		}
+	}
+	var uniqueOracles []string
+	for o := range oraclesMap {
+		uniqueOracles = append(uniqueOracles, o)
+	}
+	sort.Strings(uniqueOracles)
+
 	for _, f := range allFindings {
 		if f.Violated() {
 			vID := ViolationID(vIdx)
@@ -496,13 +521,28 @@ func (r *Runner) Run(ctx context.Context) (schema.Verdict, schema.ExitCode, erro
 		Violations: violations,
 		Artifacts:  RelativeArtifacts(r.opts.ProjectDir, r.runDir),
 		OracleLock: r.opts.OracleLock,
+		
+		FaultsRealized:   totalFaults,
+		OpsJudged:        totalOps,
+		OraclesEvaluated: uniqueOracles,
 	}
 	verdict := BuildVerdict(vInput)
 
 	// Write verdict.json
 	verdictPath := filepath.Join(r.runDir, VerdictFileName)
 	if err := WriteVerdictFile(verdictPath, &verdict); err != nil {
-		return verdict, schema.ExitInconclusive, fmt.Errorf("write verdict: %w", err)
+		// OQ-080: Try to leave an INCONCLUSIVE verdict on disk so the run is
+		// not classified as unrecorded/interrupted.
+		fallback := schema.Verdict{
+			Schema:  schema.VerdictSchema,
+			Verdict: schema.VerdictInconclusive,
+			Profile: verdict.Profile,
+			Error:   fmt.Sprintf("Failed to write full verdict: %v", err),
+		}
+		if fallbackErr := WriteVerdictFile(verdictPath, &fallback); fallbackErr != nil {
+			return verdict, schema.ExitInconclusive, fmt.Errorf("write verdict failed (%v), and fallback also failed: %w", err, fallbackErr)
+		}
+		return fallback, schema.ExitInconclusive, fmt.Errorf("write verdict: %w", err)
 	}
 
 	return verdict, verdict.Verdict.ExitCode(), nil
@@ -1177,6 +1217,14 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 	// exited and Stop is then a no-op; one that refused has to be killed exactly
 	// as it was before this existed.
 	_ = driverHandle.Stop(ctx)
+	
+	drvRes := driverHandle.Result()
+	if !drain.Drained() || (drvRes.ExitCode != 0 && !drvRes.Stopped) || drvRes.Err != nil {
+		if !r.quiet {
+			fmt.Fprintf(r.stderr, "thesis: world %d: ASSERT: driver exited non-zero, was killed, or did not drain; INCONCLUSIVE (OQ-077)\n", ordinal+1)
+		}
+		worldOutcome = worldOutcome.Worse(OutcomeInconclusive)
+	}
 
 	// Take one health probe per node that harness.health covers, at the URL
 	// its own entry declares (convergenceProbes, OQ-063): once at the start of
@@ -1241,6 +1289,7 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 	// silently strip: taking the stale-read attribution Phase 3 needs with it.
 	if err := MergePhaseMarkers(paths.History, paths.PhasesLog); err != nil {
 		fmt.Fprintf(r.stderr, "thesis: world %d: could not merge phase markers into the history: %v\n", ordinal+1, err)
+		worldOutcome = worldOutcome.Worse(OutcomeInconclusive)
 	}
 
 	// Collect node logs now so oracles have them
@@ -1250,6 +1299,26 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 		Timeline: timeline,
 	})
 	collectedLogs = logs
+
+	// Run history validator (OQ-079)
+	if f, err := os.Open(paths.History); err == nil {
+		rep, err := historycheck.Check(f, paths.History)
+		f.Close()
+		if err != nil {
+			fmt.Fprintf(r.stderr, "thesis: world %d: history validation failed: %v\n", ordinal+1, err)
+			worldOutcome = worldOutcome.Worse(OutcomeInconclusive)
+		} else {
+			for _, finding := range rep.Findings {
+				if finding.Severity == historycheck.SeverityViolation {
+					fmt.Fprintf(r.stderr, "thesis: world %d: history violation at line %d: %s\n", ordinal+1, finding.Line, finding.Message)
+					worldOutcome = worldOutcome.Worse(OutcomeInconclusive)
+				} else if finding.Severity == historycheck.SeverityInconclusive {
+					fmt.Fprintf(r.stderr, "thesis: world %d: history check inconclusive at line %d: %s\n", ordinal+1, finding.Line, finding.Message)
+					worldOutcome = worldOutcome.Worse(OutcomeInconclusive)
+				}
+			}
+		}
+	}
 
 	// Read history
 	hist := oracle.ReadHistoryFile(paths.History)
@@ -1361,6 +1430,66 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 	// operations nobody waited for. A reader of result.json must be able to tell
 	// those apart without re-deriving it from timings, and an agent reading a
 	// PASS is entitled to see that the drain happened (OQ-033).
+	
+	realized := realizedOf(perturb)
+	if len(realized) > 0 && hist != nil {
+		type opSpan struct {
+			startMS int64
+			endMS   int64
+		}
+		spans := make(map[string]*opSpan)
+		
+		for _, e := range hist.Entries {
+			if e.RecordKind() != schema.RecordOperation {
+				continue
+			}
+			vms, err := timeline.VMSFromEpochNS(e.TNS)
+			if err != nil {
+				continue
+			}
+			key := ""
+			if e.OpID != nil {
+				key = fmt.Sprintf("o:%d", *e.OpID)
+			} else if e.Process != nil {
+				key = fmt.Sprintf("p:%d", *e.Process)
+			} else {
+				continue
+			}
+			
+			if e.Type == schema.HistoryInvoke {
+				spans[key] = &opSpan{startMS: vms, endMS: -1}
+			} else {
+				if span, ok := spans[key]; ok {
+					span.endMS = vms
+				}
+			}
+		}
+		
+		hasOverlap := false
+		for _, span := range spans {
+			endMS := span.endMS
+			if endMS == -1 {
+				endMS = 1<<63 - 1
+			}
+			for _, rf := range realized {
+				if span.startMS < rf.EndMS && endMS > rf.StartMS {
+					hasOverlap = true
+					break
+				}
+			}
+			if hasOverlap {
+				break
+			}
+		}
+		
+		if !hasOverlap {
+			if !r.quiet {
+				fmt.Fprintf(r.stderr, "thesis: world %d: no operation was in flight during any realized fault window (OQ-078)\n", ordinal+1)
+			}
+			worldOutcome = worldOutcome.Worse(OutcomeInconclusive)
+		}
+	}
+	
 	driverRes := driverHandle.Result()
 	resDoc := map[string]any{
 		"world":   ordinal + 1,
