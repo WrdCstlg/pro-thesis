@@ -22,6 +22,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -75,6 +76,19 @@ type globals struct {
 }
 
 func main() {
+	defer func() {
+		if p := recover(); p != nil {
+			v := schema.Verdict{
+				Schema:  schema.ConfigVersion,
+				Verdict: schema.VerdictInconclusive,
+				Error:   fmt.Sprintf("panic: %v", p),
+			}
+			data, _ := json.MarshalIndent(v, "", "  ")
+			_ = os.WriteFile("verdict.json", data, 0o644)
+			fmt.Fprintf(os.Stderr, "thesis: panic: %v\n", p)
+			os.Exit(int(schema.ExitInconclusive))
+		}
+	}()
 	os.Exit(int(run()))
 }
 
@@ -110,6 +124,8 @@ func run() schema.ExitCode {
 			fmt.Println("build: unstamped (built without scripts/build.ps1 provenance)")
 		}
 		return schema.ExitPass
+	case "__panic":
+		panic("test panic")
 	}
 
 	g, rest, err := parseGlobals(rest)
