@@ -39,6 +39,8 @@ type Verdict struct {
 	Commit string `json:"commit"`
 	// Verdict is the outcome, bijective with the process exit code.
 	Verdict VerdictResult `json:"verdict"`
+	// Error records the cause of an INCONCLUSIVE run, such as an unrecovered panic.
+	Error string `json:"error,omitempty"`
 
 	Budget     Budget      `json:"budget"`
 	Violations []Violation `json:"violations"`
