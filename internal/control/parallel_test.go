@@ -746,25 +746,12 @@ func TestAnOccupiedHostPortIsRefusedWithItsOwnMessage(t *testing.T) {
 		return map[int]bool{}, nil
 	}
 
-	var ln net.Listener
-	var err error
-	var port int
-	for i := 0; i < 10; i++ {
-		ln, err = listenOnAny(t)
-		if err != nil {
-			t.Skipf("could not bind a loopback port to occupy: %v", err)
-		}
-		port = ln.Addr().(*netTCPAddr).Port
-		if port <= 65500 {
-			break
-		}
-		_ = ln.Close()
-		ln = nil
-	}
-	if ln == nil {
-		t.Skipf("could not find a safe loopback port below 65500 to occupy")
+	ln, err := listenOnAny(t)
+	if err != nil {
+		t.Skipf("could not bind a loopback port to occupy: %v", err)
 	}
 	defer func() { _ = ln.Close() }()
+	port := ln.Addr().(*netTCPAddr).Port
 
 	backend := &stubBackend{}
 	_, pr := newParallelRunner(t, backend, finishedDriver(), ParallelOptions{

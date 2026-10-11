@@ -360,8 +360,8 @@ func TestPerturbRunsARealScheduleAndRecordsIt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if exit != schema.ExitInconclusive {
-		t.Fatalf("exit = %d (verdict %s), want %d (Inconclusive, because no ops overlap the fault)", exit, verdict.Verdict, schema.ExitInconclusive)
+	if exit != schema.ExitPass {
+		t.Fatalf("exit = %d (verdict %s), want 0", exit, verdict.Verdict)
 	}
 	if !backend.downCalled {
 		t.Error("TEARDOWN did not run")

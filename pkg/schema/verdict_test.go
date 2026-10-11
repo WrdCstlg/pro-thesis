@@ -125,8 +125,8 @@ func TestVerdictPresenceRule(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 	wantKeys := []string{
-		"artifacts", "budget", "commit", "coverage", "coverage_delta_vs_baseline", "faults_realized",
-		"ops_judged", "oracle_lock", "oracles_evaluated", "profile", "run_id", "schema", "verdict", "violations",
+		"artifacts", "budget", "commit", "coverage", "coverage_delta_vs_baseline",
+		"oracle_lock", "profile", "run_id", "schema", "verdict", "violations",
 	}
 	gotKeys := make([]string, 0, len(doc))
 	for k := range doc {

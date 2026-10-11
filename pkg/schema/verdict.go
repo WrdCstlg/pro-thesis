@@ -45,10 +45,6 @@ type Verdict struct {
 	Budget     Budget      `json:"budget"`
 	Violations []Violation `json:"violations"`
 
-	FaultsRealized   int      `json:"faults_realized"`
-	OpsJudged        int      `json:"ops_judged"`
-	OraclesEvaluated []string `json:"oracles_evaluated"`
-
 	Coverage Coverage `json:"coverage"`
 	// CoverageDeltaVsBaseline is null when no baseline comparison was made.
 	CoverageDeltaVsBaseline *CoverageDelta `json:"coverage_delta_vs_baseline"`
@@ -297,9 +293,6 @@ func (v *Verdict) Normalize() {
 	if v.Violations == nil {
 		v.Violations = []Violation{}
 	}
-	if v.OraclesEvaluated == nil {
-		v.OraclesEvaluated = []string{}
-	}
 	for i := range v.Violations {
 		v.Violations[i].normalize()
 	}
@@ -344,9 +337,6 @@ func (v *Verdict) Validate() error {
 	}
 	if v.Violations == nil {
 		errs.Add("violations", "is null; an empty verdict carries []")
-	}
-	if v.OraclesEvaluated == nil {
-		errs.Add("oracles_evaluated", "is null; an empty verdict carries []")
 	}
 	seen := map[string]int{}
 	for i, vi := range v.Violations {
@@ -435,6 +425,5 @@ func UnmarshalVerdict(data []byte) (*Verdict, error) {
 	if v.Schema != VerdictSchema {
 		return nil, fmt.Errorf("verdict: schema is %q, want %q", v.Schema, VerdictSchema)
 	}
-	v.Normalize()
 	return &v, nil
 }

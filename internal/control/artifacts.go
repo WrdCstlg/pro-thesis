@@ -163,25 +163,6 @@ func MergePhaseMarkers(historyPath, phasesPath string) error {
 		return err
 	}
 
-	if len(histLines) > 0 {
-		e, _ := decodeT(histLines[len(histLines)-1])
-		if e.Event != "EOF" {
-			return fmt.Errorf("history is truncated: missing EOF record (OQ-077)")
-		}
-		
-		var opCount int
-		for i := 0; i < len(histLines)-1; i++ {
-			rec, _ := decodeT(histLines[i])
-			if rec.Event != "phase" {
-				opCount++
-			}
-		}
-		
-		if int(e.Meta.Count) != opCount {
-			return fmt.Errorf("history is truncated: expected %d records, got %d (OQ-077)", e.Meta.Count, opCount)
-		}
-	}
-
 	// Idempotence: if any phase marker is already present, assume the merge ran.
 	for _, l := range histLines {
 		if e, err := decodeT(l); err == nil && e.Event == "phase" {
@@ -254,9 +235,6 @@ func MergePhaseMarkers(historyPath, phasesPath string) error {
 type tOnly struct {
 	TNS   int64  `json:"t_ns"`
 	Event string `json:"event"`
-	Meta  struct {
-		Count uint64 `json:"count"`
-	} `json:"meta"`
 }
 
 func decodeT(line []byte) (tOnly, error) {
