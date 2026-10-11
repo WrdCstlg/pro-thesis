@@ -20,8 +20,7 @@ func TestMergePreservesUnmodelledFields(t *testing.T) {
 	phases := filepath.Join(dir, "phases.jsonl")
 
 	write(t, hist, `{"t_ns":300,"process":3,"type":"invoke","f":"read","key":"k/42","op_id":7,"meta":{"served_by":"kv-n2","read_mode":"lease","term":4,"commit_index":91}}
-{"t_ns":500,"process":3,"type":"ok","f":"read","key":"k/42","value":7,"op_id":7,"meta":{"served_by":"kv-n2","latency_us":1204}}
-{"t_ns":600,"type":"info","event":"EOF","meta":{"count":2}}`)
+{"t_ns":500,"process":3,"type":"ok","f":"read","key":"k/42","value":7,"op_id":7,"meta":{"served_by":"kv-n2","latency_us":1204}}`)
 	write(t, phases, `{"t_ns":100,"type":"info","event":"phase","phase":"DRIVE"}
 {"t_ns":400,"type":"info","event":"phase","phase":"HEAL"}`)
 
@@ -30,8 +29,8 @@ func TestMergePreservesUnmodelledFields(t *testing.T) {
 	}
 	lines := readAll(t, hist)
 
-	if len(lines) != 5 {
-		t.Fatalf("got %d lines, want 5 (2 ops + 2 markers + 1 EOF): %q", len(lines), lines)
+	if len(lines) != 4 {
+		t.Fatalf("got %d lines, want 4 (2 ops + 2 markers): %q", len(lines), lines)
 	}
 
 	// Every original op must still carry its full meta object, byte for byte.
@@ -73,8 +72,7 @@ func TestMergeIsIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	hist := filepath.Join(dir, "history.jsonl")
 	phases := filepath.Join(dir, "phases.jsonl")
-	write(t, hist, `{"t_ns":300,"process":1,"type":"invoke","f":"read","op_id":1}
-{"t_ns":600,"type":"info","event":"EOF","meta":{"count":1}}`)
+	write(t, hist, `{"t_ns":300,"process":1,"type":"invoke","f":"read","op_id":1}`)
 	write(t, phases, `{"t_ns":100,"type":"info","event":"phase","phase":"DRIVE"}`)
 
 	if err := MergePhaseMarkers(hist, phases); err != nil {
@@ -98,8 +96,7 @@ func TestMergeIsIdempotent(t *testing.T) {
 func TestMergeToleratesMissingInputs(t *testing.T) {
 	dir := t.TempDir()
 	hist := filepath.Join(dir, "history.jsonl")
-	write(t, hist, `{"t_ns":1,"process":1,"type":"invoke","f":"read","op_id":1}
-{"t_ns":600,"type":"info","event":"EOF","meta":{"count":1}}`)
+	write(t, hist, `{"t_ns":1,"process":1,"type":"invoke","f":"read","op_id":1}`)
 
 	if err := MergePhaseMarkers(hist, filepath.Join(dir, "absent.jsonl")); err != nil {
 		t.Fatalf("missing phases log should be tolerated: %v", err)
@@ -115,7 +112,7 @@ func TestMergeKeepsUnparseableLines(t *testing.T) {
 	dir := t.TempDir()
 	hist := filepath.Join(dir, "history.jsonl")
 	phases := filepath.Join(dir, "phases.jsonl")
-	write(t, hist, "{\"t_ns\":300,\"type\":\"invoke\",\"op_id\":1}\nthis is not json\n{\"t_ns\":500,\"type\":\"ok\",\"op_id\":1}\n{\"t_ns\":600,\"type\":\"info\",\"event\":\"EOF\",\"meta\":{\"count\":3}}")
+	write(t, hist, "{\"t_ns\":300,\"type\":\"invoke\",\"op_id\":1}\nthis is not json\n{\"t_ns\":500,\"type\":\"ok\",\"op_id\":1}")
 	write(t, phases, `{"t_ns":100,"type":"info","event":"phase","phase":"DRIVE"}`)
 
 	if err := MergePhaseMarkers(hist, phases); err != nil {
@@ -131,8 +128,8 @@ func TestMergeKeepsUnparseableLines(t *testing.T) {
 	if !found {
 		t.Fatalf("the unparseable line was dropped; the merge must not lose data:\n%q", lines)
 	}
-	if len(lines) != 5 {
-		t.Fatalf("got %d lines, want 5", len(lines))
+	if len(lines) != 4 {
+		t.Fatalf("got %d lines, want 4", len(lines))
 	}
 }
 

@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -439,34 +438,17 @@ func resolveProgram(prog, dir string) string {
 	}
 	if dir != "" {
 		candidate := filepath.Join(dir, prog)
-		if runtime.GOOS == "windows" {
-			if fi, err := os.Stat(candidate + ".exe"); err == nil && !fi.IsDir() {
-				return candidate + ".exe"
-			}
-		}
 		if fi, err := os.Stat(candidate); err == nil && !fi.IsDir() {
 			return candidate
 		}
-		if runtime.GOOS != "windows" {
-			if fi, err := os.Stat(candidate + ".exe"); err == nil && !fi.IsDir() {
-				return candidate + ".exe"
-			}
+		if fi, err := os.Stat(candidate + ".exe"); err == nil && !fi.IsDir() {
+			return candidate + ".exe"
 		}
 	}
 	// No project directory: the path is relative to the process's own working
 	// directory, and only the suffix needs supplying.
-	if runtime.GOOS == "windows" {
-		if fi, err := os.Stat(prog + ".exe"); err == nil && !fi.IsDir() {
-			return prog + ".exe"
-		}
-	}
-	if fi, err := os.Stat(prog); err == nil && !fi.IsDir() {
-		return prog
-	}
-	if runtime.GOOS != "windows" {
-		if fi, err := os.Stat(prog + ".exe"); err == nil && !fi.IsDir() {
-			return prog + ".exe"
-		}
+	if fi, err := os.Stat(prog + ".exe"); err == nil && !fi.IsDir() {
+		return prog + ".exe"
 	}
 	return prog
 }

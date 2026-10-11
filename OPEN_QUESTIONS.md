@@ -3716,3 +3716,62 @@ correctly: the fix's comment cited this entry before its heading existed, and
 ## OQ-080 RESOLVED (D-095): a failure to write `verdict.json` drops a fallback or fails loudly
 
 **Resolution.** `WriteVerdictFile` implements a fallback mechanism that writes an INCONCLUSIVE stub on error. If this stub fails, the process propagates the write error.
+
+---
+
+## OQ-077 UPDATE (D-096): still open; the code that addressed it in `8c76a57` is reverted
+
+**Classification:** OPEN. `8c76a57` added a driver-status gate and an end-of-history record count
+without recording either here. Both are reverted with D-096. The record count broke the driver
+contract for every driver that does not write the trailer, `targets/etcd/cmd/etcdload` among them
+(read from the code, not measured live). Any re-landing is a new change with its own failing-first
+test, and stays OPEN until reviewed by a session that did not build it.
+
+---
+
+## OQ-078 UPDATE (D-096): reopened; D-094's resolution is withdrawn and its code reverted
+
+**Classification:** OPEN. D-094 called this resolved. The overlap gate and the three verdict fields
+it described were committed in `8c76a57` without failing-first evidence or independent review, and
+are reverted with D-096.
+
+---
+
+## OQ-079 UPDATE (D-096): reopened; the resolution follow-up above is withdrawn
+
+**Classification:** OPEN. The follow-up above claimed that running `historycheck` before the oracle
+closed this entry. It did not address the entry's subject: the checker's undetermined initial value
+(`cmd/thesis-oracle-linearizable/search.go:23-29`) was not touched. The `historycheck` call is
+reverted with D-096.
+
+---
+
+## OQ-080 UPDATE (D-096): reopened; the resolution follow-up above is withdrawn
+
+**Classification:** OPEN, with an UNREVIEWED candidate fix. The fallback the follow-up above describes
+is reverted with D-096. What remains is `15358c0`, which returns exit 2 when `verdict.json` cannot be
+written (`internal/control/verdict_write_test.go`). It landed with no entry here and has not had the
+review D-096 requires.
+
+---
+
+## OQ-081 UPDATE (D-096): an unreviewed candidate fix, `7f5ee3c`, treats a strategy override as narrowing
+
+**Classification:** OPEN. `7f5ee3c` changed `internal/search/engine/engine.go` and added a test, with
+no entry here. It stays OPEN until reviewed by a session that did not build it.
+
+---
+
+## OQ-082 UPDATE (D-096): an unreviewed candidate fix, `7cda379`, recovers a panic in `cmd/thesis`
+
+**Classification:** OPEN. `7cda379` added a `recover` in `cmd/thesis/main.go` and
+`cmd/thesis/panic_test.go`, with no entry here. It stays OPEN until reviewed by a session that did
+not build it.
+
+---
+
+## OQ-083 UPDATE (D-096): reopened; D-094's resolution is withdrawn and its code reverted
+
+**Classification:** OPEN. D-094 called this resolved. The resolver change it described
+(`internal/driver/supervise.go`, `internal/doctor/doctor.go`) was committed in `8c76a57` without
+failing-first evidence or independent review, and is reverted with D-096.

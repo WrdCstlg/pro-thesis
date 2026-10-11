@@ -294,11 +294,18 @@ func checkDriverAndOracles(cfg *schema.Config, projectDir, targetOS string, rep 
 }
 
 func resolveForPlatform(prog, projectDir, targetOS string) string {
-	// The harness already uses driver.ResolveProgram which checks GOOS. We can
-	// just rely on it, but for cross-platform doctor checks (if requested for
-	// a different targetOS), we could do something else. Currently targetOS is
-	// always runtime.GOOS in doctor, so we just defer.
 	resolved := driver.ResolveProgram(prog, projectDir)
+	if targetOS == "windows" && !strings.HasSuffix(strings.ToLower(resolved), ".exe") {
+		if fi, err := os.Stat(resolved + ".exe"); err == nil && !fi.IsDir() {
+			return resolved + ".exe"
+		}
+	}
+	if targetOS == "linux" && strings.HasSuffix(strings.ToLower(resolved), ".exe") {
+		stripped := strings.TrimSuffix(resolved, ".exe")
+		if fi, err := os.Stat(stripped); err == nil && !fi.IsDir() {
+			return stripped
+		}
+	}
 	return resolved
 }
 

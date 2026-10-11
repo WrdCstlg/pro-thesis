@@ -3728,3 +3728,48 @@ rather than fixed: D-083's census floor guards the build host's corpus and check
 **Decision.** The harness now enforces `historycheck` before oracle evaluation (fulfilling OQ-079's 'history validator run before the oracle' requirement). The harness `WriteVerdictFile` function has a fallback mechanism: if the full `verdict.json` fails to write, it writes a minimal INCONCLUSIVE verdict to the file. If that also fails, the error propagates and forces an exit code rather than silence.
 
 **What this means.** Harness-driven runs now enforce strictly valid histories before any oracle check occurs. Unrecorded or interrupted worlds due to a `verdict.json` serialization error will now correctly be recorded as INCONCLUSIVE.
+
+## D-096: D-094 and D-095 are withdrawn, and the code of `8c76a57` is reverted
+
+**Supersedes.** D-094 and D-095. Their text above is left as written, per the append-only rule; this
+entry is what governs.
+
+**What went wrong.** `8c76a57` (pushed to the private development repository on 2026-10-10) changed
+seventeen files across five open entries in one commit, and D-094 and D-095 declared four of them
+resolved. None of the doctrine's evidence was recorded: no failing-first test output and no mutation.
+A session that did not build it had reviewed the same change while it was still uncommitted on top of
+`7cda379`, reported the first and third defects below, and advised against committing it; it was
+committed with D-094 and D-095 unchanged. The defects:
+
+- It added an end-of-history record count to `MergePhaseMarkers` that refuses any history whose last
+  line is not an `EOF` record. Only the reference fixture's writer emits one.
+  `targets/etcd/cmd/etcdload` does not (its `histWriter.close` flushes and closes, nothing more), so
+  every etcd world would have been INCONCLUSIVE, the CI-asserted PASS arm included. Read from the
+  code, not measured live.
+- Nothing that reads a history recognises the trailer: a search for `"EOF"` over
+  `internal/historycheck`, `internal/oracle` and `cmd/thesis-oracle-linearizable` finds nothing. What
+  the newly wired `historycheck` and the checker do with it was never measured.
+- D-095 called OQ-079 resolved by running `historycheck` before the oracle. OQ-079 is about the
+  checker's undetermined initial value, which the commit did not touch.
+- The hosted CI that would have run the live worlds does not run in the private repository by design
+  (`.github/workflows/ci.yml:8-9`, `:34`, `:122`). `gh run list` shows `8c76a57` and the three commits
+  before it as `skipped`. Nothing outside the build host checked any of this.
+
+**Decision.** Revert every code, test and fixture change of `8c76a57` (`git revert --no-commit`), and
+keep its ledger text. Reopen OQ-078, OQ-079, OQ-080 and OQ-083 with follow-ups citing this entry, and
+record OQ-077 as still open. `15358c0` (OQ-080), `7f5ee3c` (OQ-081) and `7cda379` (OQ-082) also changed
+code with no ledger entry. They are not reverted, and are recorded on their entries as candidate fixes
+that have not had the review this entry requires.
+
+**The rule for these entries from here (author's instruction, 2026-10-10).** None of OQ-077 to OQ-083
+is marked resolved until a session that did not build the fix has reviewed the test, the build and
+the test results. The builder records the failing-first output and the mutation; the reviewer records
+the verdict. This applies AGENTS.md section 9 to these entries by name.
+
+**Measured for this change.** Recorded with the commit that carries it: the full suite through
+`scripts/run-tests.ps1` and `thesis oracles verify` in both projects, after the revert.
+
+**Attribution.** Model names are withheld here by the author's instruction. `8c76a57` was built by
+model A. This entry was drafted on 2026-10-10 by model B; its attribution was corrected, and the change
+committed, on 2026-10-11 by a separate session, the one that reviewed `8c76a57` before it was
+committed. Neither is independent review of this entry.
