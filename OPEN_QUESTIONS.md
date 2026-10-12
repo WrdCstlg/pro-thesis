@@ -3775,3 +3775,47 @@ not build it.
 **Classification:** OPEN. D-094 called this resolved. The resolver change it described
 (`internal/driver/supervise.go`, `internal/doctor/doctor.go`) was committed in `8c76a57` without
 failing-first evidence or independent review, and is reverted with D-096.
+
+---
+
+## OQ-085: the fault schedule of `thesis run` is outside the lock, so omitting `--fault` passes the planted defect
+
+**Classification:** OPEN; measured 2026-10-12 at `f75c196`.
+
+**Observed.** A run profile carries `budget`, `worlds`, `driver_profile` and `search`
+(`pkg/schema/config.go:385-405`); none of them is a fault schedule. `thesis run` takes its schedule
+only from `--fault` (`cmd/thesis/run.go`). The lock covers the profiles and the perturber's budget,
+allow and deny lists, so it constrains which faults may run, not whether any do. D-059's narrowing
+rule covers `--budget` and `--worlds` only (`ApplyCLIOverrides`, `internal/control/budget.go`).
+
+**Measured.** Two runs from a clean worktree at `f75c196`, with binaries built by
+`scripts/build.ps1` (stamp `f75c196`, dirty 0) and the planted-defect image
+(`prothesis/kvfixture:buggy`), in `testdata/kvfixture`:
+
+- `r_2026_10_12_5bb0`: `thesis run --profile linear --worlds 1 --seed 1 --fault
+  'net.partition(role:leader)@3000..7500'`. Exit 1 in 29.5 s: one witnessed violation on `k/0`
+  (462 operations, 1,532 states explored); narrowed, lock `bypassed`. The world file records one
+  fault planned and one realized, `net.partition(kv-n2)` from 3,045 ms to 7,500 ms.
+- `r_2026_10_12_332c`: `thesis run --profile linear`, nothing else. Exit 0, PASS, 5 of 5 worlds in
+  85.5 s, `oracle_lock.status` `ok`. Every world file records zero faults planned and zero realized.
+  `verdict.json` records no fault count (OQ-078).
+
+Both verdicts list `driver.cmd` and `linearizable.kv` under `oracle_lock.executables_moved`, because
+the binaries were rebuilt with a new stamp. In the second run that warning is the only signal, and
+it is there because of the rebuild, not because of the missing faults.
+
+**Consequence.** The README's first five minutes show that weakening the workload is exit 4.
+Removing the faults, a simpler weakening, is exit 0 with the lock reported `ok`. An agent told to
+make a failing gate pass can delete one argument.
+
+**Why OQ-078's proposal does not close it.** OQ-078 would score as INCONCLUSIVE a faulted world whose
+load missed every realized window. A world with no faults is not faulted, so the rule never applies.
+The code `8c76a57` added for OQ-078 (reverted by D-096) guarded its check with `len(realized) > 0`,
+so it would have left this run at PASS (read from the code, not measured).
+
+**What would close it.** D-097, ruling 1: the schedule moves into the lock-covered run profile, and an
+argv schedule that differs from it, including none, narrows the run. Item H1 of
+`docs/design/10-hardening.plan.md` names the tests; attack B1 of its benchmark repeats the second run.
+
+**Evidence retention.** The two run bundles exist only in `testdata/kvfixture/.prothesis/runs` on the
+build host. This entry cites them; AGENTS.md section 5 lists them as never to be deleted.

@@ -38,7 +38,7 @@ ways depending on the order containers happened to bind.
 **The ledgers are the memory.** `DECISIONS.md` is append-only: supersede an entry by adding a
 new one that cites it, never by editing the old text. `OPEN_QUESTIONS.md` records *measured*
 weaknesses. Every `D-0xx` / `OQ-0xx` citation must resolve; a test enforces it
-(`internal/ledger`). Next free ids: **D-0xx (098)**, **OQ-0xx (085)**, spelled that way on
+(`internal/ledger`). Next free ids: **D-0xx (098)**, **OQ-0xx (086)**, spelled that way on
 purpose. The citation test matches `\b(?:OQ|D)-\d{3}[a-z]?\b` in every `.go`, `.md`, `.yaml`, `.yml`,
 `.ps1` and `.py` file, so writing a not-yet-allocated id in its real form anywhere fails the suite
 until the heading exists. Add the heading in the same change, or do not write the id.
@@ -184,7 +184,8 @@ BUDGET_EXHAUSTED 1). Re-derive any row before you rely on it.
   is empty. A pruner that shrinks it converts PASS into SKIP with no suite failure. Whatever you
   build must make that impossible, or make it loud.
 - **`r_2026_09_17_5805` and `r_2026_09_17_66d5`** are cited by a committed observation bundle.
-  Never delete them.
+  Never delete them. **`r_2026_10_12_5bb0` and `r_2026_10_12_332c`** are the evidence of OQ-085;
+  the same applies.
 - **Nothing gives mutual exclusion** between two `thesis` processes in one project directory, and
   per the row above, the bundles a pruner would most want to judge carry no liveness marker at all.
   A pruner needs a stated concurrency contract; "no sentinel" must not be read as "safe to delete".
