@@ -26,6 +26,14 @@
 #   pwsh -File scripts/run-tests.ps1              # whole module
 #   pwsh -File scripts/run-tests.ps1 -Match shrink  # packages matching a substring
 #   pwsh -File scripts/run-tests.ps1 -Run TestFoo   # a single test, all packages
+#
+# COUNTS (D-098). Every binary runs with -test.v, and the wrapper counts its
+# "--- PASS", "--- FAIL" and "--- SKIP" lines, subtests included, which is how the
+# hosted CI counts them too. A report can then state test-level numbers instead of
+# package results only. Two kinds of silence are FLAGGED, not failed: a package
+# whose every test skipped, and one where no test ran at all (outside -Run, which
+# legitimately matches nothing in most packages). A package of skips is not
+# evidence of anything, and it used to read exactly like a green one.
 
 param(
     [string]$Match = '',
@@ -66,6 +74,7 @@ $pkgs = $pkgs | Where-Object { $Match -eq '' -or $_.Path -like "*$Match*" }
 if (-not $pkgs) { Write-Host "no packages matched '$Match'"; exit 1 }
 
 $results = @()
+$skipped = @()
 foreach ($entry in $pkgs) {
     $pkg  = $entry.Path
     $mod  = $entry.Module
@@ -105,20 +114,21 @@ foreach ($entry in $pkgs) {
         # no signal because it teaches the reader to ignore the exit code. The
         # exit CODE is what distinguishes the two.
         if ($compileCode -ne 0) {
-            $results += [pscustomobject]@{ Package = $rel; Result = 'BUILD-FAIL'; Secs = 0 }
+            $results += [pscustomobject]@{ Package = $rel; Result = 'BUILD-FAIL'; Secs = 0; Pass = 0; Fail = 0; Skip = 0; Note = '' }
             Write-Host "[BUILD-FAIL] $rel"
             Write-Host $compile
         } else {
-            $results += [pscustomobject]@{ Package = $rel; Result = 'no tests'; Secs = 0 }
+            $results += [pscustomobject]@{ Package = $rel; Result = 'no tests'; Secs = 0; Pass = 0; Fail = 0; Skip = 0; Note = '' }
         }
         continue
     }
 
     # NOT $args: that is an automatic variable in PowerShell and assigning to it
     # inside a function silently does not do what it looks like it does.
-    $targs = @('-test.count=1')
+    # -test.v always: the per-test result lines are what the counts are made of.
+    # -Verbose now decides only whether a passing package's output is printed.
+    $targs = @('-test.count=1', '-test.v')
     if ($Run)     { $targs += "-test.run=$Run" }
-    if ($Verbose) { $targs += '-test.v' }
 
     # The policy blocks INTERMITTENTLY: the same binary in the same directory is
     # refused on one attempt and runs on the next, which is why the original
@@ -178,20 +188,42 @@ foreach ($entry in $pkgs) {
     try { [System.IO.File]::Delete($bin) } catch { }
 
     if ($blocked) {
-        $results += [pscustomobject]@{ Package = $rel; Result = 'BLOCKED'; Secs = $secs }
+        $results += [pscustomobject]@{ Package = $rel; Result = 'BLOCKED'; Secs = $secs; Pass = 0; Fail = 0; Skip = 0; Note = '' }
         Write-Host "[BLOCKED] $rel - Application Control refused it on 3 attempts"
         continue
     }
+
+    # Indented lines are subtests; they count, as they do in CI.
+    $pass = ([regex]::Matches($out, '(?m)^\s*--- PASS: ')).Count
+    $fail = ([regex]::Matches($out, '(?m)^\s*--- FAIL: ')).Count
+    $skip = ([regex]::Matches($out, '(?m)^\s*--- SKIP: ')).Count
+    foreach ($m in [regex]::Matches($out, '(?m)^\s*--- SKIP: (\S+)')) { $skipped += "$rel $($m.Groups[1].Value)" }
+
+    $note = ''
+    if ($code -eq 0 -and $pass -eq 0 -and $fail -eq 0 -and $skip -gt 0) { $note = 'ALL SKIPPED' }
+    elseif ($code -eq 0 -and $pass + $fail + $skip -eq 0 -and -not $Run) { $note = 'NO TEST RAN' }
+
     $verdict = if ($code -eq 0) { 'ok' } else { 'FAIL' }
-    $results += [pscustomobject]@{ Package = $rel; Result = $verdict; Secs = $secs }
-    Write-Host "[$verdict] $rel  ${secs}s"
-    if ($code -ne 0) { Write-Host ($out.Trim()) }
+    $results += [pscustomobject]@{ Package = $rel; Result = $verdict; Secs = $secs; Pass = $pass; Fail = $fail; Skip = $skip; Note = $note }
+    $flag = if ($note) { "  [$note]" } else { '' }
+    Write-Host "[$verdict] $rel  ${secs}s  pass $pass, fail $fail, skip $skip$flag"
+    if ($code -ne 0 -or $Verbose) { Write-Host ($out.Trim()) }
 }
 
 Write-Host ''
-$results | Format-Table Package, Result, Secs -AutoSize
+$results | Format-Table Package, Result, Pass, Fail, Skip, Secs, Note -AutoSize
 $bad = @($results | Where-Object { $_.Result -notin @('ok', 'no tests') })
 $good = @($results | Where-Object { $_.Result -eq 'ok' }).Count
+$tp = ($results | Measure-Object -Property Pass -Sum).Sum
+$tf = ($results | Measure-Object -Property Fail -Sum).Sum
+$ts = ($results | Measure-Object -Property Skip -Sum).Sum
+if ($skipped.Count -gt 0) {
+    Write-Host 'SKIPPED TESTS:'
+    $skipped | ForEach-Object { Write-Host "  $_" }
+}
+$flagged = @($results | Where-Object { $_.Note })
+foreach ($f in $flagged) { Write-Host ("FLAGGED: {0} [{1}]" -f $f.Package, $f.Note) }
+Write-Host ("TESTS: {0} pass, {1} fail, {2} skip (subtests counted)" -f $tp, $tf, $ts)
 Write-Host ("PACKAGES: {0} ok, {1} not ok, {2} total" -f $good, $bad.Count, $results.Count)
 if ($bad.Count -gt 0) { exit 1 }
 exit 0

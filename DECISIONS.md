@@ -3821,3 +3821,47 @@ trailer (D-096). The README now says so.
 
 **Attribution.** Recorded by Claude Opus 5.5 on 2026-10-12, the session that drafted the plan. The
 rulings are the author's, given to that session. Not reviewed.
+
+## D-098: the test wrapper counts tests, and flags a package that skipped everything or ran nothing
+
+**Problem.** `scripts/run-tests.ps1` reported package results only, so no report made on the build
+host could state how many tests passed, failed or skipped, which the author's evidence rule requires.
+A package whose every test skipped printed `[ok]`, exactly like a green one. This is item E2 of
+`docs/design/10-hardening.plan.md`.
+
+**Decision.** Every test binary runs with `-test.v`, and the wrapper counts its `--- PASS`,
+`--- FAIL` and `--- SKIP` lines, subtests included, which is how the hosted CI counts
+(`.github/workflows/ci.yml`, the main-module test step). It prints the counts per package, a
+`TESTS:` total, and the name of every skipped test. Two kinds of silence are flagged: `ALL SKIPPED`,
+and `NO TEST RAN` (not under `-Run`, which legitimately matches nothing in most packages). They are
+flagged, not failed: the exit code and the `PACKAGES:` line keep their meaning, so nothing that
+reads them changes. Whether a flag should fail the suite is the author's call.
+
+**Rejected.** `go test -json`, which is what CI uses: on this host `go test` executes its binary
+from a temporary directory, which the Application Control policy refuses (the reason the wrapper
+exists). Piping each binary through `go tool test2json` would add a second program for no gain over
+counting the verbose lines, which is what `test2json` parses anyway.
+
+**Measured.** On a throwaway package of two tests that both call `t.Skip` (deleted before this
+commit):
+
+- before the change: `[ok] internal/zzprobee2  0.2s`, no counts, no flag, exit 0;
+- after it: `[ok] internal/zzprobee2  0.2s  pass 0, fail 0, skip 2  [ALL SKIPPED]`, both test names
+  listed, `TESTS: 0 pass, 0 fail, 2 skip (subtests counted)`, exit 0;
+- with the change reverted again: the before output, exactly.
+
+Cross-check on a real package: for `internal/ledger` the wrapper counted six passes and one failure,
+and the test binary's own `-test.list .*` names seven tests. The failure was this entry's own id,
+cited in the wrapper's comment before this heading existed, refused by
+`TestEveryLedgerCitationInTheTreeResolves`.
+
+The whole suite through the changed wrapper, on the branch that carries this entry, in a fresh
+worktree with Docker running and `PROTHESIS_DOCKER_TESTS` unset: `TESTS: 1767 pass, 0 fail, 16 skip
+(subtests counted)`, `PACKAGES: 37 ok, 0 not ok, 43 total`, exit 0, 273.2 s. No package was flagged.
+The sixteen skips, now named: nine Docker-backed integration tests (two in `internal/control`, seven
+in `internal/perturber/faults`), which run only when that variable is set, and seven tests that read
+the run corpus (in `internal/cluster`, `internal/diagnose` and `internal/search/engine`), which a
+fresh worktree does not have. The second group is the landmine AGENTS.md section 5 describes: a
+shrunk corpus turns those PASSes into SKIPs, and until this change nothing on the build host said so.
+
+**Attribution.** Recorded by Claude Opus 5.5 on 2026-10-12. Not reviewed.

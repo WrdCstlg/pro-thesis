@@ -38,7 +38,7 @@ ways depending on the order containers happened to bind.
 **The ledgers are the memory.** `DECISIONS.md` is append-only: supersede an entry by adding a
 new one that cites it, never by editing the old text. `OPEN_QUESTIONS.md` records *measured*
 weaknesses. Every `D-0xx` / `OQ-0xx` citation must resolve; a test enforces it
-(`internal/ledger`). Next free ids: **D-0xx (098)**, **OQ-0xx (086)**, spelled that way on
+(`internal/ledger`). Next free ids: **D-0xx (099)**, **OQ-0xx (086)**, spelled that way on
 purpose. The citation test matches `\b(?:OQ|D)-\d{3}[a-z]?\b` in every `.go`, `.md`, `.yaml`, `.yml`,
 `.ps1` and `.py` file, so writing a not-yet-allocated id in its real form anywhere fails the suite
 until the heading exists. Add the heading in the same change, or do not write the id.
@@ -62,7 +62,7 @@ These are measured properties of the machine this was developed on, not folklore
 freshly-compiled test binaries from temp directories. Use:
 
 ```powershell
-pwsh -File scripts/run-tests.ps1                    # both modules, 32 packages
+pwsh -File scripts/run-tests.ps1                    # both modules; PACKAGES and TESTS lines (D-098)
 pwsh -File scripts/run-tests.ps1 -Match pkg/schema  # one package
 pwsh -File scripts/run-tests.ps1 -Run TestFoo       # one test
 ```
