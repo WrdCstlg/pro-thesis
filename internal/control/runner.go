@@ -1178,6 +1178,18 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 	// as it was before this existed.
 	_ = driverHandle.Stop(ctx)
 
+	// OQ-077: the history is the driver's account of what it did, and a driver
+	// that did not drain, or exited non-zero on its own, gives no assurance the
+	// account is whole. A history cut short can hide a stale read, so such a
+	// world cannot pass. Worse, not assignment, so a violation an oracle proves
+	// later still outranks it: whether a cut history can also manufacture a
+	// FAIL is the half of OQ-077 this does not settle.
+	if reason := driverOutcomeRefusal(drain, driverHandle.Result()); reason != "" {
+		fmt.Fprintf(r.stderr, "thesis: world %d: QUIESCE: %s; the history may be incomplete, so the world cannot pass (OQ-077)\n",
+			ordinal+1, reason)
+		worldOutcome = worldOutcome.Worse(OutcomeInconclusive)
+	}
+
 	// Take one health probe per node that harness.health covers, at the URL
 	// its own entry declares (convergenceProbes, OQ-063): once at the start of
 	// QUIESCE and once after the convergence sleep, each attempt stamped when
