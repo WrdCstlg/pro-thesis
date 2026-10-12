@@ -86,7 +86,7 @@ oracles:
 
 profiles:
   smoke: { budget: 90s, worlds: 2, driver_profile: smoke }
-  linear: { budget: 10m, worlds: 2, driver_profile: linear }
-  stale: { budget: 10m, worlds: 2, driver_profile: stale }
+  linear: { budget: 10m, worlds: 2, driver_profile: linear, faults: ["net.partition(role:leader)@3000..7500"] }
+  stale: { budget: 10m, worlds: 2, driver_profile: stale, faults: ["net.partition(role:leader)@3000..7500"] }
 
 artifacts: { dir: .prothesis/runs, retain_passing: 3, retain_failing: all }

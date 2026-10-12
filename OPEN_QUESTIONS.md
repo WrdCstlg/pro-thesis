@@ -3813,6 +3813,16 @@ load missed every realized window. A world with no faults is not faulted, so the
 The code `8c76a57` added for OQ-078 (reverted by D-096) guarded its check with `len(realized) > 0`,
 so it would have left this run at PASS (read from the code, not measured).
 
+
+**Follow-up (2026-10-12, item H1, D-097 ruling 1).** RESOLVED in the product.
+Item H1 adds `profiles.<name>.faults` to `pkg/schema/config.go`, validates faults at config parse
+time, and places the profile's default fault schedule under the oracle lock. `cmd/thesis/run.go`
+resolves the profile's schedule by default and adds `--no-faults`. When an argv schedule differs
+from the profile's schedule (including `--no-faults` on a profile that declares faults), `Runner`
+marks the budget narrowed under D-059's rule (`budget.Narrowed = true`), ensuring the run reports
+`INCONCLUSIVE` (exit 2) and `oracle_lock: bypassed` instead of PASS. Re-locked `testdata/kvfixture`
+and `targets/etcd` under `profiles.linear.faults`. Pinned by `TestEditingTheProfileScheduleWithoutRelockIsDrift`
+in `internal/lock` and 4 contract tests in `internal/control/profile_faults_test.go`.
 **What would close it.** D-097, ruling 1: the schedule moves into the lock-covered run profile, and an
 argv schedule that differs from it, including none, narrows the run. Item H1 of
 `docs/design/10-hardening.plan.md` names the tests; attack B1 of its benchmark repeats the second run.

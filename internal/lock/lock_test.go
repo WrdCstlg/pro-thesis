@@ -740,3 +740,28 @@ func TestOracleDirFromConfigUsesTheWrittenValue(t *testing.T) {
 			schema.DefaultOraclesDir, got)
 	}
 }
+
+// TestEditingTheProfileScheduleWithoutRelockIsDrift (Item H1) pins that adding
+// or modifying a profile's fault schedule moves the lock digest, ensuring that
+// an un-relocked profile change fails with ORACLE_DRIFT (exit 4).
+func TestEditingTheProfileScheduleWithoutRelockIsDrift(t *testing.T) {
+	withFaults := strings.Replace(baseConfig,
+		"  gate: { budget: 10m, worlds: 30, driver_profile: gate }",
+		"  gate: { budget: 10m, worlds: 30, driver_profile: gate, faults: [\"net.partition(kv-n1)@1000..2000\"] }", 1)
+	if withFaults == baseConfig {
+		t.Fatal("test fixture did not change")
+	}
+	d1 := digestOfConfig(t, withFaults)
+
+	differentFaults := strings.Replace(baseConfig,
+		"  gate: { budget: 10m, worlds: 30, driver_profile: gate }",
+		"  gate: { budget: 10m, worlds: 30, driver_profile: gate, faults: [\"proc.kill(kv-n1)@1000..2000\"] }", 1)
+	d2 := digestOfConfig(t, differentFaults)
+
+	if d1 == digestOfConfig(t, baseConfig) {
+		t.Fatal("adding faults to a profile did not move the digest")
+	}
+	if d1 == d2 {
+		t.Fatal("editing a profile's fault schedule did not move the digest")
+	}
+}
