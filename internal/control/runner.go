@@ -54,6 +54,8 @@ type RunnerOptions struct {
 	// fault_schedule.planned unchanged, and what actually happened reaches
 	// fault_schedule.realized.
 	Faults []string
+	// FaultsSupplied indicates the caller/CLI explicitly set Faults (even if empty).
+	FaultsSupplied bool
 
 	// Injectors are the fault-family mechanisms, from internal/perturber/faults.
 	//
@@ -112,7 +114,8 @@ type Runner struct {
 	imageResolver ImageResolver
 	clock         recorder.Clock
 
-	faults []string
+	faults         []string
+	faultsNarrowed bool
 
 	// injectors is the EXPLICIT override from RunnerOptions and is read-only
 	// after construction. It used to be reassigned per world, which made two
@@ -268,24 +271,47 @@ func NewRunner(opts RunnerOptions) (*Runner, error) {
 		drainDeadline = DefaultDrainDeadline
 	}
 
+	// Profile fault schedule resolution (Item H1, D-097 ruling 1)
+	var runFaults []string
+	faultsNarrowed := false
+	if len(profCfg.Faults) > 0 {
+		if opts.FaultsSupplied || opts.Faults != nil {
+			runFaults = append([]string(nil), opts.Faults...)
+			if len(runFaults) != len(profCfg.Faults) {
+				faultsNarrowed = true
+			} else {
+				for i := range runFaults {
+					if runFaults[i] != profCfg.Faults[i] {
+						faultsNarrowed = true
+						break
+					}
+				}
+			}
+		} else {
+			runFaults = append([]string(nil), profCfg.Faults...)
+		}
+	} else {
+		runFaults = append([]string(nil), opts.Faults...)
+	}
 	return &Runner{
-		opts:          opts,
-		cfg:           cfg,
-		profile:       profile,
-		driverProfile: driverProfile,
-		seed:          seed,
-		runID:         runID,
-		runDir:        runDir,
-		backend:       b,
-		driver:        drv,
-		telemetry:     tel,
-		oracleEngine:  oe,
-		steadyState:   st,
-		logCollector:  lc,
-		imageResolver: ir,
-		clock:         clk,
-		faults:        append([]string(nil), opts.Faults...),
-		injectors:     append([]perturber.Injector(nil), opts.Injectors...),
+		opts:           opts,
+		cfg:            cfg,
+		profile:        profile,
+		driverProfile:  driverProfile,
+		seed:           seed,
+		runID:          runID,
+		runDir:         runDir,
+		backend:        b,
+		driver:         drv,
+		telemetry:      tel,
+		oracleEngine:   oe,
+		steadyState:    st,
+		logCollector:   lc,
+		imageResolver:  ir,
+		clock:          clk,
+		faults:         runFaults,
+		faultsNarrowed: faultsNarrowed,
+		injectors:      append([]perturber.Injector(nil), opts.Injectors...),
 
 		drainDeadline: drainDeadline,
 
@@ -374,14 +400,24 @@ func (r *Runner) Run(ctx context.Context) (schema.Verdict, schema.ExitCode, erro
 	// `oracle_lock: ok`) are applied by BuildVerdict from the budget snapshot,
 	// so every command that builds a verdict inherits them.
 	budget = ApplyCLIOverrides(budget, r.opts.Budget, r.opts.Worlds)
+	if r.faultsNarrowed {
+		budget.Narrowed = true
+	}
 	if budget.Narrowed && !r.quiet {
-		fmt.Fprintf(r.stderr, "thesis: WARNING: the command line narrowed profile %q "+
-			"(worlds %s -> %s, wall %s -> %s). A run that finds no violation under a "+
-			"narrowed budget cannot report PASS, because it did not perform the gate the "+
-			"profile specifies.\n",
-			r.profile,
-			describeWorlds(budget.RequiredWorlds), describeWorlds(budget.Worlds),
-			describeWall(budget.RequiredWall), describeWall(budget.Wall))
+		if r.faultsNarrowed {
+			fmt.Fprintf(r.stderr, "thesis: WARNING: the command line narrowed profile %q's "+
+				"fault schedule. A run that finds no violation under a narrowed schedule cannot "+
+				"report PASS, because it did not perform the gate the profile specifies.\n",
+				r.profile)
+		} else {
+			fmt.Fprintf(r.stderr, "thesis: WARNING: the command line narrowed profile %q "+
+				"(worlds %s -> %s, wall %s -> %s). A run that finds no violation under a "+
+				"narrowed budget cannot report PASS, because it did not perform the gate the "+
+				"profile specifies.\n",
+				r.profile,
+				describeWorlds(budget.RequiredWorlds), describeWorlds(budget.Worlds),
+				describeWall(budget.RequiredWall), describeWall(budget.Wall))
+		}
 	}
 	tracker := NewBudgetTracker(budget, r.clock)
 

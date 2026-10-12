@@ -95,7 +95,7 @@ profiles:
   # fault schedule reaching @13500ms plus BOOT, SEED, HEAL, QUIESCE, ASSERT and
   # TEARDOWN; 10m leaves room for the ASSERT-phase linearizability search on a
   # history of tens of thousands of operations.
-  linear: { budget: 10m, worlds: 5, driver_profile: linear }
+  linear: { budget: 10m, worlds: 5, driver_profile: linear, faults: ["net.partition(role:leader)@3000..7500"] }
   # The Phase 4 search profile.
   #
   # `search: true` is what makes `thesis search` willing to run at all: the

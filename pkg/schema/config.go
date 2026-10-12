@@ -402,6 +402,10 @@ type Profile struct {
 	// It is a BOOLEAN and is a different key from the top-level `search:`
 	// mapping. See Config.Search and OQ-005.
 	Search bool `yaml:"search"`
+	// Faults is the canonical fault schedule this profile injects by default
+	// (Item H1, D-097 ruling 1). An argv schedule that differs from it, or
+	// --no-faults, marks the budget narrowed (D-059).
+	Faults []string `yaml:"faults,omitempty"`
 }
 
 // ---------------------------------------------------------------------------

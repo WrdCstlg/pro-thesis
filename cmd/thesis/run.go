@@ -21,6 +21,7 @@ func cmdRun(ctx context.Context, g globals, args []string) schema.ExitCode {
 	var faults []string
 	var budget time.Duration
 	var worlds int
+	var noFaults bool
 
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -42,6 +43,8 @@ func cmdRun(ctx context.Context, g globals, args []string) schema.ExitCode {
 			}
 			i++
 			faults = append(faults, args[i])
+		case a == "--no-faults":
+			noFaults = true
 		case strings.HasPrefix(a, "--fault="):
 			faults = append(faults, strings.TrimPrefix(a, "--fault="))
 
@@ -121,6 +124,11 @@ func cmdRun(ctx context.Context, g globals, args []string) schema.ExitCode {
 			errorf("run: unknown flag %q", a)
 			return schema.ExitConfigError
 		}
+	}
+
+	if noFaults && len(faults) > 0 {
+		errorf("run: cannot specify both --fault and --no-faults")
+		return schema.ExitConfigError
 	}
 
 	absConfig, err := filepath.Abs(g.configPath)
@@ -208,16 +216,27 @@ func cmdRun(ctx context.Context, g globals, args []string) schema.ExitCode {
 		fmt.Fprint(os.Stderr, lock.FormatExecutableChanges(lockReport.ExecutablesMoved))
 	}
 
+	var runnerFaults []string
+	faultsSupplied := false
+	if noFaults {
+		faultsSupplied = true
+		runnerFaults = nil
+	} else if len(faults) > 0 {
+		faultsSupplied = true
+		runnerFaults = faults
+	}
+
 	runner, err := control.NewRunner(control.RunnerOptions{
-		ConfigPath: absConfig,
-		Config:     cfg,
-		ProjectDir: projectDir,
-		Profile:    profile,
-		Budget:     budget,
-		Worlds:     worlds,
-		Seed:       seed,
-		Faults:     faults,
-		OracleLock: lockReport.OracleLock(),
+		ConfigPath:     absConfig,
+		Config:         cfg,
+		ProjectDir:     projectDir,
+		Profile:        profile,
+		Budget:         budget,
+		Worlds:         worlds,
+		Seed:           seed,
+		Faults:         runnerFaults,
+		FaultsSupplied: faultsSupplied,
+		OracleLock:     lockReport.OracleLock(),
 		// Injectors is deliberately left unset. The runner assembles the fault
 		// families per world in control.BuildInjectors, because every world
 		// boots fresh containers and an injector built for the previous world's

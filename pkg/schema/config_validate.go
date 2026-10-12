@@ -436,6 +436,11 @@ func (c *Config) ValidateProfiles() error {
 					w, WorldsUnbounded)
 			}
 		}
+		for i, f := range pr.Faults {
+			if _, err := ParseFault(f); err != nil {
+				errs.Add(fmt.Sprintf("%s.faults[%d]", p, i), "invalid fault %q: %v", f, err)
+			}
+		}
 	}
 	return errs.OrNil()
 }
