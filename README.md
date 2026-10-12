@@ -535,7 +535,7 @@ are open today, and how to report a new one, are in [`SECURITY.md`](SECURITY.md)
 ## The ledgers
 
 - [`DECISIONS.md`](DECISIONS.md): every non-obvious choice, with what was rejected and why,
-  D-001 through D-096. D-094 and D-095 are withdrawn by D-096.
+  D-001 through D-097. D-094 and D-095 are withdrawn by D-096.
 - [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md): every requirement that could not be met as written,
   every defect found, and what was measured about it, OQ-001 through OQ-084. Entries are never
   deleted; a resolution is appended.
@@ -557,13 +557,15 @@ tree, not asserted:
   made or ratified by him; D-076 records the standing rules of the process itself, including which
   model may build and which may arbitrate ([`AGENTS.md`](AGENTS.md) section 9).
 - **The agents wrote the code and tests** under those specifications. Every commit's
-  `Co-Authored-By` trailer names the model exactly as the tool reported it: Claude Opus 5,
+  `Co-Authored-By` trailer names the model exactly as the tool reported it, except three commits of
+  2026-10-10 that carry none (D-096): Claude Opus 5,
   Claude Opus 5 (1M context) and Claude Fable 5.1 through v0.1.0; Kimi Code CLI for the test
   protocol adoption D-081, the attribution system D-082/D-083 and the clustering engine D-084;
   Claude Opus 5 (1M context) for D-085 to D-088; Claude Opus 5.5 (1M context) for D-089 to D-092,
   the recordings and this page; Claude Opus 5.5 for D-093; Gemini 3.8 Flash on D-088, D-089 and
   D-092, and Gemini 2.5 Pro on D-089. For D-094 to D-096 the author withheld the model names: D-096,
-  which withdraws D-094 and D-095, calls them model A and model B. The author reviewed, redirected and
+  which withdraws D-094 and D-095, calls them model A and model B. Claude Opus 5.5 drafted the
+  hardening plan and recorded D-097 onward. The author reviewed, redirected and
   rejected throughout: the pivot from "drive the corpus to zero inconclusive" to "every recorded
   refusal must attribute to a known problem" (D-082) was his instruction, and the system changed
   course because of it.
