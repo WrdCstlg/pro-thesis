@@ -24,7 +24,7 @@ func TestPanicWritesVerdict(t *testing.T) {
 	cmd := exec.Command(os.Args[0], "-test.run=TestPanicWritesVerdict")
 	cmd.Env = append(os.Environ(), "BE_CRASHING_THESIS=1")
 	err := cmd.Run()
-	
+
 	if err == nil {
 		t.Fatalf("expected crash, got nil")
 	}
