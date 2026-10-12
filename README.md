@@ -246,7 +246,9 @@ load generator's program is fingerprinted the same way, as `driver.cmd`, and is 
 same reason (D-090). Neither the workload a driver compiles in for a profile name nor the
 environment it inherits is covered (OQ-076). `thesis search --strategy` overrides the locked
 `search.strategy` without drift and without narrowing the run, so such a run can still report
-PASS with the lock `ok` (OQ-081). The lock is a review aid, not a sandbox: see
+PASS with the lock `ok` (OQ-081). Nor is the fault schedule of `thesis run`: it comes only from
+`--fault`, so the same profile run without it passes the planted defect with exit `0` and the lock
+`ok` (OQ-085, measured). The lock is a review aid, not a sandbox: see
 [Security model](#security-model).
 
 ---
@@ -309,8 +311,9 @@ digests the open weaknesses that bear on what a verdict means; every open entry 
   drain deadline is not folded into the world's outcome, so a truncated history is judged as if it
   were complete (OQ-077). Nothing checks that the load overlapped a realized fault, and
   `verdict.json` does not say how many faults landed or how many operations were judged (OQ-078).
-  Until both close, a PASS means "every oracle that ran was satisfied", and the history it judged
-  is trusted to be whole.
+  And no fault is required at all: omitting `--fault` passes the planted defect (OQ-085). Until
+  these close, a PASS means "every oracle that ran was satisfied", and the history it judged is
+  trusted to be whole.
 - **The guided search has never influenced a decision.** Across all 30 recorded Saboteur runs,
   `informed_selections` is `0`: the utility the tree exists to accumulate has never been read to
   choose anything, because an unvisited child scores `+Inf` and the budgets never exceeded the
@@ -537,7 +540,7 @@ are open today, and how to report a new one, are in [`SECURITY.md`](SECURITY.md)
 - [`DECISIONS.md`](DECISIONS.md): every non-obvious choice, with what was rejected and why,
   D-001 through D-097. D-094 and D-095 are withdrawn by D-096.
 - [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md): every requirement that could not be met as written,
-  every defect found, and what was measured about it, OQ-001 through OQ-084. Entries are never
+  every defect found, and what was measured about it, OQ-001 through OQ-085. Entries are never
   deleted; a resolution is appended.
 
 ---

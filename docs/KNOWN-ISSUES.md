@@ -13,6 +13,11 @@ Each *would close it* below is the entry's own proposal, not scheduled work.
 
 A false PASS is the failure this project exists to prevent, so these come first.
 
+- **No fault is required, so omitting `--fault` passes the planted defect (OQ-085).** The fault
+  schedule of `thesis run` comes only from argv, and the lock does not cover it. Measured: the
+  planted-defect build, the full `linear` profile, no `--fault`: exit 0, PASS, lock `ok`, zero faults
+  realized in all five worlds. *Would close it:* the schedule in the lock-covered run profile, with
+  any different argv schedule treated as narrowing (D-097, ruling 1).
 - **A driver that fails or is killed is not folded into the world's outcome (OQ-077).** No code
   reads the driver's result when scoring a world, and the fixture's history writer can be cut
   cleanly on a record boundary. A shortened history is judged as if it were complete: losing
