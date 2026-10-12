@@ -167,3 +167,24 @@ func (d DrainReport) Doc() map[string]any {
 	}
 	return out
 }
+
+// driverOutcomeRefusal names why a world's history cannot be vouched for by
+// its driver, or returns "" when it can (OQ-077).
+//
+// Three things disqualify a history: the driver never started, the driver was
+// not drained (it refused, had no control channel, was cancelled, or draining
+// was disabled), or it exited on its own with a failure. A non-zero status on a
+// driver the harness STOPPED is not one of them; Stopped exists to say that.
+func driverOutcomeRefusal(drain DrainReport, res DriverResult) string {
+	switch {
+	case !res.Started:
+		return "the driver never started"
+	case !drain.Drained():
+		return "the driver was not drained: " + drain.Describe()
+	case !res.Stopped && res.ExitCode != 0:
+		return fmt.Sprintf("the driver exited %d on its own", res.ExitCode)
+	case !res.Stopped && res.Err != nil:
+		return "the driver failed: " + res.Err.Error()
+	}
+	return ""
+}

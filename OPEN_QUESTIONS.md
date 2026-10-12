@@ -3848,3 +3848,31 @@ status silently blinded the harness to service health and queue recovery.
 **Verification.** Pinned by `TestProbeAndStatusCollectedEvenWhenExecScriptTimesOut`. With the reorder
 reverted, the test fails with `context deadline exceeded` on the probe; restored, `internal/telemetry`
 passes 103/103.
+
+---
+
+## OQ-077 MITIGATED, NOT RESOLVED: driver outcome folded into world outcome (item H2)
+
+**Classification:** PARTIALLY RESOLVED / MITIGATED (2026-10-12). Item H2 of `docs/design/10-hardening.plan.md`.
+
+**What is resolved (first half).** A world's outcome now folds in the driver's execution and drain
+outcome (`driverOutcomeRefusal`, `internal/control/drain.go`). If the driver never started, did not
+drain by the deadline, or exited non-zero of its own accord, the world outcome is folded with
+`Worse(OutcomeInconclusive)`.
+
+- **Fail-closed ranking:** A proven consistency violation (rank 5) still outranks inconclusive (rank 3),
+  ensuring an oracle finding is never suppressed.
+- **Clean exits preserved:** A driver stopped at QUIESCE by the harness, or one that completed its plan
+  and exited 0, leaves PASS standing.
+- **Reporting:** Stderr records the refusal reason. Machine-readable reason codes in `result.json`
+  await plan item R3.
+
+**Verification.** Pinned by three contract tests in `internal/control/driver_outcome_test.go`:
+- `TestADriverThatDrainedAndExitedCleanlyLeavesPassStanding` (the control; passes with or without fix)
+- `TestADriverThatExitedNonZeroMakesTheWorldInconclusive` (refusal test; fails with outcome "pass", exit 0 when fix is mutated out)
+- `TestADriverThatMissedTheDrainDeadlineMakesTheWorldInconclusive` (refusal test; fails with outcome "pass", exit 0 when fix is mutated out)
+With the fix in place, all 115 unit tests in `internal/control` pass (0 fail, 2 Docker skips).
+
+**What remains open (second half).** History truncation on a record boundary remains undetectable
+without target cooperation. That is item H3 of the plan ("Make history truncation detectable, by
+declaration").
