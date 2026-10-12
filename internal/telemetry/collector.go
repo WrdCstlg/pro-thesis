@@ -366,6 +366,13 @@ func (c *Collector) SampleRound(ctx context.Context) []*Sample {
 func (c *Collector) sampleTarget(ctx context.Context, s *Sample, t Target,
 	states map[string]ContainerState, stats map[string]DockerStats, stateErr error) {
 
+	// Probe and status endpoints are HTTP calls to the published ports, independent
+	// of in-container execution. They are gathered first so that a slow or timed-out
+	// container exec (e.g. on hosts where docker exec has high latency) does not
+	// exhaust the sampling round's deadline before health and queue depth are recorded.
+	collectProbe(ctx, c.client, s, t.ProbeURL)
+	collectStatus(ctx, c.client, s, t.StatusURL)
+
 	var state ContainerState
 	haveState := false
 	if t.Container == "" {
@@ -407,9 +414,6 @@ func (c *Collector) sampleTarget(ctx context.Context, s *Sample, t Target,
 	if row, ok := stats[t.Container]; ok {
 		applyDockerStats(s, row)
 	}
-
-	collectProbe(ctx, c.client, s, t.ProbeURL)
-	collectStatus(ctx, c.client, s, t.StatusURL)
 }
 
 // markContainerMetricsAbsent records the same reason against every metric the

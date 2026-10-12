@@ -3,6 +3,8 @@ package telemetry
 import (
 	"bytes"
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -699,5 +701,61 @@ func TestParseDockerTime(t *testing.T) {
 					tc.in, got)
 			}
 		})
+	}
+}
+
+type blockingFakeDocker struct {
+	fakeDocker
+}
+
+func (b *blockingFakeDocker) ExecScript(ctx context.Context, container, script string) (string, error) {
+	<-ctx.Done()
+	return "", ctx.Err()
+}
+
+func TestProbeAndStatusCollectedEvenWhenExecScriptTimesOut(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/healthz":
+			w.WriteHeader(http.StatusOK)
+		case "/status":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"queue_depth": 5, "goroutines": 10}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	bfd := &blockingFakeDocker{*newFakeDocker()}
+	bfd.states["c1"] = ContainerState{Status: "running", Running: true}
+
+	var buf bytes.Buffer
+	sink := NewWriterSink(&buf)
+	c, err := New(Options{
+		Targets: []Target{{
+			Node:      "n1",
+			Container: "c1",
+			ProbeURL:  srv.URL + "/healthz",
+			StatusURL: srv.URL + "/status",
+		}},
+		Sink:           sink,
+		CollectTimeout: 50 * time.Millisecond,
+		Docker:         bfd,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	samples := c.SampleRound(context.Background())
+	if len(samples) != 1 {
+		t.Fatalf("want 1 sample, got %d", len(samples))
+	}
+	s := samples[0]
+	if s.Probe == nil || !s.Probe.OK {
+		t.Fatalf("probe was not collected or failed: %+v", s.Probe)
+	}
+	if qd, ok := s.QueueDepth(); !ok || qd != 5 {
+		t.Fatalf("QueueDepth() = %d (ok=%v), want 5", qd, ok)
 	}
 }

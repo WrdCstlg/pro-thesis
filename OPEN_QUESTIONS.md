@@ -3819,3 +3819,32 @@ argv schedule that differs from it, including none, narrows the run. Item H1 of
 
 **Evidence retention.** The two run bundles exist only in `testdata/kvfixture/.prothesis/runs` on the
 build host. This entry cites them; AGENTS.md section 5 lists them as never to be deleted.
+
+---
+
+## OQ-086: slow in-container ExecScript starved published HTTP probe and status sampling within round deadlines
+
+**Classification:** RESOLVED in the product (2026-10-12).
+
+**Observed.** `Collector.sampleTarget` (`internal/telemetry/collector.go`) executed `docker.ExecScript`
+(which runs an in-container shell script reading `/sys/fs/cgroup` memory, CPU and tasks) before
+calling `collectProbe` (HTTP `/healthz`) and `collectStatus` (HTTP `/status`). On hosts where `docker
+exec` has high latency or times out within the round's `CollectTimeout` (e.g. 50 ms), the round context
+was exhausted during exec, and probe and status collection never ran.
+
+**Consequence.** Health and queue-depth metrics were omitted from the sample. This silently weakened or
+disabled the refusals `resource_return_to_baseline` and `no_unbounded_queue` (KP-001, KP-002). In
+D-099's gaming baseline, those two refusals were measured as the only defenses holding four separate
+attacks (B1, B7b, B9, B10) from reporting false PASSes.
+
+**Fix.** `collectProbe` and `collectStatus` are invoked at the start of `sampleTarget`, before any
+in-container exec.
+
+**Trade-off, honestly stated.** On an exec-starved host, the timeout will now fall on `ExecScript`
+rather than the HTTP probes. That direction is strictly preferable: `markContainerMetricsAbsent`
+already cleanly records absent cgroup metrics with a descriptive reason, while starving probe and
+status silently blinded the harness to service health and queue recovery.
+
+**Verification.** Pinned by `TestProbeAndStatusCollectedEvenWhenExecScriptTimesOut`. With the reorder
+reverted, the test fails with `context deadline exceeded` on the probe; restored, `internal/telemetry`
+passes 103/103.
