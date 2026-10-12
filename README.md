@@ -248,7 +248,10 @@ environment it inherits is covered (OQ-076). `thesis search --strategy` override
 `search.strategy` without drift and without narrowing the run, so such a run can still report
 PASS with the lock `ok` (OQ-081). Nor is the fault schedule of `thesis run`: it comes only from
 `--fault`, so the same profile run without it passes the planted defect with exit `0` and the lock
-`ok` (OQ-085, measured). The lock is a review aid, not a sandbox: see
+`ok` (OQ-085, measured). A deleted lock does not block `thesis run` either: the run records the
+lock as `absent` and goes on, and only `thesis oracles verify` refuses it (D-037). The gaming
+benchmark measures all of these against the planted defect (D-099). The lock is a review aid, not
+a sandbox: see
 [Security model](#security-model).
 
 ---
@@ -538,7 +541,7 @@ are open today, and how to report a new one, are in [`SECURITY.md`](SECURITY.md)
 ## The ledgers
 
 - [`DECISIONS.md`](DECISIONS.md): every non-obvious choice, with what was rejected and why,
-  D-001 through D-098. D-094 and D-095 are withdrawn by D-096.
+  D-001 through D-099. D-094 and D-095 are withdrawn by D-096.
 - [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md): every requirement that could not be met as written,
   every defect found, and what was measured about it, OQ-001 through OQ-085. Entries are never
   deleted; a resolution is appended.

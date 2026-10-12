@@ -3865,3 +3865,81 @@ fresh worktree does not have. The second group is the landmine AGENTS.md section
 shrunk corpus turns those PASSes into SKIPs, and until this change nothing on the build host said so.
 
 **Attribution.** Recorded by Claude Opus 5.5 on 2026-10-12. Not reviewed.
+
+## D-099: the gaming benchmark, and what it measured on the planted-defect build
+
+**What this adds.** `scripts/gaming-benchmark.ps1`, item G1 of `docs/design/10-hardening.plan.md`:
+the catalogue of the plan's Appendix B as a script. Every attack runs against the reference fixture
+built with its planted defect, so an exit 0 is a false PASS by construction. Each attack is scored
+REFUSED (the exit code Appendix B expects once the plan has landed), FALSE PASS (exit 0), HELD (any
+other non-zero code), or NOT MEASURED (with the reason), together with how many worlds passed and
+which oracles came back other than `ok`. The script exits 0 only when every attack was measured and
+refused. Every file an attack changes is restored, and the restore is verified by hash.
+
+**Departures from the plan's wording.** It is a new script, not an extension of
+`scripts/adversarial.ps1`: those probes pass today and the README cites them, and attacks expected
+to fail would turn that suite red. It is not yet wired into CI: CI runs only in the public
+repository until the author acts on D-097's ruling 5, and a job that stays red until Phase 1 lands
+belongs with that decision. Appendix B's B6 and B7 are split (B6a, B6b, B7a, B7b), and B7c is added.
+
+**A conflict for the author: B7b and D-037.** Appendix B expects deleting the lock to be refused.
+D-037 rules that an absent lock does not block `thesis run` and is never a `verify` pass. B7b
+measures what that allows when something was in fact weakened: the lock deleted, the driver switched
+to the smoke workload, the full gate run under the leader partition. B7c measures D-037's safeguard,
+`thesis oracles verify` with the lock deleted. Whether `thesis run` should refuse a missing lock,
+and how a project's first run would then work, is the author's ruling. Until it is made, the
+benchmark scores B7b against Appendix B.
+
+**Measured.** Two full passes on 2026-10-12, with binaries built by `scripts/build.ps1` at
+`2508ccb` (dirty 1: the then-uncommitted benchmark script), the planted-defect image, and Docker
+29.1.3. The first pass ran an earlier version of the script that scored by the run's exit code
+alone, taking 827.6 s; its outcomes are relabelled below from its exit codes by the rule above, and
+its world counts are given only where the result files were read. The second pass ran this commit's
+script, taking 888.3 s; its output is `docs/observations/2026-10-12-GAMING-BASELINE/benchmark.json`.
+Run ids are `r_2026_10_12_` followed by the suffix shown.
+
+| Attack | Expected | First pass | Second pass |
+|---|---|---|---|
+| B5 swap the driver profile in `prothesis.yaml` | 4 | 4 | 4 |
+| B6a widen a lock-covered fault budget | 4 | 4 | 4 |
+| B6b remove a built-in oracle | 4 | 4 | 4 |
+| B7a garble the lock's digest | 4 | 4 | 4 |
+| B7b delete the lock, weaken the workload | 4 or 5 | 0, FALSE PASS (`fe26`) | 1, HELD, 0 of 2 worlds passed (`613e`) |
+| B7c delete the lock, run `oracles verify` | 4 | 4 | 4 |
+| B3 fewer worlds than the profile | 2 | 2 (`2177`) | 2 (`5873`) |
+| B4 shorter budget than the profile | 2 or 3 | 3 (`41b8`) | 2 (`7e37`) |
+| B1 omit `--fault` | 1 | 0, FALSE PASS (`8135`) | 2, HELD, 3 of 5 passed (`9a2a`) |
+| B2 fault scheduled after the load | 1, 2 or 5 | 1 (`efc5`) | 1 (`38c0`) |
+| B8 an always-ok checker | 4 | 0, FALSE PASS (`695c`) | 0, FALSE PASS, 5 of 5 (`c17a`) |
+| B9 a driver running the smoke workload | 4 | 2, HELD, 4 of 5 (`1e7b`) | 0, FALSE PASS, 5 of 5 (`2b2a`) |
+| B10 `PROTHESIS_OPS=300` | 4 or 5 | 2, HELD, 4 of 5 (`7304`) | 0, FALSE PASS, 5 of 5 (`880c`) |
+| B12 driver killed at 1.5 s | 2 | 2, 0 of 5 (`3014`) | 2, 0 of 5 (`b072`) |
+| B14 harness panic | 2, with a verdict in the run directory | 2, verdict in the working directory, schema `prothesis/v1` | the same |
+| B11, B13, B15 | 2 | not measured | not measured (reasons in the JSON) |
+
+Second pass: `REFUSED: 9 of 15 measured; HELD: 3; FALSE PASS: 3; NOT MEASURED: 3`, and 18 of the
+31 worlds the attacks ran passed on the planted-defect build. `thesis diagnose` over the nineteen
+bundles of both passes (and one earlier trial of the script) attributed every non-terminal outcome,
+exit 0: KP-001 7, KP-002 2, KP-003 9, KP-008 4, KP-009 1, KP-012 5.
+
+**What the two passes show.**
+
+- The attacks on lock-covered keys (B5, B6a, B6b, B7a), D-037's safeguard (B7c) and narrowing (B3,
+  B4) are refused in both passes, as designed.
+- B8 is a false PASS in both (OQ-057).
+- B1, B7b, B9 and B10 change between FALSE PASS and HELD from one pass to the next. Nothing that
+  separates the two is a defence: in each HELD run, the outcomes that kept the PASS away were
+  refusals the known-problem registry already accepts (KP-001, `resource_return_to_baseline` has no
+  usable telemetry baseline; KP-002, `no_unbounded_queue` lacks the samples it needs), or, in B7b's
+  second pass, a world in which the defect happened to surface. The gate's protection against these
+  four attacks is currently chance.
+- B12 is refused in both passes, by KP-003 (`no_stuck_op` cannot judge when QUIESCE is shorter than
+  its SLO ceiling), a by-design refusal triggered by the operations the killed driver left open. It
+  is not the driver's exit code being read: OQ-077 is still open.
+- B14's exit code is right and its verdict is not where a reader looks, nor in a schema
+  `schema.UnmarshalVerdict` accepts (OQ-082).
+
+**Retention.** The nineteen bundles are in `testdata/kvfixture/.prothesis/runs` on the build host.
+This entry cites them; AGENTS.md section 5 lists them as never to be deleted.
+
+**Attribution.** Recorded by Claude Opus 5.5 on 2026-10-12. Not reviewed.
