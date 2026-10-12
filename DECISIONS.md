@@ -3773,3 +3773,51 @@ the verdict. This applies AGENTS.md section 9 to these entries by name.
 model A. This entry was drafted on 2026-10-10 by model B; its attribution was corrected, and the change
 committed, on 2026-10-11 by a separate session, the one that reviewed `8c76a57` before it was
 committed. Neither is independent review of this entry.
+
+## D-097: the hardening plan is adopted, with the author's ten rulings and the persona instantiation
+
+**What this records.** On 2026-10-12 the author adopted `docs/design/10-hardening.plan.md`,
+accepted the Recommendation column of its section 3 as written, and approved the persona
+instantiation in its Appendix A as drafted. The author also set the scope of the first run (Phase
+0, then stop and report) and its working method (a branch in the building session's own worktree,
+merged by the author).
+
+**The rulings.**
+
+1. The gate's fault schedule lives in the run profile, lock-covered. An argv schedule that differs
+   from it, including none, narrows the run under D-059's rule.
+2. A target opts into an end-of-history completeness record through a lock-covered driver key. An
+   undeclared target is unchanged.
+3. The fields that say what a PASS checked arrive as verdict schema v2. A v1 verdict stays
+   readable, with those fields null.
+4. The checker and the driver are locked by their source closure (the files `go list -deps`
+   names, `go.mod`, `go.sum` and the toolchain). A binary whose stamp disagrees with it is exit 4
+   under a strict mode that CI uses.
+5. CI for the private repository: a self-hosted runner on the build host for the live job, and
+   GitHub-hosted runners for unit and lint if the cost is acceptable.
+6. `master` on `origin` is protected: a pull request, the author's approval, required checks.
+7. The persona instantiation in the plan's Appendix A is approved.
+8. The third target is a system whose correct answer under a partition is PASS.
+9. A trial is one world. INCONCLUSIVE and BUDGET_EXHAUSTED worlds are not trials. This fixes the
+   confirmation statistic (OQ-054) and the retention floor (OQ-070).
+10. The candidate fixes `15358c0` (OQ-080), `7f5ee3c` (OQ-081) and `7cda379` (OQ-082), and the
+    uncommitted OQ-077 work in the author's working tree, are reviewed under the plan's rule 3.
+    The known defects of `7cda379` are fixed, not accepted.
+
+**What waits on the author.** Rulings 5 and 6 are repository settings and spending that only the
+author can make. Until they exist, the plan's enforcement items P2 and P3 wait, and its process
+rules hold only as far as the sessions that read them follow them.
+
+**The working method, from this entry on (the plan's rule 6).** Each agent session works in its
+own `git worktree` on its own branch, and only the author merges to `master`. AGENTS.md section 7
+now says so.
+
+**A correction carried with this change.** The README's authorship section said that every
+commit's `Co-Authored-By` trailer names the model. `15358c0`, `7f5ee3c` and `7cda379` carry no
+trailer (D-096). The README now says so.
+
+**Measured for this change.** Documentation only. The ledger citation test, the em dash audit and
+`gofmt -l` were run on this commit's tree; their output is in the commit message.
+
+**Attribution.** Recorded by Claude Opus 5.5 on 2026-10-12, the session that drafted the plan. The
+rulings are the author's, given to that session. Not reviewed.

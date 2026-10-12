@@ -38,7 +38,7 @@ ways depending on the order containers happened to bind.
 **The ledgers are the memory.** `DECISIONS.md` is append-only: supersede an entry by adding a
 new one that cites it, never by editing the old text. `OPEN_QUESTIONS.md` records *measured*
 weaknesses. Every `D-0xx` / `OQ-0xx` citation must resolve; a test enforces it
-(`internal/ledger`). Next free ids: **D-0xx (097)**, **OQ-0xx (085)**, spelled that way on
+(`internal/ledger`). Next free ids: **D-0xx (098)**, **OQ-0xx (085)**, spelled that way on
 purpose. The citation test matches `\b(?:OQ|D)-\d{3}[a-z]?\b` in every `.go`, `.md`, `.yaml`, `.yml`,
 `.ps1` and `.py` file, so writing a not-yet-allocated id in its real form anywhere fails the suite
 until the heading exists. Add the heading in the same change, or do not write the id.
@@ -228,6 +228,12 @@ More than one agent system has worked in this tree at the same time, and one has
 another's uncommitted work. Before editing: `git status --short` and check file mtimes. If a file changed
 since you read it, stop and diff it rather than overwriting. If the working tree contains changes
 you did not make, say so instead of committing them blind.
+
+**Work in your own worktree (D-097).** Each agent session creates its own `git worktree` on its own
+branch, cut from `master`, and commits there; only the author merges to `master`. Put the worktree
+outside a temporary directory, or the host's Application Control policy refuses the test binaries
+(section 2). On 2026-10-10 two sessions shared one working tree, and a revert, a new fix and
+formatting edits ended up interleaved in it, partly staged.
 
 ---
 
