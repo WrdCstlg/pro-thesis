@@ -53,6 +53,15 @@ A false PASS is the failure this project exists to prevent, so these come first.
   (the fixture's `loadgen` honours `PROTHESIS_CLIENTS`, `PROTHESIS_OPS`, `PROTHESIS_KEYS` and
   `PROTHESIS_MIX_*`). The driver's program is fingerprinted like the checker's, with the same
   warning.
+- **A deleted lock does not stop `thesis run` (D-037; measured in D-099).** The run warns, records
+  `oracle_lock.status: "absent"`, and goes ahead, so deleting the lock and then weakening the
+  workload produced exit 0 on the planted defect in one of two passes. `thesis oracles verify`
+  refuses a missing lock with exit 4, and CI runs it before any world. Whether `run` should refuse
+  too awaits the author's ruling.
+- **Several attacks are held only by chance (D-099).** Omitting the faults, deleting the lock,
+  swapping the driver for a lighter one, and shrinking the workload through `PROTHESIS_OPS` each
+  produced a false PASS in one of two passes. When they did not, what stopped them was a refusal the
+  known-problem registry already accepts (KP-001, KP-002), not a defence.
 
 ## Where the harness can fail quietly
 
