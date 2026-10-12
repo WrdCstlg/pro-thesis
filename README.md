@@ -538,7 +538,7 @@ are open today, and how to report a new one, are in [`SECURITY.md`](SECURITY.md)
 ## The ledgers
 
 - [`DECISIONS.md`](DECISIONS.md): every non-obvious choice, with what was rejected and why,
-  D-001 through D-097. D-094 and D-095 are withdrawn by D-096.
+  D-001 through D-098. D-094 and D-095 are withdrawn by D-096.
 - [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md): every requirement that could not be met as written,
   every defect found, and what was measured about it, OQ-001 through OQ-085. Entries are never
   deleted; a resolution is appended.
