@@ -9,6 +9,31 @@ wrong; the reason is given so you can tell when the rule applies.
 
 ---
 
+## 0. Before any work: read the decisions (D-101)
+
+The author's global rule (Global Rules section 10, at the end of this file), applied here. Before
+your first edit, and before you propose a plan:
+
+1. Read this file.
+2. List the headings of `DECISIONS.md` and `OPEN_QUESTIONS.md` (`Select-String '^## (D|OQ)-'`).
+   Read in full every entry added since the last commit you know of; a new session reads at least
+   the ten most recent decisions. Read in full every entry cited by the files you will touch.
+3. Read `docs/design/10-hardening.plan.md`. It is the work in flight, and D-097 records the
+   rulings it rests on.
+4. Run `git status --short`, `git log --oneline -10`, `git worktree list` and
+   `git ls-remote origin master`. Sessions of other models work in their own worktrees at the same
+   time (section 7).
+5. Name the entries you read, by id, in your first report.
+
+Until you have done this you may read files and run offline checks, but make no edit, commit or
+push. When you make or receive a decision, record it in `DECISIONS.md` in the same change that acts
+on it: a decision that exists only in a chat is lost to the next session. Every entry carries an
+`APPROVED BY:` line naming the human instruction, or `nobody, pending` when no human approved it;
+agent confidence is not approval. Two sessions that skipped this step on 2026-10-12 recorded opposite
+answers from the author to the same question, under the same id (D-100; see D-101).
+
+---
+
 ## 1. Engineering doctrine: not negotiable
 
 **Every fix ships with a failing-first test.** Write the test, watch it fail, then fix. Then
@@ -38,7 +63,7 @@ ways depending on the order containers happened to bind.
 **The ledgers are the memory.** `DECISIONS.md` is append-only: supersede an entry by adding a
 new one that cites it, never by editing the old text. `OPEN_QUESTIONS.md` records *measured*
 weaknesses. Every `D-0xx` / `OQ-0xx` citation must resolve; a test enforces it
-(`internal/ledger`). Next free ids: **D-0xx (101)**, **OQ-0xx (087)**, spelled that way on
+(`internal/ledger`). Next free ids: **D-0xx (102)**, **OQ-0xx (087)**, spelled that way on
 purpose. The citation test matches `\b(?:OQ|D)-\d{3}[a-z]?\b` in every `.go`, `.md`, `.yaml`, `.yml`,
 `.ps1` and `.py` file, so writing a not-yet-allocated id in its real form anywhere fails the suite
 until the heading exists. Add the heading in the same change, or do not write the id.
@@ -266,7 +291,7 @@ No model is named here on purpose: the ranking changes, and the rule should not.
 that did the work in the commit body's prose, exactly as the tool reports it; the
 `Co-Authored-By` trailer that used to carry this was discontinued by D-100 (2026-10-12).
 
-<!-- GLOBAL-RULES v3 PUBLIC-SAFE BEGIN (2026-10-09). The public form of the portfolio standard v3 (2026-10-07), for repositories that are published. -->
+<!-- GLOBAL-RULES v3 PUBLIC-SAFE BEGIN (2026-10-09). The public form of the portfolio standard v3 (2026-10-07), for repositories that are published. Section 10 added 2026-10-13 (D-101). -->
 ## Global Rules (portfolio standard v3)
 
 > Project-specific rules elsewhere in this file add to these and may be stricter. If one contradicts a rule below, stop and ask. Never pick one silently.
@@ -345,4 +370,17 @@ Local: deleting or overwriting user files outside `scratch/` requires confirmati
   Verification worth keeping is promoted into the test suite.
 - Remove worktrees you created with `git worktree remove`, and their branches with `git branch -d` (never `-D`) once merged.
   Ask before removing anything unmerged.
+
+### 10. Decisions are recorded, and every session reads them first (adopted 2026-10-12)
+- Every decision that binds later work (a ruling the user gives, a design choice, a change of process, an alternative
+  rejected) is recorded in the repo's decision record in the same change that acts on it: `DECISIONS.md` if the repo has
+  one, otherwise its ADR or spec location, otherwise a new `DECISIONS.md`. A decision that exists only in a chat is not
+  recorded. Supersede an entry with a new one that cites it; never edit an old one. Each entry names who approved it
+  (`APPROVED BY:` and the human instruction, or `nobody, pending`); agent confidence is not approval.
+- Before its first edit, and before proposing a plan, every session of every model and tool reads: the repo's AGENTS.md;
+  the headings of every entry in the decision record; in full, the entries added since the last commit it knows of (a new
+  session: at least the ten most recent) and every entry the files it will touch cite; then `git status`, `git log` and
+  `git worktree list`, because another session may be mid-change.
+- The session's first report names the entries it read, by id. Until it has done this, a session may read and run
+  offline checks, but makes no edit, commit or push.
 <!-- GLOBAL-RULES v3 PUBLIC-SAFE END -->

@@ -492,8 +492,9 @@ had not been built around.
 ### Who did what
 
 This was a collaboration, and the repository does not try to draw a line through it. Every
-commit is under the author's git identity, and its `Co-Authored-By` trailers record the AI agents
-that worked on it; nothing in the history hides either party. The decisions, and the reasons for
+commit is under the author's git identity. Until D-100 its `Co-Authored-By` trailers recorded the
+AI agents that worked on it; since D-100 the commit body names them instead. Nothing in the history
+hides either party. The decisions, and the reasons for
 them, are in the ledgers. The project was developed in a private repository; its full commit
 history is available on request.
 
@@ -544,7 +545,7 @@ are open today, and how to report a new one, are in [`SECURITY.md`](SECURITY.md)
 ## The ledgers
 
 - [`DECISIONS.md`](DECISIONS.md): every non-obvious choice, with what was rejected and why,
-  D-001 through D-100. D-094 and D-095 are withdrawn by D-096.
+  D-001 through D-101. D-094 and D-095 are withdrawn by D-096.
 - [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md): every requirement that could not be met as written,
   every defect found, and what was measured about it, OQ-001 through OQ-086. Entries are never
   deleted; a resolution is appended.
@@ -578,7 +579,7 @@ tree, not asserted:
   hardening plan and recorded D-097 through D-099; Gemini 3.8 Flash built the Phase 1 items H1
   and H2 and the OQ-086 telemetry reorder; Kimi Code CLI arbitrated Phase 0 and the Phase 1
   publication ([`docs/reviews/`](docs/reviews/)) and remediated the documentation drift that work
-  left behind. The author reviewed, redirected and
+  left behind; Claude Opus 5.5 recorded D-101. The author reviewed, redirected and
   rejected throughout: the pivot from "drive the corpus to zero inconclusive" to "every recorded
   refusal must attribute to a known problem" (D-082) was his instruction, and the system changed
   course because of it.

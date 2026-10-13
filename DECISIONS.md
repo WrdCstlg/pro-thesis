@@ -3961,3 +3961,57 @@ none.
 
 **Attribution.** Recorded by Kimi Code CLI on 2026-10-12, in the arbitration session, on the
 owner's explicit ruling given in chat the same day.
+
+## D-101: every decision is recorded with its approval, and every session reads the decisions before it works
+
+**The rule.** The author's global rule of 2026-10-12, for every session of every model and tool, in
+every repository, applied here:
+
+1. **Record every decision.** A decision that binds later work (a ruling the author gives, a design
+   choice, a change of process, an alternative rejected) is written into DECISIONS.md in the same
+   change that acts on it. A decision that exists only in a chat is not recorded. An entry is
+   superseded by a new one that cites it, never edited. Every entry carries an `APPROVED BY:` line
+   naming the human instruction, or `nobody, pending` when no human approved it; agent confidence is
+   not approval.
+2. **Read the decisions before working.** Before its first edit, and before proposing a plan, a
+   session reads AGENTS.md, the headings of every entry in DECISIONS.md and OPEN_QUESTIONS.md, in
+   full the entries added since the last commit it knows of (a new session: at least the ten most
+   recent decisions) and every entry cited by the files it will touch, and then `git status`,
+   `git log`, `git worktree list` and the head of `origin`.
+3. **Say what you read.** The session's first report names the entries it read, by id. Until then
+   it may read and run offline checks, but makes no edit, commit or push.
+
+**Why.** Between 16:15 on 2026-10-12 and 00:21 on 2026-10-13, commits from three tools (Claude
+Opus 5.5, Gemini 3.8 Flash and Kimi Code CLI, per their trailers and commit bodies) reached `master`,
+and up to three further worktrees were open at once (`git log`, `git worktree list`). Two of those
+sessions recorded opposite answers from the author to the same question about trailers: this
+session wrote "PRO-THESIS keeps trailers" at 23:01 on a branch that was never merged
+(`rules/decision-review`, `d2ef2ff`), and the arbitrating session wrote "no trailers" as D-100,
+committed at 00:18 and published. Neither record was visible to the other session, and both used
+the id D-100.
+
+**Trailers: D-100 stands.** On 2026-10-13 the author ruled, in this session: no trailers. D-100
+governs, and its text is unchanged. This entry supplies the `APPROVED BY` line D-100 lacks, below.
+The branch that recorded the earlier answer is not merged; its rule is carried here as D-101.
+
+**What goes into the register.** Every decision that binds later work, the author's and the agents'
+alike, with its approval marked (the author's answer of 2026-10-12 to this session). Of the
+user-level instruction files on the build host, `~/.claude/CLAUDE.md` says the same;
+`~/.codex/AGENTS.md` records only the owner's decisions, and does not govern this repository.
+
+**Where it is written.** AGENTS.md section 0, the session-start list, and section 10 of the Global
+Rules block. The user-level instruction files (`~/.claude/CLAUDE.md`, `~/.gemini/GEMINI.md`,
+`~/.codex/AGENTS.md`) were written by another session between 22:12 and 22:15 on 2026-10-12 and are
+left as written. No user-level instruction file was found for Kimi Code, which reads AGENTS.md. Other
+repositories are unchanged; the author chose that scope.
+
+**What this does not do.** Nothing enforces the rule mechanically. A session can still skip the
+reading; the rule makes the skip visible, because its first report has to name what it read.
+Mechanical enforcement is the plan's items P2 to P4, which wait on D-097's rulings 5 and 6.
+
+**APPROVED BY:** the author. The global rule and its scope: the session of 2026-10-12, "this is a
+global rule", with the scope chosen in answer to that session's question. The register policy: the
+same session's question, answered 2026-10-12. No trailers, which also approves D-100: this session,
+2026-10-13, "no trailers. I don't want these anymore."
+
+**Attribution.** Recorded by Claude Opus 5.5 on 2026-10-13. Not reviewed.
