@@ -4077,3 +4077,22 @@ in the public so swap"); the deletion after it ("sounds good"); and this record 
 designer/author").
 
 **Attribution.** Recorded by Claude Opus 5.5 on 2026-10-13. Not reviewed.
+
+## D-103 UPDATE: faultline is published from its own repository, and the stray branch is deleted
+
+Done on 2026-10-13, after the author's go-ahead:
+
+- `WrdCstlg/faultline` was created, public. `publish/main` (`9495744`) was pushed as its `main`, which
+  is its default branch and its only ref (`git ls-remote`). `ed1cc04` is not on GitHub
+  (`gh api repos/WrdCstlg/faultline/commits/ed1cc04`: "No commit found").
+- The `faultline` branch was deleted from `public` (`git push public --delete faultline`). `public`
+  now carries `master` and the tag `v0.1.0-phase0` only.
+- faultline's local `main` was moved onto that history with `git reset --keep 9495744`. Its fourteen
+  uncommitted entries are the same list before and after, and `main` tracks `origin/main`.
+
+Not done: protecting faultline's `main` the way this repository's two `master`s are protected. The
+command was refused by the agent tool's permission check, and that step waits on the author.
+
+**APPROVED BY:** the author, 2026-10-13: "go".
+
+**Attribution.** Recorded by Claude Opus 5.5 on 2026-10-13. Not reviewed.
