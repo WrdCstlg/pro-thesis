@@ -1,22 +1,24 @@
 {
   "schema": "prothesis.lock/v1",
   "manifest_sha": "sha256:73620572379643a24678fdb424e734b460ab0577ca22f5d99a8e28311141da84",
-  "reason": "profiles.linear.faults and profiles.stale.faults put the gate's fault schedule under the lock (item H1, D-097 ruling 1)",
-  "locked_at": "2026-10-12T22:18:19Z",
+  "reason": "re-locked from a clean scripts/build.ps1 build of fc68976 (docs-only remediation commit); the H1 re-lock recorded digests a clean rebuild of 2bd7efe does not reproduce; no checker or driver source changed (D-072)",
+  "locked_at": "2026-10-13T04:20:52Z",
   "tool_version": "0.1.0-phase0",
   "builtin_options_fingerprint": "sha256:ca5cba3edb828e29bd4b1357c9ff2d86ae2e3eb6a6bd009a2430b076304064bf",
   "executables": [
     {
       "oracle": "driver.cmd",
       "cmd": "./bin/etcdload --history {history_path} --seed {seed} --profile {profile}",
-      "resolved": "./bin/etcdload",
-      "unresolved": "no file at ./bin/etcdload (a PATH lookup or an unbuilt program resolves at run time and cannot be fingerprinted here)"
+      "resolved": "bin/etcdload.exe",
+      "sha256": "sha256:80d4cb9a19f737234eb6c8fc4441b498af5116f81fcc61ee337fdcaf339ff455",
+      "size": 10477568
     },
     {
       "oracle": "linearizable.kv",
       "cmd": "./bin/linearizable-kv",
-      "resolved": "./bin/linearizable-kv",
-      "unresolved": "no file at ./bin/linearizable-kv (a PATH lookup or an unbuilt program resolves at run time and cannot be fingerprinted here)"
+      "resolved": "bin/linearizable-kv.exe",
+      "sha256": "sha256:687d21b4d5981dbb350790b60a587c9293cf32e6056ddee2af39ff4f7f523364",
+      "size": 4933632
     }
   ],
   "covers": [
