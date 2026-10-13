@@ -4015,3 +4015,65 @@ same session's question, answered 2026-10-12. No trailers, which also approves D
 2026-10-13, "no trailers. I don't want these anymore."
 
 **Attribution.** Recorded by Claude Opus 5.5 on 2026-10-13. Not reviewed.
+
+## D-102: `origin` stays public, its `master` is protected like `public`'s, and both remotes are kept
+
+**What happened.** `origin` (`piercepartners/Pro-synthesis`) was measured private on 2026-10-09
+(`gh repo view`, `isPrivate: true`) and public on 2026-10-12 (the arbitration record) and 2026-10-13.
+When and by whom it was made public is not established: GitHub's event feed for the repository
+records a public event only at its creation, on 2026-09-13, and none for the recent change. `fc68976`
+rewrote AGENTS.md section 6 to say the author published it on 2026-10-12, with no ledger entry.
+
+**What it exposes, measured 2026-10-13.** `master` and the tag `v0.1.0-phase0`: 35 commits, the same
+content `public` serves. Every author and committer is the noreply address. `git log -G` over every
+commit, for API and cloud keys, private keys, access tokens, home-directory paths, personal e-mail
+addresses, regulated-material wording and the other organisation names, found nothing, and no file named like a
+secret ever existed. There are 0 issues, 0 pull requests, 0 releases, 0 artifacts, no repository
+secrets, no wiki and 0 forks; its 33 workflow runs are all `skipped`. The private archives of the
+pre-squash history remain private.
+
+**Decision.** `origin` stays public. Its `master` now has the protection `public`'s has: no
+force-push and no deletion, administrators included (read back with `gh api`:
+`enforce_admins: true`, `allow_force_pushes: false`, `allow_deletions: false`). Issues, projects and
+the wiki are switched off on `origin`, so that `public` is where the project is discussed. Both
+remotes are kept, and every push to either is a publication (AGENTS.md section 6). This is not D-097's
+ruling 6, which also asks for pull requests and required checks; that still waits on ruling 5's CI.
+
+**APPROVED BY:** the author, 2026-10-13, in this session: "stays public"; the protection and the
+switches ("cool"); keeping both remotes ("that is fine").
+
+**Attribution.** Recorded by Claude Opus 5.5 on 2026-10-13. Not reviewed.
+
+## D-103: another project's commits were published here as a branch; that project moves to a public repository of its own
+
+**What happened.** The local repository of faultline, a separate project of the author's, had one
+remote, named `public`, pointing at `WrdCstlg/pro-thesis`. On 2026-10-07, at 00:10 and 01:35 UTC by
+this repository's event feed, four faultline commits were pushed here as a branch named `faultline`
+(tip `7a0ecfc`), sharing no history with `master`, and have been public since. It was found on
+2026-10-13, by `git ls-remote public`, while evaluating another session's report.
+
+**What it exposed, measured 2026-10-13.** 45 files of a TypeScript project, authored by the noreply
+address. The same `git log -G` scan as D-102, over its four commits, found nothing, and no file named
+like a secret ever existed in them. A fifth, local-only faultline commit (`ed1cc04`) carries the
+portfolio rules in their private form; it was never pushed. A sweep of the remotes of all 33 local
+repositories with one found no other remote pointing at this project's repositories.
+
+**Decision, and what is done.**
+
+1. Done 2026-10-13: faultline's remote is renamed `WRONG-pro-thesis`; `git push public main` from it
+   now fails.
+2. Prepared 2026-10-13, not yet published: faultline's branch `publish/main` (`9495744`) is its four
+   public commits plus one that adds the public-safe rules in place of `ed1cc04` and records
+   faultline's D-026. Its scrub: 5 commits, every identity the noreply address, every pattern above
+   clean in content and messages, no secret-named file; `bun run gate` exit 0, `bun run typecheck`
+   exit 0, `bun test` 216 pass, 0 fail. It is published to a public repository of its own after the
+   author's go-ahead on the destination (Global Rules section 6).
+3. After that repository holds faultline's history, the `faultline` branch is deleted from
+   `public`. Deleting it does not recall six days of exposure; the exposed content was found clean.
+
+**APPROVED BY:** the author, as system designer, 2026-10-13, in this session: acting in faultline
+("I authorize you to choose the faultline session"); a public home with the public-safe rules ("sits
+in the public so swap"); the deletion after it ("sounds good"); and this record ("approved by system
+designer/author").
+
+**Attribution.** Recorded by Claude Opus 5.5 on 2026-10-13. Not reviewed.

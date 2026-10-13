@@ -63,7 +63,7 @@ ways depending on the order containers happened to bind.
 **The ledgers are the memory.** `DECISIONS.md` is append-only: supersede an entry by adding a
 new one that cites it, never by editing the old text. `OPEN_QUESTIONS.md` records *measured*
 weaknesses. Every `D-0xx` / `OQ-0xx` citation must resolve; a test enforces it
-(`internal/ledger`). Next free ids: **D-0xx (102)**, **OQ-0xx (087)**, spelled that way on
+(`internal/ledger`). Next free ids: **D-0xx (104)**, **OQ-0xx (087)**, spelled that way on
 purpose. The citation test matches `\b(?:OQ|D)-\d{3}[a-z]?\b` in every `.go`, `.md`, `.yaml`, `.yml`,
 `.ps1` and `.py` file, so writing a not-yet-allocated id in its real form anywhere fails the suite
 until the heading exists. Add the heading in the same change, or do not write the id.
@@ -238,8 +238,8 @@ at 3 by accident.
   private development repository until the author published it on 2026-10-12; `public`
   (`WrdCstlg/pro-thesis`) has always been public. Every push to either is a publication: before
   any push, confirm the range contains no secrets, regulated material, client-identifying
-  material or unfiled IP. `public`'s `master` refuses force-pushes and deletion, so nothing
-  published there can be rewritten.
+  material or unfiled IP. Both `master`s refuse force-pushes and deletion, administrators
+  included (`origin`'s since D-102), so nothing published on either can be rewritten.
 - **State the destination before every commit and push**, and get explicit approval. Measure
   visibility with `gh repo view <owner>/<repo> --json isPrivate` rather than assuming it, and
   verify each remote with `git ls-remote` after pushing.
