@@ -246,9 +246,11 @@ load generator's program is fingerprinted the same way, as `driver.cmd`, and is 
 same reason (D-090). Neither the workload a driver compiles in for a profile name nor the
 environment it inherits is covered (OQ-076). `thesis search --strategy` overrides the locked
 `search.strategy` without drift and without narrowing the run, so such a run can still report
-PASS with the lock `ok` (OQ-081). Nor is the fault schedule of `thesis run`: it comes only from
-`--fault`, so the same profile run without it passes the planted defect with exit `0` and the lock
-`ok` (OQ-085, measured). A deleted lock does not block `thesis run` either: the run records the
+PASS with the lock `ok` (OQ-081). The fault schedule of `thesis run` is covered since item H1:
+it lives in the lock-covered run profile (`profiles.<name>.faults`), and an argv schedule that
+differs from it, including `--no-faults`, narrows the run under D-059 so it cannot report PASS
+(D-097 ruling 1; OQ-085 closed, measured by attack B1 turning from a false PASS into exit `1`).
+A deleted lock does not block `thesis run` either: the run records the
 lock as `absent` and goes on, and only `thesis oracles verify` refuses it (D-037). The gaming
 benchmark measures all of these against the planted defect (D-099). The lock is a review aid, not
 a sandbox: see
@@ -311,12 +313,13 @@ digests the open weaknesses that bear on what a verdict means; every open entry 
 [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md).
 
 - **A PASS is not yet as strong as the design intends.** A driver that fails or is killed at the
-  drain deadline is not folded into the world's outcome, so a truncated history is judged as if it
-  were complete (OQ-077). Nothing checks that the load overlapped a realized fault, and
-  `verdict.json` does not say how many faults landed or how many operations were judged (OQ-078).
-  And no fault is required at all: omitting `--fault` passes the planted defect (OQ-085). Until
-  these close, a PASS means "every oracle that ran was satisfied", and the history it judged is
-  trusted to be whole.
+  drain deadline now makes the world INCONCLUSIVE (item H2; OQ-077, first half), but a history
+  truncated on a record boundary is still judged as if complete until H3 lands (OQ-077, second
+  half). Nothing checks that the load overlapped a realized fault, and `verdict.json` does not
+  say how many faults landed or how many operations were judged (OQ-078). The fault schedule
+  itself is under the lock since H1, and omitting `--fault` no longer passes the planted defect
+  (OQ-085, closed). Until the rest closes, a PASS means "every oracle that ran was satisfied",
+  and the history it judged is trusted to be whole.
 - **The guided search has never influenced a decision.** Across all 30 recorded Saboteur runs,
   `informed_selections` is `0`: the utility the tree exists to accumulate has never been read to
   choose anything, because an unvisited child scores `+Inf` and the budgets never exceeded the
@@ -541,9 +544,9 @@ are open today, and how to report a new one, are in [`SECURITY.md`](SECURITY.md)
 ## The ledgers
 
 - [`DECISIONS.md`](DECISIONS.md): every non-obvious choice, with what was rejected and why,
-  D-001 through D-099. D-094 and D-095 are withdrawn by D-096.
+  D-001 through D-100. D-094 and D-095 are withdrawn by D-096.
 - [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md): every requirement that could not be met as written,
-  every defect found, and what was measured about it, OQ-001 through OQ-085. Entries are never
+  every defect found, and what was measured about it, OQ-001 through OQ-086. Entries are never
   deleted; a resolution is appended.
 
 ---
@@ -564,14 +567,18 @@ tree, not asserted:
   model may build and which may arbitrate ([`AGENTS.md`](AGENTS.md) section 9).
 - **The agents wrote the code and tests** under those specifications. Every commit's
   `Co-Authored-By` trailer names the model exactly as the tool reported it, except three commits of
-  2026-10-10 that carry none (D-096): Claude Opus 5,
+  2026-10-10 that carry none (D-096), and every commit from D-100 (2026-10-12) on, which carry
+  none under the owner's global rule and name the model in the commit body instead: Claude Opus 5,
   Claude Opus 5 (1M context) and Claude Fable 5.1 through v0.1.0; Kimi Code CLI for the test
   protocol adoption D-081, the attribution system D-082/D-083 and the clustering engine D-084;
   Claude Opus 5 (1M context) for D-085 to D-088; Claude Opus 5.5 (1M context) for D-089 to D-092,
   the recordings and this page; Claude Opus 5.5 for D-093; Gemini 3.8 Flash on D-088, D-089 and
   D-092, and Gemini 2.5 Pro on D-089. For D-094 to D-096 the author withheld the model names: D-096,
   which withdraws D-094 and D-095, calls them model A and model B. Claude Opus 5.5 drafted the
-  hardening plan and recorded D-097 onward. The author reviewed, redirected and
+  hardening plan and recorded D-097 through D-099; Gemini 3.8 Flash built the Phase 1 items H1
+  and H2 and the OQ-086 telemetry reorder; Kimi Code CLI arbitrated Phase 0 and the Phase 1
+  publication ([`docs/reviews/`](docs/reviews/)) and remediated the documentation drift that work
+  left behind. The author reviewed, redirected and
   rejected throughout: the pivot from "drive the corpus to zero inconclusive" to "every recorded
   refusal must attribute to a known problem" (D-082) was his instruction, and the system changed
   course because of it.

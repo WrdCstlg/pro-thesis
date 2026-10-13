@@ -13,17 +13,17 @@ Each *would close it* below is the entry's own proposal, not scheduled work.
 
 A false PASS is the failure this project exists to prevent, so these come first.
 
-- **No fault is required, so omitting `--fault` passes the planted defect (OQ-085).** The fault
-  schedule of `thesis run` comes only from argv, and the lock does not cover it. Measured: the
-  planted-defect build, the full `linear` profile, no `--fault`: exit 0, PASS, lock `ok`, zero faults
-  realized in all five worlds. *Would close it:* the schedule in the lock-covered run profile, with
-  any different argv schedule treated as narrowing (D-097, ruling 1).
-- **A driver that fails or is killed is not folded into the world's outcome (OQ-077).** No code
-  reads the driver's result when scoring a world, and the fixture's history writer can be cut
-  cleanly on a record boundary. A shortened history is judged as if it were complete: losing
-  trailing reads can hide a stale read. *Would close it:* score a driver that exited non-zero, was
-  killed, or did not drain as INCONCLUSIVE, and end every history with a record count the harness
-  checks.
+- **CLOSED (H1, OQ-085): omitting `--fault` no longer passes the planted defect.** The fault
+  schedule lives in the lock-covered run profile (`profiles.<name>.faults`); an argv schedule
+  that differs from it, or `--no-faults`, narrows the run under D-059, so a clean result is
+  INCONCLUSIVE and a run under the locked schedule catches the defect. Measured closed: gaming
+  benchmark attack B1, exit 1 with a witnessed violation (run `r_2026_10_12_4151`,
+  `docs/reviews/2026-10-12-phase1-publication-verification.md`).
+- **A truncated history is still judged as complete (OQ-077, second half open).** The first
+  half closed with item H2: a driver that never started, missed the drain deadline or exited
+  non-zero on its own now makes the world INCONCLUSIVE. What remains is a history cut cleanly
+  on a record boundary by a well-behaved driver. *Would close it:* end every history with a
+  record count the harness checks (H3).
 - **Nothing checks that the load overlapped the fault (OQ-078).** A world is scored from oracle
   findings alone, and `verdict.json` records no fault count, operation count or list of the
   oracles evaluated. A PASS with zero faults realized and three seconds of load has the same
@@ -58,10 +58,11 @@ A false PASS is the failure this project exists to prevent, so these come first.
   workload produced exit 0 on the planted defect in one of two passes. `thesis oracles verify`
   refuses a missing lock with exit 4, and CI runs it before any world. Whether `run` should refuse
   too awaits the author's ruling.
-- **Several attacks are held only by chance (D-099).** Omitting the faults, deleting the lock,
+- **Several attacks are held only by chance (D-099).** Deleting the lock,
   swapping the driver for a lighter one, and shrinking the workload through `PROTHESIS_OPS` each
   produced a false PASS in one of two passes. When they did not, what stopped them was a refusal the
-  known-problem registry already accepts (KP-001, KP-002), not a defence.
+  known-problem registry already accepts (KP-001, KP-002), not a defence. Omitting the faults was
+  in this group until H1 closed it (attack B1 now refuses with exit 1).
 
 ## Where the harness can fail quietly
 
