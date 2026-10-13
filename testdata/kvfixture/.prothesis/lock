@@ -1,8 +1,8 @@
 {
   "schema": "prothesis.lock/v1",
   "manifest_sha": "sha256:699a1a3960b206980105ecda20a406e3ea4a6309c05225e087cb1b68da06dbc8",
-  "reason": "profiles.linear.faults puts the gate's fault schedule under the lock (item H1, D-097 ruling 1). Executables updated with fresh build stamp.",
-  "locked_at": "2026-10-12T22:18:12Z",
+  "reason": "re-locked from a clean scripts/build.ps1 build of fc68976 (docs-only remediation commit); the H1 re-lock recorded digests a clean rebuild of 2bd7efe does not reproduce; no checker or driver source changed (D-072)",
+  "locked_at": "2026-10-13T04:20:37Z",
   "tool_version": "0.1.0-phase0",
   "builtin_options_fingerprint": "sha256:ca5cba3edb828e29bd4b1357c9ff2d86ae2e3eb6a6bd009a2430b076304064bf",
   "executables": [
@@ -10,14 +10,14 @@
       "oracle": "driver.cmd",
       "cmd": "./bin/loadgen --history {history_path} --seed {seed} --profile {profile}",
       "resolved": "bin/loadgen.exe",
-      "sha256": "sha256:2f4b7f454ba1aa86bff87b9653de8d0b0e832a8f3d7178493a5a2b2cb00d6ada",
+      "sha256": "sha256:9347ec7b163d050a98072020322a7d5c5085e4d6497dd53810044da40851c388",
       "size": 10180096
     },
     {
       "oracle": "linearizable.kv",
       "cmd": "./bin/linearizable-kv",
       "resolved": "bin/linearizable-kv.exe",
-      "sha256": "sha256:eb98e14ae5e579fc73a08ede3445de72698167b54edc3459cae0c54812aa0029",
+      "sha256": "sha256:cd3cd3b8b155d642428c902a0264c0d6db27565480d4cf7339005bdeac509d8e",
       "size": 4925440
     }
   ],
