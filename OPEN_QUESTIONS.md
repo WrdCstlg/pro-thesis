@@ -3823,6 +3823,13 @@ marks the budget narrowed under D-059's rule (`budget.Narrowed = true`), ensurin
 `INCONCLUSIVE` (exit 2) and `oracle_lock: bypassed` instead of PASS. Re-locked `testdata/kvfixture`
 and `targets/etcd` under `profiles.linear.faults`. Pinned by `TestEditingTheProfileScheduleWithoutRelockIsDrift`
 in `internal/lock` and 4 contract tests in `internal/control/profile_faults_test.go`.
+
+**Review (2026-10-12, arbitrating session; not the builder).** Independently re-measured after
+the fact: gaming benchmark attack B1 (omit `--fault`) now scores REFUSED with exit 1 on the
+planted-defect build, the locked schedule injected and `linearizable.kv` violated, 0 of 1 worlds
+passed, 35.6 s (run `r_2026_10_12_4151`). The review also flagged that the README and
+KNOWN-ISSUES text describing this hole was not updated in the H1 change; remediated in the same
+change that adds this note. Record: `docs/reviews/2026-10-12-phase1-publication-verification.md`.
 **What would close it.** D-097, ruling 1: the schedule moves into the lock-covered run profile, and an
 argv schedule that differs from it, including none, narrows the run. Item H1 of
 `docs/design/10-hardening.plan.md` names the tests; attack B1 of its benchmark repeats the second run.
@@ -3859,6 +3866,13 @@ status silently blinded the harness to service health and queue recovery.
 reverted, the test fails with `context deadline exceeded` on the probe; restored, `internal/telemetry`
 passes 103/103.
 
+**Review (2026-10-12, arbitrating session; not the builder).** The change and its test were
+reviewed and independently mutation-tested before this entry existed, as uncommitted work: with
+the reorder reverted the test fails ("probe was not collected ... context deadline exceeded"),
+restored it passes (`internal/telemetry` 103 pass, 0 fail, exit 0). The review flagged that the
+work was unaccounted (no OQ entry, outside D-097 ruling 10's review list); this entry is that
+accounting. Record: `docs/reviews/2026-10-12-phase0-arbitration.md`, section 3b.
+
 ---
 
 ## OQ-077 MITIGATED, NOT RESOLVED: driver outcome folded into world outcome (item H2)
@@ -3886,3 +3900,10 @@ With the fix in place, all 115 unit tests in `internal/control` pass (0 fail, 2 
 **What remains open (second half).** History truncation on a record boundary remains undetectable
 without target cooperation. That is item H3 of the plan ("Make history truncation detectable, by
 declaration").
+
+**Review (2026-10-12, arbitrating session; not the builder).** The folded-outcome logic was
+reviewed and independently mutation-tested as uncommitted work before it landed: with the fix
+reverted, both refusal tests fail (outcome "pass", exit 0) while the control passes; restored,
+`internal/control` is 115 pass, 0 fail, 2 skip, exit 0. The review noted the plan's fixed H2 test
+names differed from the candidate's; the landed commit uses the plan's names. Record:
+`docs/reviews/2026-10-12-phase0-arbitration.md`, section 3a.

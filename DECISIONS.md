@@ -3943,3 +3943,21 @@ exit 0: KP-001 7, KP-002 2, KP-003 9, KP-008 4, KP-009 1, KP-012 5.
 This entry cites them; AGENTS.md section 5 lists them as never to be deleted.
 
 **Attribution.** Recorded by Claude Opus 5.5 on 2026-10-12. Not reviewed.
+## D-100: Co-Authored-By trailers are discontinued; attribution moves to commit body prose
+
+**Decision (owner, 2026-10-12).** The owner's new global rule of 2026-10-12
+(`~/.claude/CLAUDE.md`: "Never add Co-Authored-By or model-attribution trailers to commits in
+these repositories") governs over this repository's AGENTS.md sections 6 and 9, which required
+the trailer. The conflict was put to the owner by the arbitrating session before any commit
+under the new rule, and the owner ruled: no trailer. Model attribution moves to the commit
+body's prose and to the README's authorship section, which continue to record which model
+built what. Commits before this entry keep their trailers; stripping them from history would
+rewrite published history, which section 6 forbids.
+
+**What this changes here.** AGENTS.md sections 6 and 9 and the README's authorship section are
+amended in the same change that records this entry. Past entries' claims that every commit
+carries a trailer were already qualified once (D-096's three); commits from this entry on carry
+none.
+
+**Attribution.** Recorded by Kimi Code CLI on 2026-10-12, in the arbitration session, on the
+owner's explicit ruling given in chat the same day.

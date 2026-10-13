@@ -38,7 +38,7 @@ ways depending on the order containers happened to bind.
 **The ledgers are the memory.** `DECISIONS.md` is append-only: supersede an entry by adding a
 new one that cites it, never by editing the old text. `OPEN_QUESTIONS.md` records *measured*
 weaknesses. Every `D-0xx` / `OQ-0xx` citation must resolve; a test enforces it
-(`internal/ledger`). Next free ids: **D-0xx (100)**, **OQ-0xx (087)**, spelled that way on
+(`internal/ledger`). Next free ids: **D-0xx (101)**, **OQ-0xx (087)**, spelled that way on
 purpose. The citation test matches `\b(?:OQ|D)-\d{3}[a-z]?\b` in every `.go`, `.md`, `.yaml`, `.yml`,
 `.ps1` and `.py` file, so writing a not-yet-allocated id in its real form anywhere fails the suite
 until the heading exists. Add the heading in the same change, or do not write the id.
@@ -209,16 +209,18 @@ at 3 by accident.
 
 ## 6. Commits and pushes
 
-- **Development is private; publishing is deliberate.** In the author's working copy, `origin` is
-  the private development repository and routine pushes go there only. The public repository
-  (`WrdCstlg/pro-thesis`, remote `public`) receives `git push public master` only when the author
-  says to publish. Its `master` refuses force-pushes and deletion, so nothing published can be
-  rewritten. Nothing that names the private repository belongs in a tracked file.
+- **Both remotes are public since 2026-10-12.** `origin` (`piercepartners/Pro-synthesis`) was the
+  private development repository until the author published it on 2026-10-12; `public`
+  (`WrdCstlg/pro-thesis`) has always been public. Every push to either is a publication: before
+  any push, confirm the range contains no secrets, regulated material, client-identifying
+  material or unfiled IP. `public`'s `master` refuses force-pushes and deletion, so nothing
+  published there can be rewritten.
 - **State the destination before every commit and push**, and get explicit approval. Measure
   visibility with `gh repo view <owner>/<repo> --json isPrivate` rather than assuming it, and
   verify each remote with `git ls-remote` after pushing.
-- Cite the ledger ids you touched in the commit subject, and keep the `Co-Authored-By` trailer.
-  Do not strip trailers or otherwise hide agent authorship.
+- Cite the ledger ids you touched in the commit subject. Since D-100 (2026-10-12) commits carry
+  NO `Co-Authored-By` trailer, per the owner's global rule; name the model in the commit body's
+  prose instead. Never strip existing trailers from history or otherwise hide agent authorship.
 - Never force-push a published branch without explicit instruction.
 
 ---
@@ -261,7 +263,8 @@ The author's ruling of 2026-09-20 (D-076, ruling 7): **model selection follows t
   your report who that was, or that nobody has yet.
 
 No model is named here on purpose: the ranking changes, and the rule should not. Record the model
-that did the work in the commit's `Co-Authored-By` trailer, exactly as the tool reports it.
+that did the work in the commit body's prose, exactly as the tool reports it; the
+`Co-Authored-By` trailer that used to carry this was discontinued by D-100 (2026-10-12).
 
 <!-- GLOBAL-RULES v3 PUBLIC-SAFE BEGIN (2026-10-09). The public form of the portfolio standard v3 (2026-10-07), for repositories that are published. -->
 ## Global Rules (portfolio standard v3)
