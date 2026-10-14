@@ -30,11 +30,13 @@ A false PASS is the failure this project exists to prevent, so these come first.
   shape as a PASS under a leader partition; one such run was measured. *Would close it:* score a
   faulted world with no operation in flight during any realized fault window as INCONCLUSIVE, and
   add `faults_realized`, `ops_judged` and `oracles_evaluated` to the verdict.
-- **The checker leaves the register's initial value open (OQ-079).** The first read may
-  establish any value, which is right for a history that starts mid-stream and buys nothing for
-  the harness's own worlds, which boot fresh volumes. A missing `t_ns` also decodes as 0 with no
-  check. *Would close it:* a known-empty initial state when volumes were fresh, and the history
-  validator run before the oracle.
+- **The checker leaves the register's initial value open (OQ-079; H6a fixes the timestamp half, unreviewed).**
+  The first read may establish any value. That is right for a history that starts mid-stream, and
+  because the harness's worlds do not reliably boot on fresh storage (OQ-087), it is also what keeps
+  a world that boots on an earlier world's data from being reported as a violation. A record with no
+  `t_ns` no longer loads as 0: the checker refuses it as INCONCLUSIVE (H6a, D-104; not yet reviewed
+  by a session that did not build it). *Would close it:* a known-empty initial state, claimed only
+  where the harness can show fresh storage and the target declares that it starts empty (H6b).
 - **`thesis search --strategy` is not treated as narrowing (OQ-081).** The command-line strategy
   overrides the locked `search.strategy`, and D-059's narrowing rule covers only `--budget` and
   `--worlds`, so such a run can report PASS with the lock `ok`. *Would close it:* treat the
@@ -63,9 +65,20 @@ A false PASS is the failure this project exists to prevent, so these come first.
   produced a false PASS in one of two passes. When they did not, what stopped them was a refusal the
   known-problem registry already accepts (KP-001, KP-002), not a defence. Omitting the faults was
   in this group until H1 closed it (attack B1 now refuses with exit 1).
+- **The etcd target's programs are built by no script (OQ-088).** They come from a plain
+  `go build`, without the build stamp or the reproducible flags, so what they were built from
+  cannot be read back, and the lock's last reason for them said they came from a clean build.
+  *Would close it:* build them in `scripts/build.ps1` and re-lock from that.
 
 ## Where the harness can fail quietly
 
+- **Teardown can leave a world's volumes behind without saying so (OQ-087).** Every serial world
+  of a checkout boots under one compose project, so a volume that survives teardown is the next
+  world's storage. `Down` runs compose from the working directory with a relative file name, while
+  `up` runs from the project directory; started elsewhere, `compose down` fails, the label sweep
+  removes containers and networks only, and teardown reports success. Read from the code, not
+  reproduced. *Would close it:* run `down` from where `up` ran, sweep volumes by label, and check at
+  BOOT that the project has none.
 - **A failure to write `verdict.json` is discarded (OQ-080).** On a full disk, which this
   repository has suffered once, the run exits with its verdict code and leaves no verdict file.
   *Would close it:* exit 2 when the verdict cannot be written.
