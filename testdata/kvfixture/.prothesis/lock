@@ -1,8 +1,8 @@
 {
   "schema": "prothesis.lock/v1",
   "manifest_sha": "sha256:699a1a3960b206980105ecda20a406e3ea4a6309c05225e087cb1b68da06dbc8",
-  "reason": "re-locked from a clean scripts/build.ps1 build of fc68976 (docs-only remediation commit); the H1 re-lock recorded digests a clean rebuild of 2bd7efe does not reproduce; no checker or driver source changed (D-072)",
-  "locked_at": "2026-10-13T04:20:37Z",
+  "reason": "linearizable-kv.exe rebuilt from 91f5e8f, whose source changed: the checker refuses an operation record with no t_ns (H6a, OQ-079, D-104); loadgen.exe moved only by its stamp; both from a clean scripts/build.ps1 -Verify build, dirty=0, two builds byte-identical (D-072)",
+  "locked_at": "2026-10-14T09:39:00Z",
   "tool_version": "0.1.0-phase0",
   "builtin_options_fingerprint": "sha256:ca5cba3edb828e29bd4b1357c9ff2d86ae2e3eb6a6bd009a2430b076304064bf",
   "executables": [
@@ -10,15 +10,15 @@
       "oracle": "driver.cmd",
       "cmd": "./bin/loadgen --history {history_path} --seed {seed} --profile {profile}",
       "resolved": "bin/loadgen.exe",
-      "sha256": "sha256:9347ec7b163d050a98072020322a7d5c5085e4d6497dd53810044da40851c388",
+      "sha256": "sha256:b1139c10677b8dfa930540ce32faec4c6da65b2cdaef80ee990b4e7dfab90312",
       "size": 10180096
     },
     {
       "oracle": "linearizable.kv",
       "cmd": "./bin/linearizable-kv",
       "resolved": "bin/linearizable-kv.exe",
-      "sha256": "sha256:cd3cd3b8b155d642428c902a0264c0d6db27565480d4cf7339005bdeac509d8e",
-      "size": 4925440
+      "sha256": "sha256:5b2ffd297b35d095461aa1ab88695c453d9b42078827198676ef1ee2b4bc650c",
+      "size": 4926976
     }
   ],
   "covers": [
