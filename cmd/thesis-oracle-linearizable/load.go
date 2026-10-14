@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -202,6 +203,14 @@ func readHistory(r io.Reader, path string, deadline time.Time) (*loaded, error) 
 				hr.LineNo(), path, e.Type, e.F)
 		}
 		id := *e.OpID
+		if !hasTimestamp(hr.Raw()) {
+			return nil, refuse("line %d of %s (op_id %d, type %q) carries no t_ns. The record decodes "+
+				"with a timestamp of 0, the epoch, and an operation placed there is not the one the "+
+				"system performed: a missing invoke time widens the interval and can hide a violation, "+
+				"and a missing completion time collapses it and can witness one that never happened. "+
+				"This checker will not guess when an operation ran (OQ-079)",
+				hr.LineNo(), path, id, e.Type)
+		}
 		ro := raw[id]
 		if ro == nil {
 			ro = &rawOp{id: id}
@@ -243,6 +252,22 @@ func readHistory(r io.Reader, path string, deadline time.Time) (*loaded, error) 
 		return nil, err
 	}
 	return buildOperations(raw, order, path, c)
+}
+
+// hasTimestamp reports whether a raw history line carries a non-null t_ns.
+//
+// schema.HistoryEntry decodes t_ns into a plain int64, so an absent key, a null
+// and a recorded 0 all arrive as 0. Only the raw line can tell them apart. A
+// recorded 0 is an observation and is kept; the other two are absences.
+func hasTimestamp(line []byte) bool {
+	var probe struct {
+		TNS json.RawMessage `json:"t_ns"`
+	}
+	if err := json.Unmarshal(line, &probe); err != nil {
+		return false
+	}
+	v := bytes.TrimSpace(probe.TNS)
+	return len(v) > 0 && !bytes.Equal(v, []byte("null"))
 }
 
 // ---------------------------------------------------------------------------

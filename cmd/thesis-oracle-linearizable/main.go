@@ -17,8 +17,8 @@
 //	              that exhausted the space for one key and found nothing. Never
 //	              from a timeout, never from a budget, never from a parse error.
 //	inconclusive  every refusal. An empty history, a multi-key operation, an
-//	              unparseable record, a missing op_id, an exhausted budget, a
-//	              history with no determinate reads.
+//	              unparseable record, a missing op_id, a missing t_ns, an
+//	              exhausted budget, a history with no determinate reads.
 //	ok            only when every key's search ran to completion and found a
 //	              linearization, and there was real evidence to check.
 //

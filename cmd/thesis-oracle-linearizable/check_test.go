@@ -374,6 +374,58 @@ func TestRecordWithNoOpIDIsInconclusive(t *testing.T) {
 	wantMentions(t, got, "carries no op_id")
 }
 
+// OQ-079, H6. schema.HistoryEntry decodes t_ns into a plain int64, so a record
+// with no t_ns used to load as 0, the epoch. On an ok completion that is a FALSE
+// VIOLATION: the return is clamped up to the invoke, the interval collapses to a
+// point, and a read that really overlapped the write is ordered after it. W2's
+// completion below lost its t_ns; with its real timestamp the history is
+// linearizable (the control arm), without it the checker used to witness a
+// failure that never happened.
+func TestAMissingTimestampIsInconclusiveNotZero(t *testing.T) {
+	base := func() []rec {
+		return cat(
+			wOK(1, "k", 10, 11, "1"),
+			wPending(2, "k", 12, "2"),
+			rOK(3, "k", 13, 14, "1"),
+		)
+	}
+
+	t.Run("control: the same history with the completion's real timestamp", func(t *testing.T) {
+		got := run1(t, base(), `{"t_ns":20,"process":0,"type":"ok","f":"write","key":"k","value":2,"op_id":2}`)
+		wantStatus(t, got, schema.StatusOK)
+	})
+
+	refused := []struct {
+		name string
+		recs []rec
+		line string
+	}{
+		{"an ok completion with no t_ns", base(),
+			`{"process":0,"type":"ok","f":"write","key":"k","value":2,"op_id":2}`},
+		{"an ok completion with t_ns null", base(),
+			`{"t_ns":null,"process":0,"type":"ok","f":"write","key":"k","value":2,"op_id":2}`},
+		{"an invoke with no t_ns", cat(
+			wOK(1, "k", 10, 11, "1"),
+			rOK(3, "k", 13, 14, "1"),
+			[]rec{{t: 20, proc: 0, typ: schema.HistoryOK, f: "write", key: "k", val: "2", id: 2}},
+		), `{"process":0,"type":"invoke","f":"write","key":"k","value":2,"op_id":2}`},
+	}
+	for _, tc := range refused {
+		t.Run(tc.name, func(t *testing.T) {
+			got := run1(t, tc.recs, tc.line)
+			wantStatus(t, got, schema.StatusInconclusive)
+			wantMentions(t, got, "carries no t_ns", "op_id 2")
+		})
+	}
+
+	// Presence is what is refused, not the value 0: this suite's own histories
+	// start at t_ns 0, and a recorded 0 is an observation, not an absence.
+	t.Run("a recorded t_ns of 0 is not refused as missing", func(t *testing.T) {
+		got := run1(t, cat(wOK(1, "k", 0, 1, "1"), rOK(2, "k", 2, 3, "1")))
+		wantStatus(t, got, schema.StatusOK)
+	})
+}
+
 func TestDuplicateInvokeIsInconclusive(t *testing.T) {
 	got := run1(t, []rec{
 		{t: 0, proc: 1, typ: schema.HistoryInvoke, f: "read", key: "k", id: 1},

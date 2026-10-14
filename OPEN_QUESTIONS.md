@@ -3907,3 +3907,116 @@ reverted, both refusal tests fail (outcome "pass", exit 0) while the control pas
 `internal/control` is 115 pass, 0 fail, 2 skip, exit 0. The review noted the plan's fixed H2 test
 names differed from the candidate's; the landed commit uses the plan's names. Record:
 `docs/reviews/2026-10-12-phase0-arbitration.md`, section 3a.
+
+---
+
+## OQ-079 UPDATE (D-104): a missing `t_ns` is refused by the checker; the initial-state half stays open, and its premise does not hold
+
+**Classification:** OPEN. The missing-timestamp half is fixed in the checker (item H6a, split from H6
+of `docs/design/10-hardening.plan.md` by D-104) and has not been reviewed by a session that did not
+build it. The initial-state half is not addressed (item H6b).
+
+**What was measured first.** "Loads as 0" understates the defect. On an `ok` completion a missing
+`t_ns` collapses the operation's interval to a point (the loader clamps the return up to the invoke,
+`load.go`), and the checker can then witness a violation that never happened.
+`TestAMissingTimestampIsInconclusiveNotZero` (`cmd/thesis-oracle-linearizable/check_test.go`): W1
+writes 1 over [10, 11], W2 writes 2 and is invoked at 12, R3 reads 1 over [13, 14]. With W2's
+completion at its real time, 20, the history is linearizable (the control arm). Measured with
+`pwsh -File scripts/run-tests.ps1 -Match cmd/thesis-oracle-linearizable -Run TestAMissingTimestampIsInconclusiveNotZero`:
+
+- before the fix: `status = "violated", want "inconclusive"` with the completion's `t_ns` absent and
+  with it `null`, and `status = "ok", want "inconclusive"` with the invoke's absent;
+  `TESTS: 2 pass, 4 fail, 0 skip`, exit 1;
+- with the fix: `TESTS: 6 pass, 0 fail, 0 skip`, exit 0;
+- with the fix disabled again (`if false && !hasTimestamp(...)`): the same three failures,
+  `TESTS: 2 pass, 4 fail, 0 skip`, exit 1. Restored before commit.
+
+**The fix.** `readHistory` refuses an operation record whose line carries no `t_ns`, or `t_ns: null`,
+as INCONCLUSIVE, naming the line and the op_id (`hasTimestamp`, `load.go`). `schema.HistoryEntry`
+decodes `t_ns` into a plain `int64`, so only the raw line (`HistoryReader.Raw`) can tell an absence
+from a 0. A recorded 0 is kept: it is an observation, and this checker's own suite builds histories
+from 0. Marker records are not checked, because the checker skips them. Measured 2026-10-14: every
+non-blank line of the five committed histories (35,626 lines) carries a numeric `t_ns`, so no
+recorded run's answer changes.
+
+**Why not the history validator before the oracle.** D-104.
+
+**The initial-state half.** Its premise, that every world the harness runs boots fresh volumes, does
+not hold in the code (OQ-087). The checker's undetermined initial value is what keeps a world that
+boots on an earlier world's data from being reported as a violation, so it must not be narrowed until
+the harness can show that a world's storage was fresh. Item H6b keeps the three test names the plan
+fixed for it.
+
+---
+
+## OQ-087: the harness does not give every world fresh storage, and teardown can leave a world's volumes behind without saying so
+
+**Classification:** OPEN; read from the code 2026-10-14, not measured live.
+
+**Observed.**
+
+- Both reference targets keep their data on named volumes (`testdata/kvfixture/docker-compose.yaml:39-42`,
+  `targets/etcd/docker-compose.yaml:33-36`), and the fixture reloads its Raft state and log from them
+  when it boots (`testdata/kvfixture/internal/raft/raft.go:127-136`).
+- Every serial world of a checkout boots under one compose project name. `newWorldSpec` sets no
+  project (`internal/control/runner.go:620-628`), so `Up` derives one from the config name and the
+  compose file's path (`internal/harness/compose.go:51-58`, `:84-87`). A parallel run names one
+  project per slot, and every world on that slot reuses it (`internal/control/parallel.go:552`).
+  Volume names are scoped to the project, so a volume that outlives one world is the next world's
+  storage.
+- Nothing at BOOT checks that the project has no volumes before `compose up` (`compose.go:113-114`).
+- `Down` runs compose from `filepath.Dir(top.ComposeFile)` with the relative file name the config
+  gives (`compose.go:238`, `:252`; recorded at `:103`), while `Up` runs from the project directory
+  (`:113`). Started from any other directory, `compose down` cannot find the file. The label sweep
+  that follows removes containers and networks only (`compose.go:280-303`), and `Down` returns nil
+  when nothing it sweeps remains (`:263-269`). The named volumes stay, and no error is reported.
+
+**Consequence.** OQ-079 and `docs/KNOWN-ISSUES.md` said that every world boots fresh volumes; the code
+does not guarantee it. A world can boot on an earlier world's data, which the fixture replays, and the
+fixture's driver writes values that do not depend on the seed
+(`testdata/kvfixture/cmd/loadgen/main.go:536`), so residue cannot be told apart by value. Today the
+checker's undetermined initial value absorbs that; a checker told "empty" would report it as a
+violation. OQ-043 measured 285 stale project volumes, twelve per affected run, with the cause not
+established. The directory mismatch is a candidate cause, not a measured one.
+
+**What would close it.** Reproduce it first: a run started from outside the project directory, then
+`docker volume ls`. Then run `compose down` from the directory `up` used, or with absolute file
+paths; sweep volumes by label, as OQ-043 proposed; and check at BOOT that the project has no volumes
+before `up`, recording the result in the world, so that item H6b can claim an empty initial state
+only when it holds.
+
+---
+
+## OQ-088: the etcd target's checker and driver binaries are built by no script, and the lock's last reason for them is wrong
+
+**Classification:** OPEN; measured 2026-10-14 in the author's working tree.
+
+**Observed.** `scripts/build.ps1` builds `bin/thesis.exe` and the fixture's `linearizable-kv.exe` and
+`loadgen.exe` only (`scripts/build.ps1:121-130`). The etcd target's programs are built with a plain
+`go build` (`targets/etcd/README.md:31-34`, `.github/workflows/ci.yml:140-143`): no `-trimpath`, no
+`-buildvcs=false` and no stamp, so the bytes do not reproduce and the binary cannot say what it was
+built from (D-070, D-072).
+
+**Measured.** In `targets/etcd/bin` of the author's working tree:
+
+- `linearizable-kv.exe`: 4,933,632 bytes, dated 2026-09-14. Its `-version` answers "flag provided
+  but not defined: -version". SHA-256 `687d21b4d5981dbb350790b60a587c9293cf32e6056ddee2af39ff4f7f523364`.
+- `etcdload.exe`: 10,477,568 bytes, dated 2026-09-15, the same answer, SHA-256
+  `80d4cb9a19f737234eb6c8fc4441b498af5116f81fcc61ee337fdcaf339ff455`.
+
+Both digests are what `targets/etcd/.prothesis/lock` records, unchanged since `9f6db60`
+(2026-09-27). `2bd7efe` recorded both programs as unresolved; `800989f` then re-locked the project
+with the reason "re-locked from a clean scripts/build.ps1 build of fc68976", which is true of the
+fixture and not of etcd: it restored these September digests, and no script builds them. The
+checker's source has not changed since the first public commit, and that source answers `-version`,
+so the etcd target's checker was built from source no commit in this repository contains.
+
+**Consequence.** CI builds the etcd programs from source on every run, so its etcd arms are
+unaffected. On the build host, the etcd target runs a checker whose provenance cannot be read back,
+and the lock's record of it says it came from a clean build. That is the false-reason class D-072
+describes.
+
+**What would close it.** `scripts/build.ps1` builds the etcd target's programs with the same flags and
+stamp, and the project is re-locked from that. Item H6a's re-lock (D-104) replaces the etcd checker
+with the fixture's clean build, the same source and flags and therefore the same bytes, and keeps
+`etcdload.exe` as it is, because its source did not change.

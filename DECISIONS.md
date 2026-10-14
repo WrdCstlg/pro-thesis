@@ -4096,3 +4096,51 @@ command was refused by the agent tool's permission check, and that step waits on
 **APPROVED BY:** the author, 2026-10-13: "go".
 
 **Attribution.** Recorded by Claude Opus 5.5 on 2026-10-13. Not reviewed.
+
+## D-104: H6 is split; a missing `t_ns` is refused inside the checker, and the initial-state half becomes its own item
+
+**What this records.** Item H6 of `docs/design/10-hardening.plan.md` (OQ-079) is split in two.
+
+- **H6a**, landed with this entry. The linearizability checker refuses an operation record that
+  carries no `t_ns` as INCONCLUSIVE. Its test is the plan's `TestAMissingTimestampIsInconclusiveNotZero`;
+  the failing-first and mutation output is in OQ-079 UPDATE (D-104). The checker's source moves, so
+  both projects are re-locked from a clean build in the commit that follows (D-072).
+- **H6b**, not started. The oracle input carries the register's initial state, and the checker uses
+  it. It keeps the plan's three test names (`TestAMidStreamHistoryWithUnknownInitialStateIsNotAccused`,
+  `TestAFirstReadOfAFailedWritesValueIsAViolationWhenTheStateIsEmpty`,
+  `TestEmptyInitialStateIsClaimedOnlyWhenFreshVolumesAreProven`). It needs a spec before code: its
+  premise does not hold (OQ-087), and proving "empty" needs new harness behaviour, a volume check at
+  BOOT, together with a declaration by the target, because a volume check cannot see a bind mount,
+  data baked into an image, or an external store.
+
+**Why the refusal is in the checker, not in a history validator run before the oracle.** The plan's
+wording was "run the history validator before the oracle". Three facts rule that out:
+
+1. A refusal by the harness cannot override the checker. A world's outcome is raised to its worst
+   finding, and a violation (rank 5) outranks inconclusive (rank 3) (`internal/control/outcome.go:101-128`,
+   `internal/control/runner.go:1343-1347`). A missing completion timestamp makes the checker report a
+   false VIOLATED (OQ-079 UPDATE (D-104)), so an INCONCLUSIVE added by the harness would be outranked
+   by the very finding it was meant to stop.
+2. `internal/historycheck` cannot tell a missing `t_ns` from a recorded 0 either. It reads the same
+   `int64`, and catches a missing one only through its epoch-range check (`timestamp_not_nanoseconds`),
+   whose message is about units.
+3. It refuses histories the checker accepts by design: a completion with no invoke, a completion
+   timestamped before its invoke, and an invoke that never completed (`internal/historycheck/historycheck.go`;
+   the checker widens, clamps and treats as indeterminate, `load.go`). In front of the oracle it would
+   turn judged worlds INCONCLUSIVE, the failure D-096 recorded for `8c76a57`.
+
+**Rejected.** Refusing `t_ns == 0`: the checker's own suite builds histories from 0, and a recorded 0
+is an observation, not an absence. Making `schema.HistoryEntry.TNS` a pointer: some fifteen packages
+read it, for a check one reader needs, and the raw line is already available (`HistoryReader.Raw`).
+
+**APPROVED BY:** the author, 2026-10-14, in this session. The split: "Split H6 (Recommended)", an
+option whose text named landing the finished timestamp half now, recording the false premise and the
+volume leak as an open question (OQ-087), and the initial-state half as its own item with a spec.
+Local commits to `harden/h6-initial-state`: "Yes, commit locally", with no push and no merge. Placing
+the refusal in the checker rather than the harness was shown to the author as the finished half
+before that answer; it was not put as a separate question. OQ-088 was found while preparing the
+re-lock and was not put to the author.
+
+**Attribution.** Built and recorded by Claude Opus 5.5 on 2026-10-14. Not reviewed. Under the plan's
+rule 3, OQ-079's timestamp half stays OPEN until a session that did not build it has reviewed the
+test, the build and the results.

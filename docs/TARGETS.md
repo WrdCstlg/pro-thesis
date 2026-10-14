@@ -154,7 +154,9 @@ Four rules, each of which exists because breaking it produced a false verdict he
 ## 5. The history, and the rule the whole thing rests on
 
 One JSON object per line. Operation records carry `t_ns` (Unix epoch nanoseconds), `process`,
-`type`, `f`, `key`, `value`, `op_id` and `error` (`pkg/schema/history.go:51`).
+`type`, `f`, `key`, `value`, `op_id` and `error` (`pkg/schema/history.go:51`). Every operation
+record needs its `t_ns`: `linearizable.kv` refuses a record without one as INCONCLUSIVE rather
+than place it at the epoch (OQ-079, D-104).
 
 | `type` | Meaning |
 |---|---|
