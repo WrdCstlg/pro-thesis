@@ -29,3 +29,39 @@ Operator interventions: the worktree had no harness binary, so `scripts/build.ps
 overwrote the fixture's locked checker and driver, which were restored from the locked bytes and
 verified; three one-off `docker run` calls to read `rqlited -version` and `-h`; one retried commit
 (a quoting error; nothing had been committed). No restarts, no manual cleanup, no retried worlds.
+
+## Consul 2.0.4
+
+| | |
+|---|---|
+| Image | `hashicorp/consul:2.0.4@sha256:1c59f007df8ea1c21b2558dc73ef8d99047bc895d9e52e635d1e745e35fe9a54` (BUSL-1.1; used in-house as a test target, nothing redistributed) |
+| Design before the build | not timed |
+| Build to done | 2026-10-19 23:57:56 to 2026-10-20 00:21:08 -04:00: **23 min 12 s** |
+| Review | tests, lock, doctor, image identity and leftovers re-run independently; all reproduced |
+| Configuration | `docker-compose.yaml` 133 lines (66 non-comment), `prothesis.yaml` 94 (42), oracle definition 35 (6, byte-identical to etcd's and rqlite's) |
+| Go | driver 881 lines, role probe 83, steady-state probe 102, shared package 255; tests 718 (driver) and 175 (role probe) |
+| Tests | 42 pass, 0 fail (`scripts/run-tests.ps1 -Match targets/consul`); every test failed against a stub and again under a targeted mutation (11 mutations) |
+| Lock | manifest `sha256:b15b1649...074a`, 52 configuration values; fingerprints the driver and the checker |
+| Smoke world | `r_2026_10_20_9237`: PASS, exit 0; 500 operations (227 reads, 273 writes, all ok), every read at `consistent`; image identity equal to the pin (`eval/tools/check-images.ps1`, exit 0); 0 volumes, containers or networks left |
+| Not exercised live | the default and stale read modes, a leader change, the "No cluster leader" refusal, the health probe's leaderless answer, and a role-probe disagreement |
+
+Design facts that decide later verdicts:
+
+- **Writes go to any node.** A KV write sent to a follower is forwarded to the leader over RPC, and
+  Consul re-sends a forwarded write only on errors raised before the Raft apply ("No cluster
+  leader", the chunking resubmit, the rate limiter), so a forwarded write cannot be applied twice.
+  Read from the v2.0.4 source (`agent/consul/rpc.go` `canRetry` and `forwardRequestToLeader`,
+  `agent/consul/kvs_endpoint.go`); not exercised live.
+- **The server version is checked once per node at start.** Consul sends no version on KV answers,
+  so a node replaced during a run would not be detected.
+- **The health probe is `/v1/operator/raft/configuration` without `?stale`**: it is forwarded to
+  the leader, so it answers 200 only when one is reachable. `/v1/status/leader` was rejected
+  because it answers 200 with an empty body when there is no leader.
+- **`performance.raft_multiplier = 1`** is set in the compose file, which no lock covers (OQ-097).
+
+Contract gaps: none new to the harness contract; OQ-091, OQ-092, OQ-094, OQ-095 and OQ-096 applied
+as for rqlite, OQ-093 checked with the image tool, and OQ-097 recorded from this target.
+
+Operator interventions: one image pull; two throwaway `docker run` calls (`consul version`, the
+entrypoint's licence header). One commit message was wrong and was amended twice before anything
+was pushed; the tree did not change. No restarts, no manual cleanup, no retried worlds.
