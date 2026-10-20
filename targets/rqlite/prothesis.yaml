@@ -1,0 +1,91 @@
+version: prothesis/v1
+name: rqlite
+
+# The third target: upstream rqlite 10.5.3 (a Raft-replicated SQLite with a
+# plain HTTP API), unmodified image pinned by digest, three voting nodes. Its
+# correct answer under a leader partition is PASS at the linearizable and
+# strong read levels; the weak and none levels are documented as weaker. One
+# driver profile per read level, each named by a run profile so the level is
+# lock-covered (D-090, OQ-026).
+#
+# The read level travels in the mix entry's NAME (read_linearizable,
+# read_strong, read_weak, read_none), because a driver profile carries only
+# clients, ops and mix. The driver refuses any other read entry at start-up:
+# rqlite silently treats an unknown level as weak.
+
+harness:
+  backend: compose
+  file: docker-compose.yaml
+  # Container names, the network name and published ports are parameterised
+  # on RQ_PREFIX / RQ_PORT_N*, so a parallel run can give each worker its own
+  # (OQ-056). Host band 14001..14003 by default: clear of the fixture
+  # (18081..18083), etcd (12379..12381) and the parallel worker band (19000+).
+  prefix_env: RQ_PREFIX
+  # `port` is the CONTAINER-side HTTP API port; it defaults to the fixture's
+  # 8080 and rqlite serves on 4001.
+  nodes:
+    - { id: rq-n1, service: rqlite, compose_service: rq-n1, role_hint: replica, port: 4001, port_env: RQ_PORT_N1 }
+    - { id: rq-n2, service: rqlite, compose_service: rq-n2, role_hint: replica, port: 4001, port_env: RQ_PORT_N2 }
+    - { id: rq-n3, service: rqlite, compose_service: rq-n3, role_hint: replica, port: 4001, port_env: RQ_PORT_N3 }
+  health:
+    # /readyz is 200 only when the node knows a leader it can contact and its
+    # store is ready. The explicit timeout bounds the leader contact, which
+    # otherwise defaults to 30 s.
+    - node: "rqlite:*"
+      probe: "http://{host}:{port}/readyz?timeout=2s"
+      timeout: 60s
+  steady_state:
+    # Host-side: every node /readyz with an explicit timeout, and every node's
+    # /nodes?ver=2 naming the same leader.
+    probe: "./bin/rqlitesteady --timeout 55s --request-timeout 2s"
+    timeout: 60s
+  # `role:` targets bind through this probe. It asks every node's
+  # /nodes?ver=2, maps each api_addr to a node id, and REFUSES (non-zero exit)
+  # when the nodes disagree about the leader. Covered by .prothesis/lock
+  # (D-066).
+  role_probe:
+    probe: "./bin/rqliterole --timeout 2s"
+    timeout: 10s
+
+driver:
+  # Every workload parameter is on this line or in the plan the harness writes
+  # from driver.profiles; the driver reads no workload from the environment.
+  # Writes go to the leader only (?redirect, never followed); every response's
+  # X-RQLITE-VERSION must equal --expect-version or the run ends non-zero.
+  cmd: "./bin/rqliteload --history {history_path} --seed {seed} --profile {profile} --plan {plan_path} --expect-version v10.5.3 --keys 8 --timeout 2s --stdin-control"
+  profiles:
+    smoke: { clients: 4, ops: 500, mix: { write: 0.5, read_linearizable: 0.5 } }
+    # `linear` and `strong` are the levels rqlite documents as linearizable:
+    # expected PASS under a leader partition.
+    linear: { clients: 16, ops: 60000, mix: { write: 0.5, read_linearizable: 0.5 } }
+    strong: { clients: 16, ops: 60000, mix: { write: 0.5, read_strong: 0.5 } }
+    # `weak` is rqlite's default level, sent explicitly; `none` reads the
+    # node's local SQLite with no leader check. Both are documented as not
+    # linearizable.
+    weak: { clients: 16, ops: 60000, mix: { write: 0.5, read_weak: 0.5 } }
+    none: { clients: 16, ops: 60000, mix: { write: 0.5, read_none: 0.5 } }
+
+perturber:
+  budget: { max_concurrent_faults: 3, max_faults_per_world: 24 }
+  allow: [net.partition, net.latency, net.loss, proc.kill, proc.pause]
+  deny: [io.fill, io.latency, clock.skew]
+  constraints:
+    - "never partition more than minority of rqlite"
+
+oracles:
+  dir: .prothesis/oracles
+  # The etcd target's built-in set. `no_unbounded_queue` reads the fixture's
+  # /status document, which rqlite's /status does not match, and
+  # `resource_return_to_baseline` is refused often enough on the fixture
+  # (KP-001) to turn a correct system's PASS into chance. Neither has been
+  # measured against rqlite.
+  builtin: [no_crash, no_panic_log, availability_after_heal, no_stuck_op]
+
+profiles:
+  smoke: { budget: 120s, worlds: 1, driver_profile: smoke }
+  linear: { budget: 10m, worlds: 2, driver_profile: linear, faults: ["net.partition(role:leader)@3000..7500"] }
+  strong: { budget: 10m, worlds: 2, driver_profile: strong, faults: ["net.partition(role:leader)@3000..7500"] }
+  weak: { budget: 10m, worlds: 2, driver_profile: weak, faults: ["net.partition(role:leader)@3000..7500"] }
+  none: { budget: 10m, worlds: 2, driver_profile: none, faults: ["net.partition(role:leader)@3000..7500"] }
+
+artifacts: { dir: .prothesis/runs, retain_passing: 3, retain_failing: all }
