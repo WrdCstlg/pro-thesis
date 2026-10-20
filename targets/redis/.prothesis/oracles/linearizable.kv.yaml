@@ -1,0 +1,35 @@
+# prothesis.oracle_def/v1 -- the per-key linearizability checker, pointed at
+# etcd.
+#
+# This is the SAME checker the reference fixture uses, unchanged: the point of
+# a second target is that the oracle was not written for the system under
+# test. It reads the history the driver in this directory writes and decides,
+# per key, whether every read could have returned the value it did.
+#
+# This file is covered by .prothesis/lock. Editing ANY byte of it moves the
+# manifest digest and makes `thesis run` exit 4 (ORACLE_DRIFT) before it boots
+# a topology. Re-locking is a deliberate, human-authored act:
+#
+#     thesis oracles lock --reason "..."
+#
+# The digest covers this definition, not the executable `cmd` names; the
+# lock's `executables` block fingerprints the program outside the digest and a
+# moved one is reported, not refused (D-060, OQ-057).
+
+version: prothesis.oracle_def/v1
+
+name: linearizable.kv
+
+class: consistency
+
+# A register history is only complete once the driver has stopped and the
+# cluster has quiesced (invariant I5). Evidence for a violation routinely sits
+# in DRIVE; `violations[].phase` is resolved from the evidence, not from here.
+valid_phases: [ASSERT]
+
+# Resolved against this directory; the host's .exe suffix is supplied
+# automatically. Build it with
+#     go build -o targets/etcd/bin/linearizable-kv ./cmd/thesis-oracle-linearizable
+cmd: "./bin/linearizable-kv"
+
+timeout: 120s
