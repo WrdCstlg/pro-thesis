@@ -1,0 +1,88 @@
+version: prothesis/v1
+name: redis
+
+# The fourth target: upstream Redis 8.10.2, unmodified image pinned by digest,
+# one primary and two replicas with asynchronous replication, and one Sentinel
+# per node (quorum 2) that fails over when the primary is unreachable. Redis
+# documents that acknowledged writes can be lost when a primary cut off from
+# its replicas keeps accepting them and is then demoted; the `failover` profile
+# partitions the primary to look for exactly that. Only `smoke` has run.
+#
+# Topology lives in docker-compose.yaml. The parts the verdict depends on (the
+# primary at start, the quorum, down-after-milliseconds, failover-timeout) are
+# restated in driver.cmd, which this lock covers, and the driver refuses a
+# world whose Sentinels report anything else, then records what it observed on
+# the history's first record (meta.topology).
+
+harness:
+  backend: compose
+  file: docker-compose.yaml
+  # Container names and the network name are parameterised on RD_PREFIX, and
+  # every published port on its own RD_*_PORT_N* variable. Host bands by
+  # default: RESP 16379..16381, Sentinel 16479..16481, health 16581..16583,
+  # clear of rqlite (14001..14003), etcd (12379..12381), the fixture
+  # (18081..18083), Consul (15501..15503) and the parallel worker band (19000+).
+  prefix_env: RD_PREFIX
+  # `port` is the CONTAINER-side port of the node's HEALTH SHIM, not RESP:
+  # a node declares one port, and harness.health's {port} must reach an HTTP
+  # server. The driver and the probes take RESP and Sentinel addresses from
+  # their own command lines instead (README.md, "Contract gaps").
+  nodes:
+    - { id: redis-n1, service: redis, compose_service: redis-n1, role_hint: primary, port: 8080, port_env: RD_HEALTH_PORT_N1 }
+    - { id: redis-n2, service: redis, compose_service: redis-n2, role_hint: replica, port: 8080, port_env: RD_HEALTH_PORT_N2 }
+    - { id: redis-n3, service: redis, compose_service: redis-n3, role_hint: replica, port: 8080, port_env: RD_HEALTH_PORT_N3 }
+  health:
+    # The shim (cmd/redishealth) answers 200 when the node answers PING with
+    # +PONG and INFO replication names a role, and 503 otherwise.
+    - node: "redis:*"
+      probe: "http://{host}:{port}/health"
+      timeout: 60s
+  steady_state:
+    # Host-side: one primary, two replicas online with their links up, and
+    # three Sentinels naming that primary by runid, each knowing two replicas
+    # and two other Sentinels.
+    probe: "./bin/redissteady --nodes redis-n1=127.0.0.1:16379,redis-n2=127.0.0.1:16380,redis-n3=127.0.0.1:16381 --sentinels redis-n1=127.0.0.1:16479,redis-n2=127.0.0.1:16480,redis-n3=127.0.0.1:16481 --master-name mymaster --timeout 55s --request-timeout 2s"
+    timeout: 60s
+  # `role:` targets bind through this probe. It asks every node INFO and every
+  # Sentinel which primary it monitors, maps each runid to a node id, and
+  # REFUSES (non-zero exit) on any disagreement: two primaries, Sentinels
+  # naming different nodes, or a Sentinel naming a node that is not the one
+  # reporting role:master. Covered by .prothesis/lock (D-066).
+  role_probe:
+    probe: "./bin/redisrole --nodes redis-n1=127.0.0.1:16379,redis-n2=127.0.0.1:16380,redis-n3=127.0.0.1:16381 --sentinels redis-n1=127.0.0.1:16479,redis-n2=127.0.0.1:16480,redis-n3=127.0.0.1:16481 --master-name mymaster --timeout 2s"
+    timeout: 10s
+
+driver:
+  # Every workload parameter is on this line or in the plan the harness writes
+  # from driver.profiles; the driver reads no environment variable. Writes and
+  # reads go to the primary the Sentinels name. Every node's and Sentinel's
+  # redis_version must equal --expect-version, and every Sentinel must report
+  # the primary, quorum and timings stated here, or the run ends non-zero
+  # before the history exists.
+  cmd: "./bin/redisload --history {history_path} --seed {seed} --profile {profile} --plan {plan_path} --nodes redis-n1=127.0.0.1:16379,redis-n2=127.0.0.1:16380,redis-n3=127.0.0.1:16381 --sentinels redis-n1=127.0.0.1:16479,redis-n2=127.0.0.1:16480,redis-n3=127.0.0.1:16481 --master-name mymaster --expect-version 8.10.2 --expect-primary redis-n1 --expect-quorum 2 --expect-down-after 1000ms --expect-failover-timeout 3000ms --keys 8 --timeout 2s --stdin-control"
+  profiles:
+    smoke: { clients: 4, ops: 500, mix: { write: 0.5, read: 0.5 } }
+    failover: { clients: 16, ops: 60000, mix: { write: 0.5, read: 0.5 } }
+
+perturber:
+  budget: { max_concurrent_faults: 3, max_faults_per_world: 24 }
+  allow: [net.partition, net.latency, net.loss, proc.kill, proc.pause]
+  deny: [io.fill, io.latency, clock.skew]
+  constraints:
+    - "never partition more than minority of redis"
+
+oracles:
+  dir: .prothesis/oracles
+  # The etcd and rqlite targets' built-in set. `no_unbounded_queue` reads the
+  # fixture's /status document, which Redis does not serve, and
+  # `resource_return_to_baseline` is refused often enough on the fixture
+  # (KP-001) to turn a correct system's PASS into chance. Neither has been
+  # measured against Redis.
+  builtin: [no_crash, no_panic_log, availability_after_heal, no_stuck_op]
+
+profiles:
+  smoke: { budget: 120s, worlds: 1, driver_profile: smoke }
+  # The primary is the leader the role probe names.
+  failover: { budget: 10m, worlds: 2, driver_profile: failover, faults: ["net.partition(role:leader)@3000..7500"] }
+
+artifacts: { dir: .prothesis/runs, retain_passing: 3, retain_failing: all }

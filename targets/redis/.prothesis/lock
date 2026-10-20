@@ -1,0 +1,236 @@
+{
+  "schema": "prothesis.lock/v1",
+  "manifest_sha": "sha256:273d78bf3f630e70478839a8a47d6284ed073d6590419112cd4b0b624d3200db",
+  "reason": "initial lock of the redis target (P1 onboarding, no verdict arm run): linearizable.kv definition byte-identical to targets/rqlite's; checker bin/linearizable-kv.exe is the fixture's locked build (sha256 5b2ffd29...); driver redisload and the role and steady probes built from eval/p1-redis with -trimpath -buildvcs=false; topology (primary redis-n1, quorum 2, down-after 1000ms, failover-timeout 3000ms) stated in driver.cmd; run profiles smoke (1 world, no faults) and failover (net.partition(role:leader)@3000..7500)",
+  "locked_at": "2026-10-20T04:23:39Z",
+  "tool_version": "0.1.0-phase0",
+  "builtin_options_fingerprint": "sha256:ca5cba3edb828e29bd4b1357c9ff2d86ae2e3eb6a6bd009a2430b076304064bf",
+  "executables": [
+    {
+      "oracle": "driver.cmd",
+      "cmd": "./bin/redisload --history {history_path} --seed {seed} --profile {profile} --plan {plan_path} --nodes redis-n1=127.0.0.1:16379,redis-n2=127.0.0.1:16380,redis-n3=127.0.0.1:16381 --sentinels redis-n1=127.0.0.1:16479,redis-n2=127.0.0.1:16480,redis-n3=127.0.0.1:16481 --master-name mymaster --expect-version 8.10.2 --expect-primary redis-n1 --expect-quorum 2 --expect-down-after 1000ms --expect-failover-timeout 3000ms --keys 8 --timeout 2s --stdin-control",
+      "resolved": "bin/redisload.exe",
+      "sha256": "sha256:2584a7993e138935d6e8b1d0348744616853d5db454a83037a10042e5bd16997",
+      "size": 5110784
+    },
+    {
+      "oracle": "linearizable.kv",
+      "cmd": "./bin/linearizable-kv",
+      "resolved": "bin/linearizable-kv.exe",
+      "sha256": "sha256:5b2ffd297b35d095461aa1ab88695c453d9b42078827198676ef1ee2b4bc650c",
+      "size": 4926976
+    }
+  ],
+  "covers": [
+    "driver.cmd",
+    "harness.health",
+    "harness.role_probe",
+    "oracles.builtin",
+    "oracles.dir",
+    "perturber.allow",
+    "perturber.budget",
+    "perturber.deny",
+    "profiles",
+    "search",
+    "driver.profiles.<name>, for every <name> a profiles.*.driver_profile names"
+  ],
+  "limitations": [
+    "The DIGEST does not cover the EXECUTABLE an oracle names. Files under oracles.dir are covered byte for byte; the binary, interpreter, shared library, container image or PATH entry an oracle resolves at run time is NOT hashed into manifest_sha, so swapping a checker does not produce ORACLE_DRIFT and never will: hashing it into the digest would make an ordinary rebuild exit 4 and turn re-locking into a reflex. Since D-060 the `executables` block above records each resolved program's SHA-256 OUTSIDE the digest, and `verify` and every run report a moved or missing one as a WARNING that also lands in the verdict. That removes the SILENCE OQ-057 measured; it does not make a swap impossible, and nothing short of signing would. Only the program is fingerprinted — not its arguments, its interpreter, or anything it loads.",
+    "File modes are not covered. The executable bit does not survive a Windows checkout, so hashing it would fire a spurious ORACLE_DRIFT on a cross-platform clone.",
+    "Built-in oracle thresholds are compiled in and reachable from no config key. builtin_options_fingerprint records them for review but is OUTSIDE the digest: including it would turn any release that adjusts a default into exit 4 on every downstream project at once. `thesis oracles verify` reports a moved fingerprint as a warning, never as drift.",
+    "The driver is covered by its COMMAND and by the driver profiles a run profile names (D-090). A driver profile no run profile names is not covered, because it is not the gate's workload and covering it would fire exit 4 on routine edits (OQ-026). The driver's PROGRAM is fingerprinted in the `executables` block as `driver.cmd`, outside the digest, so a rebuilt or swapped driver is a WARNING and not drift. Neither the workload a driver compiles in for a profile name nor the environment it inherits is covered: a driver that reads its workload from its own table or from environment variables can still be changed without moving this digest (OQ-076).",
+    "The digest covers the USER-SUPPLIED prothesis.yaml with defaults NOT applied. A key you did not write contributes nothing, so upgrading thesis cannot move this digest by changing a compiled-in default."
+  ],
+  "manifest": {
+    "schema": "prothesis.lock_manifest/v1",
+    "oracles": [
+      {
+        "path": "linearizable.kv.yaml",
+        "sha256": "sha256:e13c2db30c906d77d64f447c3ecf2f64d8f0421c7b837ba33eb30fedf816d0af",
+        "size": 1419
+      }
+    ],
+    "config": [
+      {
+        "path": "driver.cmd",
+        "kind": "scalar",
+        "value": "./bin/redisload --history {history_path} --seed {seed} --profile {profile} --plan {plan_path} --nodes redis-n1=127.0.0.1:16379,redis-n2=127.0.0.1:16380,redis-n3=127.0.0.1:16381 --sentinels redis-n1=127.0.0.1:16479,redis-n2=127.0.0.1:16480,redis-n3=127.0.0.1:16481 --master-name mymaster --expect-version 8.10.2 --expect-primary redis-n1 --expect-quorum 2 --expect-down-after 1000ms --expect-failover-timeout 3000ms --keys 8 --timeout 2s --stdin-control"
+      },
+      {
+        "path": "driver.profiles.failover.clients",
+        "kind": "scalar",
+        "value": "16"
+      },
+      {
+        "path": "driver.profiles.failover.mix.read",
+        "kind": "scalar",
+        "value": "0.5"
+      },
+      {
+        "path": "driver.profiles.failover.mix.write",
+        "kind": "scalar",
+        "value": "0.5"
+      },
+      {
+        "path": "driver.profiles.failover.ops",
+        "kind": "scalar",
+        "value": "60000"
+      },
+      {
+        "path": "driver.profiles.smoke.clients",
+        "kind": "scalar",
+        "value": "4"
+      },
+      {
+        "path": "driver.profiles.smoke.mix.read",
+        "kind": "scalar",
+        "value": "0.5"
+      },
+      {
+        "path": "driver.profiles.smoke.mix.write",
+        "kind": "scalar",
+        "value": "0.5"
+      },
+      {
+        "path": "driver.profiles.smoke.ops",
+        "kind": "scalar",
+        "value": "500"
+      },
+      {
+        "path": "harness.health[0].node",
+        "kind": "scalar",
+        "value": "redis:*"
+      },
+      {
+        "path": "harness.health[0].probe",
+        "kind": "scalar",
+        "value": "http://{host}:{port}/health"
+      },
+      {
+        "path": "harness.health[0].timeout",
+        "kind": "scalar",
+        "value": "60s"
+      },
+      {
+        "path": "harness.role_probe.probe",
+        "kind": "scalar",
+        "value": "./bin/redisrole --nodes redis-n1=127.0.0.1:16379,redis-n2=127.0.0.1:16380,redis-n3=127.0.0.1:16381 --sentinels redis-n1=127.0.0.1:16479,redis-n2=127.0.0.1:16480,redis-n3=127.0.0.1:16481 --master-name mymaster --timeout 2s"
+      },
+      {
+        "path": "harness.role_probe.timeout",
+        "kind": "scalar",
+        "value": "10s"
+      },
+      {
+        "path": "oracles.builtin",
+        "kind": "scalar",
+        "value": "availability_after_heal"
+      },
+      {
+        "path": "oracles.builtin",
+        "kind": "scalar",
+        "value": "no_crash"
+      },
+      {
+        "path": "oracles.builtin",
+        "kind": "scalar",
+        "value": "no_panic_log"
+      },
+      {
+        "path": "oracles.builtin",
+        "kind": "scalar",
+        "value": "no_stuck_op"
+      },
+      {
+        "path": "oracles.dir",
+        "kind": "scalar",
+        "value": ".prothesis/oracles"
+      },
+      {
+        "path": "perturber.allow",
+        "kind": "scalar",
+        "value": "net.latency"
+      },
+      {
+        "path": "perturber.allow",
+        "kind": "scalar",
+        "value": "net.loss"
+      },
+      {
+        "path": "perturber.allow",
+        "kind": "scalar",
+        "value": "net.partition"
+      },
+      {
+        "path": "perturber.allow",
+        "kind": "scalar",
+        "value": "proc.kill"
+      },
+      {
+        "path": "perturber.allow",
+        "kind": "scalar",
+        "value": "proc.pause"
+      },
+      {
+        "path": "perturber.budget.max_concurrent_faults",
+        "kind": "scalar",
+        "value": "3"
+      },
+      {
+        "path": "perturber.budget.max_faults_per_world",
+        "kind": "scalar",
+        "value": "24"
+      },
+      {
+        "path": "perturber.deny",
+        "kind": "scalar",
+        "value": "clock.skew"
+      },
+      {
+        "path": "perturber.deny",
+        "kind": "scalar",
+        "value": "io.fill"
+      },
+      {
+        "path": "perturber.deny",
+        "kind": "scalar",
+        "value": "io.latency"
+      },
+      {
+        "path": "profiles.failover.budget",
+        "kind": "scalar",
+        "value": "10m"
+      },
+      {
+        "path": "profiles.failover.driver_profile",
+        "kind": "scalar",
+        "value": "failover"
+      },
+      {
+        "path": "profiles.failover.faults",
+        "kind": "scalar",
+        "value": "net.partition(role:leader)@3000..7500"
+      },
+      {
+        "path": "profiles.failover.worlds",
+        "kind": "scalar",
+        "value": "2"
+      },
+      {
+        "path": "profiles.smoke.budget",
+        "kind": "scalar",
+        "value": "120s"
+      },
+      {
+        "path": "profiles.smoke.driver_profile",
+        "kind": "scalar",
+        "value": "smoke"
+      },
+      {
+        "path": "profiles.smoke.worlds",
+        "kind": "scalar",
+        "value": "1"
+      }
+    ]
+  }
+}
