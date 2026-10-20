@@ -6,7 +6,7 @@ every gate invocation.
 
 **This directory is append-only, and it is committed on purpose.**
 `.gitignore` excludes `.prothesis/runs/` but deliberately does not exclude this
-directory (DECISIONS.md D-004). Removing a `.thesis` file from it is a LOCK CHANGE
+directory (D-004). Removing a `.thesis` file from it is a LOCK CHANGE
 under invariant I6 and anti-gaming rule 4: it deletes a regression test. If a
 regression is genuinely obsolete, that is a human-reviewed commit that says so,
 not a cleanup.

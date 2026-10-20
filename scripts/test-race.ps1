@@ -4,7 +4,12 @@
 # no gcc, and installing a C toolchain to run one test would be a poor trade
 # when Docker Desktop's Linux VM is already a hard dependency of the compose
 # backend. ThreadSanitizer is also far better exercised on Linux than on
-# Windows. See DECISIONS.md D-023.
+# Windows. See D-023.
+#
+# The ledger checks in internal/ledger read the private ledgers from .internal/
+# (D-105), which the bind mount below carries when it is attached. A public
+# clone without it fails those checks unless SYNTHESIS_LEDGERS_PRIVATE=1 is set
+# on the host; it is passed through to the container.
 #
 # Nothing is installed on the host.
 #
@@ -42,6 +47,7 @@ docker run --rm `
     -v "${repo}:/workspace" `
     -w /workspace `
     -e CGO_ENABLED=1 `
+    -e SYNTHESIS_LEDGERS_PRIVATE `
     $Image `
     sh -c $script
 

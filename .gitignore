@@ -40,3 +40,18 @@ __pycache__/
 # own that happens to sit inside this directory; nothing in it is part of
 # PRO-THESIS (D-075 records what was ported from it).
 GLM Build/
+
+# Internal documents (development notes, ledgers, plans, reviews) live in a
+# private companion repository checked out as .internal/ and never enter this
+# one (D-105). Copies at their old public paths stay out too.
+/.internal/
+/AGENTS.md
+/CLAUDE.md
+/GEMINI.md
+/DECISIONS.md
+/OPEN_QUESTIONS.md
+/BACKLOG.md
+/docs/protocol/
+/docs/design/
+/docs/reviews/
+/docs/specs/

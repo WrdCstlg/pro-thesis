@@ -1,7 +1,7 @@
 # OBS-LIVE-001: Observation record
 
 Date: 2026-09-17
-Observer: Claude (external; recorded the execution, did not influence it)
+Observer: an independent session (external; recorded the execution, did not influence it)
 Design: [`design.md`](design.md); scenario, expected outcome, function criteria F1–F5
 
 > **Revision 2 (2026-09-17).** An external audit of revision 1 found the

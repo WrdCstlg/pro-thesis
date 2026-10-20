@@ -7,7 +7,7 @@ added to it.
 
 The harness is a **pinned tool**. Everything an integration needs lives with the target, not here.
 If the harness has to change to accommodate a target, that is a finding about the harness and
-belongs in `OPEN_QUESTIONS.md`, not in a patch that makes one target work.
+belongs in the project's open-questions ledger, not in a patch that makes one target work.
 
 ---
 

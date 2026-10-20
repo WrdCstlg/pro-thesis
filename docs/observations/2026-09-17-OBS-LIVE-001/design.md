@@ -1,7 +1,7 @@
 # OBS-LIVE-001: Live partition-anomaly run with external observation
 
 Date: 2026-09-17
-Observer: Claude (external to the harness; records execution, does not influence it)
+Observer: an independent session (external to the harness; records execution, does not influence it)
 
 ## Purpose
 

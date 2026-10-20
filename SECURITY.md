@@ -42,7 +42,7 @@ a discussion, but it is not a disclosure:
 
 | | |
 |---|---|
-| [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md) | Every known defect and unresolved question, including working write-ups of gate bypasses |
+| [`docs/KNOWN-ISSUES.md`](docs/KNOWN-ISSUES.md) | The public digest of the open weaknesses, including the gate bypasses below; the full entries are in the project's private ledger |
 | OQ-057 / D-060 | A swapped oracle executable is reported, not refused; the exit code is unchanged |
 | OQ-059 / D-059 | `--worlds` / `--budget` narrow a lock-covered profile; now recorded, and a narrowed clean run cannot report PASS |
 | OQ-061 / D-061 | Program resolution preferred the project directory over `PATH`; closed |

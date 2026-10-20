@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"bufio"
+	"errors"
 	"os"
 	"path/filepath"
 	"sort"
@@ -72,6 +73,112 @@ func TestParseRefusesAHeadingItCannotClassify(t *testing.T) {
 	}
 }
 
+// writeLedgers creates both ledger files, empty, in dir.
+func writeLedgers(t *testing.T, dir string, names ...string) {
+	t.Helper()
+	if len(names) == 0 {
+		names = []string{"DECISIONS.md", "OPEN_QUESTIONS.md"}
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range names {
+		if err := os.WriteFile(filepath.Join(dir, n), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func envWith(value string) func(string) string {
+	return func(k string) string {
+		if k == PrivateEnv {
+			return value
+		}
+		return ""
+	}
+}
+
+// The ledgers live in <root>/.internal/ (D-105). Present, they are what Locate
+// returns, and the private declaration never hides ledgers that are there: a
+// checkout that can see them always runs the checks.
+//
+// Mutation: drop PrivateDir from the joined path and Locate looks at the
+// repository root, so the paths differ and this test fails.
+func TestLocateFindsTheLedgersUnderInternal(t *testing.T) {
+	root := t.TempDir()
+	writeLedgers(t, filepath.Join(root, ".internal"))
+	want := Paths{
+		Decisions:     filepath.Join(root, ".internal", "DECISIONS.md"),
+		OpenQuestions: filepath.Join(root, ".internal", "OPEN_QUESTIONS.md"),
+	}
+	for _, env := range []string{"", "1"} {
+		got, err := Locate(root, envWith(env))
+		if err != nil {
+			t.Fatalf("%s=%q: ledgers present under .internal/, got error %v", PrivateEnv, env, err)
+		}
+		if got != want {
+			t.Fatalf("%s=%q: got %+v, want %+v", PrivateEnv, env, got, want)
+		}
+	}
+}
+
+// Absent ledgers with nothing declaring them private is a failure, and the
+// message says where they belong and how to attach them. A stale copy at the
+// old public path does not count as attached, and only the exact value "1"
+// is a declaration.
+//
+// Mutation: accept any non-empty value as the declaration and the "0" and
+// "true" rows come back as ErrPrivate.
+func TestLocateRefusesAbsentLedgersThatNobodyDeclaredPrivate(t *testing.T) {
+	root := t.TempDir()
+	writeLedgers(t, root)
+	for _, env := range []string{"", "0", "true"} {
+		_, err := Locate(root, envWith(env))
+		if err == nil {
+			t.Fatalf("%s=%q: no ledgers under .internal/ and no declaration, got no error", PrivateEnv, env)
+		}
+		if errors.Is(err, ErrPrivate) {
+			t.Fatalf("%s=%q: undeclared absence reported as the declared-private outcome: %v", PrivateEnv, env, err)
+		}
+		for _, want := range []string{".internal", "git clone", PrivateEnv + "=1"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Fatalf("%s=%q: the error must name %q, got: %v", PrivateEnv, env, want, err)
+			}
+		}
+	}
+}
+
+// Absent ledgers in a checkout that declares them private (public CI) is the
+// declared outcome, ErrPrivate, which the ledger tests turn into a skip.
+//
+// Mutation: never return ErrPrivate and this fails.
+func TestLocateReportsDeclaredPrivateLedgers(t *testing.T) {
+	_, err := Locate(t.TempDir(), envWith("1"))
+	if !errors.Is(err, ErrPrivate) {
+		t.Fatalf("no ledgers and %s=1: got %v, want ErrPrivate", PrivateEnv, err)
+	}
+	const reason = "ledgers are private (D-105); the citation check runs where .internal/ is attached"
+	if err.Error() != reason {
+		t.Fatalf("skip reason:\n got  %q\n want %q", err.Error(), reason)
+	}
+}
+
+// A .internal/ holding one ledger but not the other is a broken attachment,
+// not a private checkout, and the declaration does not excuse it.
+//
+// Mutation: let the declaration cover a partial absence and this fails.
+func TestLocateRefusesAHalfAttachedInternal(t *testing.T) {
+	root := t.TempDir()
+	writeLedgers(t, filepath.Join(root, ".internal"), "DECISIONS.md")
+	_, err := Locate(root, envWith("1"))
+	if err == nil || errors.Is(err, ErrPrivate) {
+		t.Fatalf("OPEN_QUESTIONS.md missing beside DECISIONS.md: got %v, want a failure", err)
+	}
+	if !strings.Contains(err.Error(), "OPEN_QUESTIONS.md") {
+		t.Fatalf("the error must name the missing ledger, got: %v", err)
+	}
+}
+
 // repoRoot walks up from the test's directory to the directory holding go.mod.
 func repoRoot(t *testing.T) string {
 	t.Helper()
@@ -91,16 +198,32 @@ func repoRoot(t *testing.T) string {
 	}
 }
 
-func ledgerHeadings(t *testing.T, root, name string) []Heading {
+// attachedLedgers returns the repository root and the ledgers under its
+// .internal/. A checkout that declared them private skips with Locate's
+// reason; any other absence fails with Locate's instructions.
+func attachedLedgers(t *testing.T) (string, Paths) {
 	t.Helper()
-	f, err := os.Open(filepath.Join(root, name))
+	root := repoRoot(t)
+	p, err := Locate(root, os.Getenv)
+	if errors.Is(err, ErrPrivate) {
+		t.Skip(err.Error())
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return root, p
+}
+
+func ledgerHeadings(t *testing.T, path string) []Heading {
+	t.Helper()
+	f, err := os.Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer f.Close()
 	hs, err := Parse(f)
 	if err != nil {
-		t.Fatalf("%s: %v", name, err)
+		t.Fatalf("%s: %v", path, err)
 	}
 	return hs
 }
@@ -108,10 +231,10 @@ func ledgerHeadings(t *testing.T, root, name string) []Heading {
 // D-067. The committed ledgers hold one defining heading per id and every
 // follow-up attaches to an entry above it.
 func TestTheCommittedLedgersHaveUniqueAddresses(t *testing.T) {
-	root := repoRoot(t)
-	for _, name := range []string{"DECISIONS.md", "OPEN_QUESTIONS.md"} {
-		if problems := Check(ledgerHeadings(t, root, name)); len(problems) > 0 {
-			t.Errorf("%s:\n  %s", name, strings.Join(problems, "\n  "))
+	_, p := attachedLedgers(t)
+	for _, path := range []string{p.Decisions, p.OpenQuestions} {
+		if problems := Check(ledgerHeadings(t, path)); len(problems) > 0 {
+			t.Errorf("%s:\n  %s", path, strings.Join(problems, "\n  "))
 		}
 	}
 }
@@ -123,9 +246,12 @@ func TestTheCommittedLedgersHaveUniqueAddresses(t *testing.T) {
 // docs/protocol and docs/design are snapshots of what was true when they were
 // written and are exempt; their citations are not rewritten.
 func TestEveryLedgerCitationInTheTreeResolves(t *testing.T) {
-	root := repoRoot(t)
-	oq := IDs(ledgerHeadings(t, root, "OPEN_QUESTIONS.md"))
-	d := IDs(ledgerHeadings(t, root, "DECISIONS.md"))
+	root, p := attachedLedgers(t)
+	oq := IDs(ledgerHeadings(t, p.OpenQuestions))
+	d := IDs(ledgerHeadings(t, p.Decisions))
+
+	// The walk starts at the repository root, so it covers .internal/ too:
+	// the private material's own citations must resolve as well.
 
 	skipDir := map[string]bool{".git": true, "bin": true, "runs": true, "tmp": true, "corpus": true, "node_modules": true}
 	exempt := []string{filepath.Join("docs", "protocol"), filepath.Join("docs", "design")}

@@ -22,11 +22,79 @@ package ledger
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
+
+// PrivateDir is where a checkout keeps the two ledgers, relative to the
+// repository root. Since D-105 they are private: they live in a companion
+// repository that a maintainer clones into this directory, and a public clone
+// does not have it.
+const PrivateDir = ".internal"
+
+// PrivateEnv declares, when set to exactly "1", that this checkout cannot see
+// the ledgers and is not expected to. Public CI sets it. Anywhere else an
+// absent ledger is a failure, because a check that quietly stops running
+// reads exactly like a check that passed.
+const PrivateEnv = "SYNTHESIS_LEDGERS_PRIVATE"
+
+// ErrPrivate is Locate's answer when both ledgers are absent and PrivateEnv
+// declares that expected. It is an outcome, not a failure: the caller skips
+// the ledger checks and says why.
+var ErrPrivate = errors.New("ledgers are private (D-105); the citation check runs where .internal/ is attached")
+
+// Paths names the two ledger files of a checkout.
+type Paths struct {
+	Decisions     string
+	OpenQuestions string
+}
+
+// Locate finds the ledgers under <root>/.internal/. Both present: their paths.
+// Both absent: ErrPrivate when getenv(PrivateEnv) is "1", otherwise an error
+// that says where they belong and how to attach them. One present without the
+// other: an error whatever the environment says, because that is a broken
+// attachment, not a private checkout.
+func Locate(root string, getenv func(string) string) (Paths, error) {
+	dir := filepath.Join(root, PrivateDir)
+	p := Paths{
+		Decisions:     filepath.Join(dir, "DECISIONS.md"),
+		OpenQuestions: filepath.Join(dir, "OPEN_QUESTIONS.md"),
+	}
+	var missing []string
+	for _, f := range []string{p.Decisions, p.OpenQuestions} {
+		_, err := os.Stat(f)
+		switch {
+		case err == nil:
+		case errors.Is(err, fs.ErrNotExist):
+			missing = append(missing, f)
+		default:
+			return Paths{}, fmt.Errorf("ledger: %w", err)
+		}
+	}
+	switch {
+	case len(missing) == 0:
+		return p, nil
+	case len(missing) == 2 && getenv(PrivateEnv) == "1":
+		return Paths{}, ErrPrivate
+	case len(missing) == 2:
+		return Paths{}, fmt.Errorf("ledger: the ledgers are not attached: %s and %s do not exist. "+
+			"DECISIONS.md and OPEN_QUESTIONS.md are private (D-105) and live in the companion repository, "+
+			"checked out as %s/ at the repository root: from %s run `git clone <companion repository URL> %s`. "+
+			"A checkout that cannot see them, such as public CI, declares that with %s=1, "+
+			"which skips the ledger checks instead of failing them",
+			p.Decisions, p.OpenQuestions, PrivateDir, root, PrivateDir, PrivateEnv)
+	default:
+		return Paths{}, fmt.Errorf("ledger: %s is attached but incomplete: %s does not exist beside the other ledger. "+
+			"%s=1 declares a checkout with no ledgers at all; it does not excuse a partial one",
+			dir, missing[0], PrivateEnv)
+	}
+}
 
 // Kind says whether a heading introduces an entry or adds a section to one.
 type Kind int
