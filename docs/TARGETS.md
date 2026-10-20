@@ -391,3 +391,18 @@ That is the shape every fix in this repository has to take, applied to the integ
   cache prune records a different `sut.images` digest for an unchanged Dockerfile.
 - **Node logs are captured into the bundle.** If your system logs a connection string or a token, it
   lands in an artifact. Read a bundle before sharing it.
+- **A driver profile carries only clients, ops and mix** (OQ-091). A parameter your system needs,
+  such as a read consistency level, has to be encoded in the mix entry names; the rqlite target uses
+  `read_linearizable`, `read_strong`, `read_weak` and `read_none`, and its driver refuses any other
+  name.
+- **`PROTHESIS_TARGETS` gives addresses, not node ids** (OQ-092). Label targets by the order of
+  `harness.nodes`, and accept an explicit `id=addr` form if you can.
+- **The image under test is outside the lock** (OQ-093). Pin it by digest in the compose file and
+  compare each world's `sut.images` with the pin before trusting a result.
+- **Role-probe and steady-state programs are not fingerprinted** (OQ-094), and `harness.steady_state`
+  is not a lock-covered key. Record their hashes yourself.
+- **The role probe breaks ties by Raft term** (OQ-095). If your system exposes no term, make the probe
+  refuse any disagreement rather than guess.
+- **A passing steady-state probe leaves no trace in the bundle** (OQ-096).
+- **Launch runs from the project directory.** Launched from elsewhere, teardown can leave the
+  project's named volumes behind and the next world boots on them (OQ-087).
