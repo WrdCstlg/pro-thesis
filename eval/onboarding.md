@@ -65,3 +65,44 @@ as for rqlite, OQ-093 checked with the image tool, and OQ-097 recorded from this
 Operator interventions: one image pull; two throwaway `docker run` calls (`consul version`, the
 entrypoint's licence header). One commit message was wrong and was amended twice before anything
 was pushed; the tree did not change. No restarts, no manual cleanup, no retried worlds.
+
+## Redis 8.10.2 with Sentinel
+
+| | |
+|---|---|
+| Image | `redis:8.10.2@sha256:2c2dff791878316e3b083188be0d578423b24813cdda5de0e80ea4f7b3e6bfd6` (RSALv2, SSPLv1 or AGPLv3 at the user's option; a published result names the version and the licence chosen) |
+| Topology | three nodes (`redis-n1` primary at boot, two replicas); one Sentinel and one health shim per node, each in that node's network namespace (`network_mode: service:redis-nX`); quorum 2, `down-after-milliseconds` 1000, `failover-timeout` 3000; `min-replicas-to-write` 0 (the default) |
+| Design before the build | not timed |
+| Build to done | 2026-10-19 23:57:56 to 2026-10-20 00:24:13 -04:00: **26 min 17 s** |
+| Review | tests, gofmt, vet, lock, doctor, image identity, leftovers and the topology record re-run independently; all reproduced |
+| Configuration | `docker-compose.yaml` 206 lines (124 non-comment, nine services), `prothesis.yaml` 88 (38), oracle definition 35 (6, byte-identical); compose SHA-256 `f4143df1...09f1` |
+| Go | driver 988 lines, role probe 94, steady-state probe 125, health shim 96, RESP client 610, test fake 162; tests 726 (driver), 181 (role probe), 103 (shim) |
+| Tests | 43 pass, 0 fail (`scripts/run-tests.ps1 -Match targets/redis`); every test failed against a stub and again under a targeted mutation, including one for the topology record |
+| Lock | manifest `sha256:273d78bf...00db`, 36 configuration values; fingerprints the driver and the checker |
+| Smoke world | `r_2026_10_20_c22a`: PASS, exit 0; 500 operations (263 reads, 237 writes, all ok), every one served by and believed primary `redis-n1`; topology on the first record; image identity equal to the pin (`eval/tools/check-images.ps1`, exit 0); 0 volumes, containers or networks left |
+| Not exercised live | a failover, a `-READONLY` refusal, the role probe's refusal of two primaries, and whether a 4.5 s partition completes a failover with these timings |
+
+Design facts that decide later verdicts:
+
+- **The driver follows the Sentinels it can reach.** It asks the first Sentinel that answers,
+  starting from the last one that did, and maps Sentinel's container address to a node by `run_id`
+  (`SENTINEL master` against each node's `INFO server`). Under a partition of the primary, the
+  primary's own Sentinel is partitioned with it and keeps naming it, so the driver keeps writing to
+  the old primary while the majority side fails over. That is the client placement in which Redis
+  documents acknowledged-write loss.
+- **The topology is checked, not only recorded.** The expected primary, quorum and timings are
+  arguments of the lock-covered `driver.cmd`, and the driver refuses a world whose Sentinels report
+  otherwise. This is the one place a compose setting is held to the lock (OQ-097).
+- **Health goes through a shim** (OQ-098), and **the node port is the shim's**, so RESP and Sentinel
+  addresses are written literally into the driver and probes (OQ-099).
+
+Contract gaps found: OQ-098 (HTTP-only health), OQ-099 (one port per node; blocks parallel lanes for
+this target), OQ-100 (`topology_variant` is always "default"), OQ-101 (Sentinel and shim images,
+logs and crashes are outside the bundle, so a FAIL cannot yet show when the failover happened); and
+OQ-093 to OQ-097 as for the other targets.
+
+Operator interventions: two image pulls; two throwaway `docker run` calls (`redis-server --version`,
+the image entrypoint); one manual bring-up of the topology under a separate compose project before
+the smoke world (probes, a 200-operation driver run, then `down --volumes`, leaving 0 resources). No
+restarts, no retried worlds. One commit message named the wrong target count and was corrected before
+anything was pushed; the tree did not change.
