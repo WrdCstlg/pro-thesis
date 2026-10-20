@@ -398,7 +398,15 @@ That is the shape every fix in this repository has to take, applied to the integ
 - **`PROTHESIS_TARGETS` gives addresses, not node ids** (OQ-092). Label targets by the order of
   `harness.nodes`, and accept an explicit `id=addr` form if you can.
 - **The image under test is outside the lock** (OQ-093). Pin it by digest in the compose file and
-  compare each world's `sut.images` with the pin before trusting a result.
+  compare each world's `sut.images` with the pin before trusting a result
+  (`eval/tools/check-images.ps1` does this per world).
+- **Nothing locks the compose file** (OQ-097). Timing and topology set there (Consul's
+  `raft_multiplier`, an election timeout, a replica count) decide verdicts, and can change between
+  two runs that report the same lock digest. Commit the compose file with the lock and name both in
+  any result you publish.
+- **Check the server version on every answer if your system sends it.** A system that does not
+  (Consul's KV API sends none) can only be checked at start, and a node replaced during a run goes
+  unnoticed.
 - **Role-probe and steady-state programs are not fingerprinted** (OQ-094), and `harness.steady_state`
   is not a lock-covered key. Record their hashes yourself.
 - **The role probe breaks ties by Raft term** (OQ-095). If your system exposes no term, make the probe
