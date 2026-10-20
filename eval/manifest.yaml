@@ -1,0 +1,210 @@
+# Evaluation-suite manifest: one arm per row.
+#
+# An arm's prediction file is written, dated and committed BEFORE its first world (status moves
+# from planned to registered only then). Fields:
+#   id            stable arm id
+#   tier          1 mandatory; 2 and 3 conditional on budget
+#   target        project directory under the repository
+#   control       harness | positive | negative | discriminating | oracle-discipline
+#   variant       the configuration that defines the arm
+#   profile       the lock-covered run profile the arm runs under (its faults live in the profile)
+#   fault_basis   the schedule the profile carries
+#   expected      the exit code the arm is designed to produce; the prediction file may disagree
+#   oracles       the oracle set judging the arm
+#   n             worlds per phase
+#   seeds         seed set per phase
+#   prediction    the pre-registration file
+#   status        planned | registered | running | scored | archived | unmeasured
+#   note          anything a reader must know before trusting the row
+
+schema: eval_manifest/v1
+standard_fault: net.partition(role:leader)@3000..7500
+
+arms:
+  - id: HC-01
+    tier: 1
+    target: testdata/kvfixture
+    control: harness
+    variant: planted stale read present (KV_VARIANT unset)
+    profile: linear
+    fault_basis: standard_fault (profile linear)
+    expected: 1
+    oracles: locked set (linearizable.kv and the built-ins)
+    n: {P2: 10, P3: 30}
+    seeds: {P2: "1-10", P3: "101-130"}
+    prediction: eval/predictions/HC-01.md
+    status: planned
+
+  - id: HC-02
+    tier: 1
+    target: testdata/kvfixture
+    control: harness
+    variant: kvfixed build (KV_VARIANT=kvfixed)
+    profile: linear
+    fault_basis: standard_fault (profile linear)
+    expected: 0
+    oracles: locked set
+    n: {P2: 10, P3: 30}
+    seeds: {P2: "1-10", P3: "101-130"}
+    prediction: eval/predictions/HC-02.md
+    status: planned
+
+  - id: ET-01
+    tier: 1
+    target: targets/etcd
+    control: negative
+    variant: linearizable reads (existing anchor arm)
+    profile: linear
+    fault_basis: standard_fault (profile linear)
+    expected: 0
+    oracles: locked set
+    n: {P2: 10, P3: 30}
+    seeds: {P2: "1-10", P3: "101-130"}
+    prediction: eval/predictions/ET-01.md
+    status: planned
+    note: re-run of the existing arm for continuity; prior recorded evidence is reported next to the new.
+
+  - id: RQ-01
+    tier: 1
+    target: targets/rqlite
+    control: negative
+    variant: reads at level=linearizable, writes to the leader only
+    profile: linear
+    fault_basis: standard_fault
+    expected: 0
+    oracles: locked set
+    n: {P2: 10, P3: 30}
+    seeds: {P2: "1-10", P3: "101-130"}
+    prediction: eval/predictions/RQ-01.md
+    status: planned
+    note: rqlite's documented DEFAULT read level is weak, not linearizable, so the documented-correct
+      negative control is the explicit linearizable level; the default is its own arm (RQ-02).
+
+  - id: RQ-02
+    tier: 1
+    target: targets/rqlite
+    control: discriminating
+    variant: default read level (weak)
+    profile: weak
+    fault_basis: standard_fault
+    expected: 1
+    oracles: locked set
+    n: {P2: 10, P3: 30}
+    seeds: {P2: "1-10", P3: "101-130"}
+    prediction: eval/predictions/RQ-02.md
+    status: planned
+    note: weak reads have a documented sub-second deposed-leader window; a FAIL is possible but
+      timing-dependent, and the prediction says so.
+
+  - id: RQ-03
+    tier: 1
+    target: targets/rqlite
+    control: positive
+    variant: reads at level=none (local, unbounded staleness)
+    profile: none
+    fault_basis: standard_fault
+    expected: 1
+    oracles: locked set
+    n: {P2: 10, P3: 30}
+    seeds: {P2: "1-10", P3: "101-130"}
+    prediction: eval/predictions/RQ-03.md
+    status: planned
+
+  - id: RQ-04
+    tier: 1
+    target: targets/rqlite
+    control: positive
+    variant: seeded defect (one patched read-consistency code path in a source build)
+    profile: linear
+    fault_basis: standard_fault
+    expected: 1
+    oracles: locked set
+    n: {P3: 30, P7: "curve, shrink, k=5 replay"}
+    seeds: {P3: "101-130"}
+    prediction: eval/predictions/RQ-04.md
+    status: planned
+    note: the seeded-defect study (phase P7).
+
+  - id: CO-01
+    tier: 1
+    target: targets/consul
+    control: discriminating
+    variant: default read mode
+    profile: default
+    fault_basis: standard_fault
+    expected: 1
+    oracles: locked set
+    n: {P2: 10, P3: 30}
+    seeds: {P2: "1-10", P3: "101-130"}
+    prediction: eval/predictions/CO-01.md
+    status: planned
+    note: Consul documents its default mode as consistent except in a brief leader-change window; a
+      FAIL is possible but not assured, and the prediction says so. CO-02 is the reliable partner.
+
+  - id: CO-02
+    tier: 1
+    target: targets/consul
+    control: discriminating
+    variant: "?stale reads"
+    profile: stale
+    fault_basis: standard_fault
+    expected: 1
+    oracles: locked set
+    n: {P2: 10, P3: 30}
+    seeds: {P2: "1-10", P3: "101-130"}
+    prediction: eval/predictions/CO-02.md
+    status: planned
+
+  - id: CO-03
+    tier: 1
+    target: targets/consul
+    control: negative
+    variant: "?consistent reads"
+    profile: consistent
+    fault_basis: standard_fault
+    expected: 0
+    oracles: locked set
+    n: {P2: 10, P3: 30}
+    seeds: {P2: "1-10", P3: "101-130"}
+    prediction: eval/predictions/CO-03.md
+    status: planned
+
+  - id: RE-01
+    tier: 1
+    target: targets/redis
+    control: positive
+    variant: primary, replica, sentinel failover; asynchronous replication
+    profile: failover
+    fault_basis: standard_fault
+    expected: 1
+    oracles: locked set
+    n: {P2: 10, P3: 30}
+    seeds: {P2: "1-10", P3: "101-130"}
+    prediction: eval/predictions/RE-01.md
+    status: planned
+    note: if the register oracle cannot soundly express the workload, the prediction says so and the
+      arm is scored as oracle-discipline.
+
+  - id: T2-CLOCK
+    tier: 2
+    target: undecided (CockroachDB or YugabyteDB)
+    control: positive
+    variant: clock.skew and clock.jump, with the container clock verified to have moved
+    status: unmeasured
+    note: conditional on budget. The driver needs a separate Go module (non-HTTP protocol).
+
+  - id: T2-CASSANDRA
+    tier: 2
+    target: undecided (Cassandra)
+    control: oracle-discipline
+    variant: QUORUM with LWT versus ONE/ANY
+    status: unmeasured
+    note: conditional on budget. The driver needs a separate Go module (CQL).
+
+  - id: T3-STREAM
+    tier: 3
+    target: undecided (NATS JetStream or Kafka)
+    control: oracle-discipline
+    variant: no register semantics; expected outcome is "no applicable oracle"
+    status: unmeasured
+    note: probes only; verdict utility (A3) is the only axis scored.
