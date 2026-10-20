@@ -1,0 +1,94 @@
+version: prothesis/v1
+name: consul
+
+# The fourth target: upstream Consul 2.0.4 (BUSL-1.1), its key-value store
+# over the plain HTTP API, unmodified image pinned by digest, three voting
+# servers. One cluster, three read paths: Consul documents ?consistent reads as
+# linearizable, the default mode as served by the leader without a quorum
+# check (stale in a narrow window after a leader is cut off), and ?stale as
+# served by any server. One driver profile per read mode, each named by a run
+# profile so the mode is lock-covered (D-090, OQ-026).
+#
+# The read mode travels in the mix entry's NAME (read_default, read_stale,
+# read_consistent), because a driver profile carries only clients, ops and mix
+# (OQ-091). The driver refuses any other read entry at start-up: Consul
+# ignores a query parameter it does not know and serves the default mode.
+
+harness:
+  backend: compose
+  file: docker-compose.yaml
+  # Container names, the network name and published ports are parameterised
+  # on CONSUL_PREFIX / CONSUL_PORT_N*, so a parallel run can give each worker
+  # its own (OQ-056). Host band 15501..15503 by default: clear of rqlite
+  # (14001..14003), etcd (12379..12381), the fixture (18081..18083), Redis
+  # (16379..16600) and the parallel worker band (19000+).
+  prefix_env: CONSUL_PREFIX
+  # `port` is the CONTAINER-side HTTP API port; it defaults to the fixture's
+  # 8080 and Consul serves on 8500.
+  nodes:
+    - { id: consul-n1, service: consul, compose_service: consul-n1, role_hint: replica, port: 8500, port_env: CONSUL_PORT_N1 }
+    - { id: consul-n2, service: consul, compose_service: consul-n2, role_hint: replica, port: 8500, port_env: CONSUL_PORT_N2 }
+    - { id: consul-n3, service: consul, compose_service: consul-n3, role_hint: replica, port: 8500, port_env: CONSUL_PORT_N3 }
+  health:
+    # /v1/operator/raft/configuration in the default mode is forwarded to the
+    # leader over RPC, so it is 200 only when this node is the leader or knows
+    # one it can reach; with no leader Consul holds it up to rpc_hold_timeout
+    # and answers 500 "No cluster leader". /v1/status/leader is NOT a health
+    # probe: it answers 200 with "" when there is no leader.
+    - node: "consul:*"
+      probe: "http://{host}:{port}/v1/operator/raft/configuration"
+      timeout: 60s
+  steady_state:
+    # Host-side: every node's own /v1/operator/raft/configuration?stale names
+    # the same leader and lists the three servers, all voters.
+    probe: "./bin/consulsteady --timeout 55s --request-timeout 2s"
+    timeout: 60s
+  # `role:` targets bind through this probe. It asks every node's
+  # /v1/operator/raft/configuration?stale, maps the leader's node name to a
+  # node id, and REFUSES (non-zero exit) when the nodes disagree. Covered by
+  # .prothesis/lock (D-066).
+  role_probe:
+    probe: "./bin/consulrole --timeout 2s"
+    timeout: 10s
+
+driver:
+  # Every workload parameter is on this line or in the plan the harness writes
+  # from driver.profiles; the driver reads no workload from the environment.
+  # Writes go to any node (Consul forwards them to the leader and never
+  # re-sends one that may have applied); every node's /v1/agent/self must
+  # report Config.Version 2.0.4 at start or the run ends non-zero.
+  cmd: "./bin/consulload --history {history_path} --seed {seed} --profile {profile} --plan {plan_path} --expect-version 2.0.4 --keys 8 --timeout 2s --stdin-control"
+  profiles:
+    smoke: { clients: 4, ops: 500, mix: { write: 0.5, read_consistent: 0.5 } }
+    # `consistent` is the mode Consul documents as linearizable: expected PASS
+    # under a leader partition.
+    consistent: { clients: 16, ops: 60000, mix: { write: 0.5, read_consistent: 0.5 } }
+    # `default` is the client's default (no parameter): the leader answers
+    # from its own state without a quorum round. `stale` lets any server
+    # answer. Neither is documented as linearizable.
+    default: { clients: 16, ops: 60000, mix: { write: 0.5, read_default: 0.5 } }
+    stale: { clients: 16, ops: 60000, mix: { write: 0.5, read_stale: 0.5 } }
+
+perturber:
+  budget: { max_concurrent_faults: 3, max_faults_per_world: 24 }
+  allow: [net.partition, net.latency, net.loss, proc.kill, proc.pause]
+  deny: [io.fill, io.latency, clock.skew]
+  constraints:
+    - "never partition more than minority of consul"
+
+oracles:
+  dir: .prothesis/oracles
+  # The etcd target's built-in set. `no_unbounded_queue` reads the fixture's
+  # /status document, which Consul does not serve, and
+  # `resource_return_to_baseline` is refused often enough on the fixture
+  # (KP-001) to turn a correct system's PASS into chance. Neither has been
+  # measured against Consul.
+  builtin: [no_crash, no_panic_log, availability_after_heal, no_stuck_op]
+
+profiles:
+  smoke: { budget: 120s, worlds: 1, driver_profile: smoke }
+  default: { budget: 10m, worlds: 2, driver_profile: default, faults: ["net.partition(role:leader)@3000..7500"] }
+  stale: { budget: 10m, worlds: 2, driver_profile: stale, faults: ["net.partition(role:leader)@3000..7500"] }
+  consistent: { budget: 10m, worlds: 2, driver_profile: consistent, faults: ["net.partition(role:leader)@3000..7500"] }
+
+artifacts: { dir: .prothesis/runs, retain_passing: 3, retain_failing: all }

@@ -1,0 +1,133 @@
+name: prothesis-consul
+
+# A 3-server Consul cluster as a Synthesis target, exercised through its
+# key-value store. Nothing here is modified for the harness: the image is the
+# upstream release pinned by digest, the agent is started through the image's
+# own entrypoint with ordinary flags, and faults arrive from a NET_ADMIN
+# sidecar the harness joins to a container's network namespace at run time.
+#
+# Consul is distributed under the Business Source License 1.1 (the image's own
+# docker-entrypoint.sh carries `SPDX-License-Identifier: BUSL-1.1`). It is used
+# here as an in-house test target; nothing in this repository redistributes
+# the image. See README.md, "Licence".
+#
+# The image under test is named here, and this file is NOT covered by
+# .prothesis/lock. The harness records the image identity that actually ran in
+# every world (sut.images, D-070); compare it with the digest below before a
+# world counts. See README.md, "What is not claimed".
+#
+# Topology, following targets/etcd and targets/rqlite for the same measured
+# reasons:
+#
+#  * ONE SERVICE PER NODE, each publishing its HTTP API port (8500) to
+#    127.0.0.1. Container IPs are not routable from a Windows host, so a
+#    host-side probe and a host-side driver have no other way in. The server
+#    RPC (8300) and Serf (8301, 8302) ports are not published: only the nodes
+#    use them. DNS (8600) and gRPC are not used.
+#
+#  * ONE NETWORK. Consul carries Raft and its server-to-server RPC on 8300 and
+#    gossip on 8301, all addressed by container IP. A net.partition drops the
+#    node's traffic to its peers' addresses; the host's traffic to the
+#    published port is not a peer address, so a partitioned node stays
+#    reachable by the driver.
+#
+#  * restart: "no", init: false. Auto-restart would mask no_crash. PID 1 is
+#    the image's dumb-init (the entrypoint's shebang), which execs consul as
+#    its child under su-exec. That does not weaken the process faults:
+#    proc.pause is `docker pause` (internal/perturber/faults/proc.go:580), a
+#    cgroup freeze of every process in the container, and proc.kill is
+#    `docker kill --signal` (proc.go:692) to PID 1, which dumb-init forwards
+#    to consul, or which ends the namespace when the signal is SIGKILL.
+#
+#  * NAMED VOLUMES at /consul/data, the image's own VOLUME path. Without them
+#    Docker would create an anonymous volume per container on every world.
+
+networks:
+  consul:
+    name: "${CONSUL_PREFIX:-prothesis}-consul"
+
+volumes:
+  n1data: {}
+  n2data: {}
+  n3data: {}
+
+x-consul: &consul
+  image: hashicorp/consul:2.0.4@sha256:1c59f007df8ea1c21b2558dc73ef8d99047bc895d9e52e635d1e745e35fe9a54
+  restart: "no" # auto-restart would mask no_crash. NEVER change this.
+  init: false # dumb-init from the image is PID 1; see the topology notes above
+  stop_grace_period: 3s
+  networks: [consul]
+  environment:
+    # The entrypoint turns this into -bind=<eth0's IPv4 address>: one
+    # explicit Raft/Serf address instead of Consul's private-IP auto-detection.
+    CONSUL_BIND_INTERFACE: eth0
+    # The entrypoint writes this to /consul/config/local.json.
+    #   performance.raft_multiplier = 1: production Raft timing. Consul's
+    #     base values are heartbeat 1000 ms, election 1000 ms and leader lease
+    #     500 ms, multiplied by raft_multiplier; the default multiplier of 5 is
+    #     the development setting (5 s / 5 s / 2.5 s). Stated so the numbers a
+    #     fault window is chosen against are visible here.
+    #   disable_update_check: a world makes no outbound call to HashiCorp's
+    #     update-check service.
+    CONSUL_LOCAL_CONFIG: '{"performance":{"raft_multiplier":1},"disable_update_check":true}'
+  healthcheck:
+    # 200 only when this node is the leader or can forward to one: the
+    # default-mode request is forwarded to the leader over RPC, and with no
+    # leader it is held and answered 500 "No cluster leader". busybox wget
+    # exits non-zero on a non-2xx answer.
+    test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8500/v1/operator/raft/configuration"]
+    interval: 1s
+    timeout: 3s
+    retries: 60
+    start_period: 2s
+
+# Every server is started with the same cluster flags. -bootstrap-expect=3 with
+# -retry-join to the other two: the documented way to form a fixed three-voter
+# cluster without a bootstrap node. -node is the compose service name, which is
+# the harness node id; the role and steady probes map servers back by it.
+
+services:
+  consul-n1:
+    <<: *consul
+    container_name: "${CONSUL_PREFIX:-prothesis}-consul-n1"
+    hostname: consul-n1
+    ports: ["127.0.0.1:${CONSUL_PORT_N1:-15501}:8500"]
+    volumes: ["n1data:/consul/data"]
+    command:
+      - agent
+      - -server
+      - -bootstrap-expect=3
+      - -node=consul-n1
+      - -retry-join=consul-n2
+      - -retry-join=consul-n3
+      - -client=0.0.0.0
+
+  consul-n2:
+    <<: *consul
+    container_name: "${CONSUL_PREFIX:-prothesis}-consul-n2"
+    hostname: consul-n2
+    ports: ["127.0.0.1:${CONSUL_PORT_N2:-15502}:8500"]
+    volumes: ["n2data:/consul/data"]
+    command:
+      - agent
+      - -server
+      - -bootstrap-expect=3
+      - -node=consul-n2
+      - -retry-join=consul-n1
+      - -retry-join=consul-n3
+      - -client=0.0.0.0
+
+  consul-n3:
+    <<: *consul
+    container_name: "${CONSUL_PREFIX:-prothesis}-consul-n3"
+    hostname: consul-n3
+    ports: ["127.0.0.1:${CONSUL_PORT_N3:-15503}:8500"]
+    volumes: ["n3data:/consul/data"]
+    command:
+      - agent
+      - -server
+      - -bootstrap-expect=3
+      - -node=consul-n3
+      - -retry-join=consul-n1
+      - -retry-join=consul-n2
+      - -client=0.0.0.0
