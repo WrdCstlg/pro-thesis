@@ -21,6 +21,8 @@
 **/.prothesis/runs/
 **/.prothesis/corpus/
 **/.prothesis/tmp/
+# Evaluation-suite archives of scored runs (eval/tools/archive-runs.ps1).
+**/.prothesis/archive/
 # Clustering engine reports: derived, regenerable from the corpus and registry.
 **/.prothesis/cluster_features.csv
 **/.prothesis/cluster_manifest.json
