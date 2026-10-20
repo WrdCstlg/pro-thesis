@@ -32,6 +32,10 @@ verdict about the target systems.
   compose-labelled volumes are checked and the count recorded with the run id. A world that started
   on another world's storage is excluded from the precision and reproducibility figures and
   reported.
+- Before a world counts, the image it recorded (`world.thesis` `sut.images`, resolved by the
+  harness from the running containers) is compared with the arm's pinned digest by
+  `tools/check-images.ps1`. A world that reads MISMATCH or MISSING is excluded and reported. A
+  target pinned by tag only (etcd) passes `-Pin` with the digest named in the arm's prediction.
 - Run artifacts stay in each target's `.prothesis/runs/`. After a phase is scored and cross-checked,
   its runs are archived with `tools/archive-runs.ps1` (compressed, every file hashed and verified,
   the original moved to `.prothesis/runs/.trash/`, never deleted). Runs cited as evidence are not
