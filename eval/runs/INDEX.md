@@ -10,6 +10,7 @@ figures.
 |---|---|---|---|---|---|---|---|
 | rqlite onboarding smoke (no arm) | P1 | `r_2026_10_20_95ab` (targets/rqlite) | `5e55347` (harness build) | 0 | 1 | 0 | no |
 | Consul onboarding smoke (no arm) | P1 | `r_2026_10_20_9237` (targets/consul) | `5e55347` (harness build) | 0 | 1 | 0 | no |
+| Redis onboarding smoke (no arm) | P1 | `r_2026_10_20_c22a` (targets/redis) | `5e55347` (harness build) | 0 | 1 | 0 | no |
 
 Operator probes (not arms):
 

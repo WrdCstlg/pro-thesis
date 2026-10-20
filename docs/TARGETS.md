@@ -412,5 +412,15 @@ That is the shape every fix in this repository has to take, applied to the integ
 - **The role probe breaks ties by Raft term** (OQ-095). If your system exposes no term, make the probe
   refuse any disagreement rather than guess.
 - **A passing steady-state probe leaves no trace in the bundle** (OQ-096).
+- **The health probe is HTTP only** (OQ-098). A system with no HTTP interface needs a small shim in
+  each node's network namespace; `targets/redis/cmd/redishealth` is one.
+- **A node declares one port, used both for health and as the address handed to your programs**
+  (OQ-099). If health and data are on different ports, write the data addresses into the driver
+  and probe commands; parallel lanes cannot then remap them.
+- **`topology_variant` in `world.thesis` is always "default"** (OQ-100). Record the topology your
+  verdict depends on yourself; the Redis driver puts it on the first history record and refuses a
+  world that differs from the lock-covered values.
+- **Only declared nodes are in the evidence** (OQ-101). Images, logs and crashes of other compose
+  services (a Sentinel, a shim) are not recorded.
 - **Launch runs from the project directory.** Launched from elsewhere, teardown can leave the
   project's named volumes behind and the next world boots on them (OQ-087).
