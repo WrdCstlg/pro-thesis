@@ -107,6 +107,14 @@ func requireFixture(t *testing.T) (dir string, cfg *schema.Config) {
 // the run verdict; it is opt-in, D-059 had made the assertion impossible five
 // days earlier, and nothing noticed until CI on a Linux runner turned it on
 // (OQ-066).
+//
+// "Clean" means no fault. Since H1 the `linear` profile carries a lock-covered
+// leader partition, which fires the fixture's planted stale read, so the world
+// became a violation and this opt-in test failed in CI on every push after H1.
+// The world now asks for an explicitly empty schedule (FaultsSupplied with no
+// faults, which is `--no-faults`): the configuration this test was written
+// against. An argv schedule that differs from the profile narrows the run, which
+// the run-verdict assertion below already requires.
 func TestFixtureDrainReachesPassOnACleanWorld(t *testing.T) {
 	dir, cfg := requireFixture(t)
 
@@ -133,6 +141,9 @@ func TestFixtureDrainReachesPassOnACleanWorld(t *testing.T) {
 		Seed:       424242,
 		Worlds:     1,
 		Budget:     8 * time.Minute,
+		// A clean world: no fault, stated explicitly (see the comment above).
+		Faults:         nil,
+		FaultsSupplied: true,
 	})
 	if err != nil {
 		t.Fatalf("NewRunner: %v", err)
