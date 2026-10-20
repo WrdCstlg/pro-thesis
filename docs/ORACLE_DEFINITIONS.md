@@ -5,8 +5,8 @@ Reference for the files in `oracles.dir` (`.prothesis/oracles` by default).
 **Status: ADDITIVE.** The directive freezes `prothesis.yaml`, `prothesis.verdict/v1`,
 `prothesis.oracle_input/v1`, `prothesis.oracle_output/v1`, the history JSONL, the exit codes and the
 fault grammar. It defines no definition-file format, so this one is designed here. Rationale in
-`DECISIONS.md` D-039; the gap it fills, and the alternative that was rejected, in
-`OPEN_QUESTIONS.md` OQ-029. It resolves OQ-028.
+D-039; the gap it fills, and the alternative that was rejected, in OQ-029. It resolves OQ-028.
+Those ids name entries in the project's private ledger.
 
 The same reference is scaffolded into each project as `.prothesis/oracles/README.md`, where the
 person editing a definition will actually see it. This copy exists for the repo.

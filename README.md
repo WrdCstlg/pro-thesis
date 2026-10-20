@@ -23,7 +23,7 @@ By **Senan Sumrein**.
 
 <div align="center">
 
-**[Why](#why-this-exists) · [Quick Start](#quick-start) · [First Five Minutes](#the-first-five-minutes) · [Four Answers](#four-answers) · [Costs](#what-it-actually-costs) · [Not Yet Proven](#what-is-not-yet-proven) · [Under the Hood](#under-the-hood) · [Authorship](#authorship-who-built-what)**
+**[Why](#why-this-exists) · [Quick Start](#quick-start) · [First Five Minutes](#the-first-five-minutes) · [Four Answers](#four-answers) · [Costs](#what-it-actually-costs) · [Not Yet Proven](#what-is-not-yet-proven) · [Under the Hood](#under-the-hood)**
 
 </div>
 
@@ -309,8 +309,8 @@ Every claim in this README, with the command or file that measured it:
 ## What is not yet proven
 
 Stated here so a reader does not have to find it. [`docs/KNOWN-ISSUES.md`](docs/KNOWN-ISSUES.md)
-digests the open weaknesses that bear on what a verdict means; every open entry is in
-[`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md).
+digests the open weaknesses that bear on what a verdict means; every open entry is in the
+project's private ledger (see [The ledgers](#the-ledgers)).
 
 - **A PASS is not yet as strong as the design intends.** A driver that fails or is killed at the
   drain deadline now makes the world INCONCLUSIVE (item H2; OQ-077, first half), but a history
@@ -359,7 +359,7 @@ digests the open weaknesses that bear on what a verdict means; every open entry 
   for an unchanged Dockerfile (OQ-068).
 - **Three measurement upgrades are designed and pending**: run-relative witness paths, a
   retention policy for the run corpus, and a stratified sample whose unit is the world rather than
-  the run. [`AGENTS.md`](AGENTS.md) carries their ground truth for whoever picks them up.
+  the run. Their measured ground truth is kept in the private development notes.
 
 ---
 
@@ -483,47 +483,26 @@ Research software at `0.1.0-phase0`, under active development.
 
 ---
 
-## How this was built
+## Engineering practices
 
-The author and AI coding agents built this together, under a written protocol. Other agent
-sessions and a second model audited the work as it went, and it was then pointed at a system it
-had not been built around.
-
-### Who did what
-
-This was a collaboration, and the repository does not try to draw a line through it. Every
-commit is under the author's git identity. Until D-100 its `Co-Authored-By` trailers recorded the
-AI agents that worked on it; since D-100 the commit body names them instead. Nothing in the history
-hides either party. The decisions, and the reasons for
-them, are in the ledgers. The project was developed in a private repository; its full commit
-history is available on request.
-
-### The method
-
-- **A written protocol binds the agents.** Never weaken a gate to make it pass; record every
-  non-obvious choice in `DECISIONS.md`; log every requirement that cannot be met as written in
-  `OPEN_QUESTIONS.md` instead of quietly relaxing it; ship a compiling binary at the end of every
-  phase; never claim a number that was not measured. The phase briefs are in
-  [`docs/protocol/`](docs/protocol/), and a wiring map of the commands, packages, and refusal paths
-  is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
-- **Work is checked by someone other than its writer.** The adversarial conformance suite
-  ([`scripts/adversarial.ps1`](scripts/adversarial.ps1)) re-derives truth from raw artifacts
-  instead of trusting the tool's own verdict; every probe is built to be able to fail, and one
-  probe exists to prove the others can. Separate agent sessions and a second model audit the code
-  against its own claims, and their findings become ledger entries.
-- **Live runs are recorded by an independent observer**, with the exit code read in the
-  launching shell and the witness re-derived from the raw history
-  ([`docs/observations/`](docs/observations/)).
+- **Every fix has the same shape.** A test that fails on the current code; the minimal change;
+  then the change reverted to prove the test catches it.
+- **The tool's own verdict is not trusted.** The adversarial conformance suite
+  ([`scripts/adversarial.ps1`](scripts/adversarial.ps1)) re-derives truth from raw artifacts; every
+  probe is built to be able to fail, and one probe exists to prove the others can.
+- **Live runs are recorded independently**, with the exit code read in the launching shell and the
+  witness re-derived from the raw history ([`docs/observations/`](docs/observations/)).
 - **Predictions are written down before the run.** The etcd target's expected outcome was
   pre-registered, and the record reports where the prediction was right and where its reasoning
   was not.
-- **Every fix has the same shape.** A test that fails on the current code; the minimal change;
-  then the change reverted to prove the test catches it.
-- **The ledgers are enforced by a test.** A duplicated entry id, or a citation anywhere in the
-  tree to an entry that does not exist, fails the suite (D-067).
+- **References are checked.** A citation in the tree to a decision or open-question entry that does
+  not exist fails the suite wherever the private ledger is attached (D-067); public CI skips that
+  check by declaration.
+
+A wiring map of the commands, packages and refusal paths is in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ---
-
 ## Security model
 
 PRO-THESIS executes code named in the configuration file, by design. `driver.cmd`,
@@ -544,50 +523,9 @@ are open today, and how to report a new one, are in [`SECURITY.md`](SECURITY.md)
 
 ## The ledgers
 
-- [`DECISIONS.md`](DECISIONS.md): every non-obvious choice, with what was rejected and why,
-  D-001 through D-104. D-094 and D-095 are withdrawn by D-096.
-- [`OPEN_QUESTIONS.md`](OPEN_QUESTIONS.md): every requirement that could not be met as written,
-  every defect found, and what was measured about it, OQ-001 through OQ-088. Entries are never
-  deleted; a resolution is appended.
-
----
-
-## Authorship: who built what
-
-PRO-THESIS was conceived, specified and adjudicated by its author, Senan Sumrein, and implemented
-by AI coding agents working under his written specifications. The split is documented in the
-tree, not asserted:
-
-- **The author wrote the rules.** The base build directive, the phase briefs and addenda in
-  [`docs/protocol/`](docs/protocol/), and the comprehensive test protocol
-  ([`docs/protocol/VERIFICATION_PROTOCOL.md`](docs/protocol/VERIFICATION_PROTOCOL.md)) are his
-  text. The doctrine every ledger entry cites (never weaken a gate; never claim an unmeasured
-  number; INCONCLUSIVE is a verdict, not a failure) is his.
-- **The author made the rulings.** Every binding decision in [`DECISIONS.md`](DECISIONS.md) was
-  made or ratified by him; D-076 records the standing rules of the process itself, including which
-  model may build and which may arbitrate ([`AGENTS.md`](AGENTS.md) section 9).
-- **The agents wrote the code and tests** under those specifications. Every commit's
-  `Co-Authored-By` trailer names the model exactly as the tool reported it, except three commits of
-  2026-10-10 that carry none (D-096), and every commit from D-100 (2026-10-12) on, which carry
-  none under the owner's global rule and name the model in the commit body instead: Claude Opus 5,
-  Claude Opus 5 (1M context) and Claude Fable 5.1 through v0.1.0; Kimi Code CLI for the test
-  protocol adoption D-081, the attribution system D-082/D-083 and the clustering engine D-084;
-  Claude Opus 5 (1M context) for D-085 to D-088; Claude Opus 5.5 (1M context) for D-089 to D-092,
-  the recordings and this page; Claude Opus 5.5 for D-093; Gemini 3.8 Flash on D-088, D-089 and
-  D-092, and Gemini 2.5 Pro on D-089. For D-094 to D-096 the author withheld the model names: D-096,
-  which withdraws D-094 and D-095, calls them model A and model B. Claude Opus 5.5 drafted the
-  hardening plan and recorded D-097 through D-099; Gemini 3.8 Flash built the Phase 1 items H1
-  and H2 and the OQ-086 telemetry reorder; Kimi Code CLI arbitrated Phase 0 and the Phase 1
-  publication ([`docs/reviews/`](docs/reviews/)) and remediated the documentation drift that work
-  left behind; Claude Opus 5.5 recorded D-101 to D-103, and built item H6a and recorded D-104,
-  OQ-087 and OQ-088. The author reviewed, redirected and
-  rejected throughout: the pivot from "drive the corpus to zero inconclusive" to "every recorded
-  refusal must attribute to a known problem" (D-082) was his instruction, and the system changed
-  course because of it.
-- **The evidence procedure is his.** The observation bundles
-  ([`docs/observations/`](docs/observations/)) were recorded under his protocol, with exit codes
-  read in the launching shell and witnesses re-derived from raw artifacts by an independent
-  script.
+Design decisions and open questions are tracked in a private ledger. Identifiers such as D-0xx
+and OQ-0xx in the code, the docs and the commit history refer to its entries.
+[`docs/KNOWN-ISSUES.md`](docs/KNOWN-ISSUES.md) is the public digest of the open weaknesses.
 
 ---
 
@@ -603,8 +541,9 @@ On hosts whose application-control policy blocks binaries in temporary directori
 and runs both modules. Stamped release builds come from [`scripts/build.ps1`](scripts/build.ps1)
 (D-070, D-072). The README's recordings come from
 [`scripts/demo/first-five-minutes.ps1`](scripts/demo/first-five-minutes.ps1), and
-`-RenderOnly` redraws them without Docker. [`AGENTS.md`](AGENTS.md) is the hand-off for an agent
-or a person picking the work up: the doctrine, the development host, the state, and what is next.
+`-RenderOnly` redraws them without Docker. A clone without the private ledger attached sets
+`SYNTHESIS_LEDGERS_PRIVATE=1` before running the tests, as CI does; `internal/ledger` then skips
+its two ledger checks with the reason instead of failing them.
 
 ---
 

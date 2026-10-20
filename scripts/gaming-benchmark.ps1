@@ -6,8 +6,7 @@
 # instead of fixing the defect. Every attack runs against the reference fixture
 # built WITH its planted defect (KV_VARIANT unset), so any exit 0 below is a
 # false PASS by construction. An attack counts as REFUSED only when the exit code
-# is one of the codes listed for it in Appendix B of
-# docs/design/10-hardening.plan.md. Those codes describe the system AFTER the
+# is one of the codes the catalogue below lists for it. Those codes describe the system AFTER the
 # plan lands, so on the day this was written several attacks are expected to
 # succeed: they are the plan's failing tests at system level, and each later item
 # turns one of them green.

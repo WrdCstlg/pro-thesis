@@ -1,7 +1,7 @@
 # OBS-LIVE-002: Observation record
 
 Date: 2026-09-19
-Observer: Claude (external; recorded the execution, did not influence it)
+Observer: an independent session (external; recorded the execution, did not influence it)
 Run: `r_2026_09_19_151f`
 Predecessor: [OBS-LIVE-001](../2026-09-17-OBS-LIVE-001/record.md)
 

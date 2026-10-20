@@ -80,9 +80,13 @@ jobs:
           go build -o testdata/kvfixture/bin/linearizable-kv ./cmd/thesis-oracle-linearizable
           (cd testdata/kvfixture && go build -o bin/loadgen ./cmd/loadgen && docker compose build)
 
+      # The ledgers are private (D-105) and this checkout cannot see them, so
+      # it declares that and internal/ledger skips its two ledger checks with
+      # the reason. Without the declaration their absence fails the suite.
       - name: test (main module)
         env:
           PROTHESIS_DOCKER_TESTS: ${{ matrix.go == 'stable' && '1' || '' }}
+          SYNTHESIS_LEDGERS_PRIVATE: "1"
         run: |
           set +e
           go test -count=1 -timeout 35m -json ./... > test.json
@@ -115,6 +119,8 @@ jobs:
       # host that is not the build machine.
       - name: race detector
         if: matrix.go == 'stable'
+        env:
+          SYNTHESIS_LEDGERS_PRIVATE: "1"
         run: go test -race -count=1 -timeout 30m ./...
 
   live:

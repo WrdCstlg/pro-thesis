@@ -1,9 +1,9 @@
 # Known issues
 
 The open weaknesses that bear on what a verdict means, in one place, grouped by what they
-put at risk. Each is an entry in [`OPEN_QUESTIONS.md`](../OPEN_QUESTIONS.md), which has the
-code locations and the measurements; this page is the digest, and the ledger wins wherever the
-two disagree. [`SECURITY.md`](../SECURITY.md) covers the ones an adversary would use.
+put at risk. Each is an entry in the project's private open-questions ledger, which has the
+code locations and the measurements; this page is the public digest, and the ledger wins wherever
+the two disagree. [`SECURITY.md`](../SECURITY.md) covers the ones an adversary would use.
 
 Each *would close it* below is the entry's own proposal, not scheduled work.
 
@@ -17,8 +17,7 @@ A false PASS is the failure this project exists to prevent, so these come first.
   schedule lives in the lock-covered run profile (`profiles.<name>.faults`); an argv schedule
   that differs from it, or `--no-faults`, narrows the run under D-059, so a clean result is
   INCONCLUSIVE and a run under the locked schedule catches the defect. Measured closed: gaming
-  benchmark attack B1, exit 1 with a witnessed violation (run `r_2026_10_12_4151`,
-  `docs/reviews/2026-10-12-phase1-publication-verification.md`).
+  benchmark attack B1, exit 1 with a witnessed violation (run `r_2026_10_12_4151`).
 - **A truncated history is still judged as complete (OQ-077, second half open).** The first
   half closed with item H2: a driver that never started, missed the drain deadline or exited
   non-zero on its own now makes the world INCONCLUSIVE. What remains is a history cut cleanly

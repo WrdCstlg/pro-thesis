@@ -1,22 +1,14 @@
-# Em dash audit for the release gate (docs/protocol/VERIFICATION_PROTOCOL.md, section 6).
+# Em dash audit for the release gate (section 6 of the verification protocol,
+# which is private since D-105).
 # Fails if any tracked Markdown file outside the grandfathered verbatim set
-# contains U+2014 (em dash). The grandfathered files are historical documents
-# kept as written (docs/protocol/README.md); no new file may join the list.
+# contains U+2014 (em dash). The grandfathered set held historical protocol and
+# design documents kept as written; they moved to the private companion
+# repository (D-105), so the set is empty. No file may join it.
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $repoRoot
 try {
-    $grandfathered = @(
-        'docs/protocol/PHASE0_BUILD_BRIEF.md',
-        'docs/protocol/PHASE3_BUILD_BRIEF.md',
-        'docs/protocol/SABOTEUR_INJECTION.md',
-        'docs/design/01-schema.design.md',
-        'docs/design/02-recorder.verify.md',
-        'docs/design/03-harness.design.md',
-        'docs/design/04-fixture.design.md',
-        'docs/design/saboteur/06-saboteur.architecture.md',
-        'docs/design/saboteur/07-saboteur.i2-conflict.md'
-    )
+    $grandfathered = @()
     $violations = @()
     $files = git ls-files -- '*.md'
     foreach ($f in $files) {
