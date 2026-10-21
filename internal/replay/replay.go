@@ -10,6 +10,7 @@ import (
 
 	"github.com/WrdCstlg/pro-thesis/internal/control"
 	"github.com/WrdCstlg/pro-thesis/internal/corpus"
+	"github.com/WrdCstlg/pro-thesis/internal/driver"
 	"github.com/WrdCstlg/pro-thesis/internal/shrink"
 	"github.com/WrdCstlg/pro-thesis/pkg/schema"
 )
@@ -94,6 +95,11 @@ type Options struct {
 
 	// KeepUp leaves the topology standing after the LAST attempt.
 	KeepUp bool
+
+	// Plan is the driver plan the world recorded (LoadRecordedPlan). Every
+	// attempt drives it instead of a plan regenerated from the current config.
+	// Nil only for a world that recorded none.
+	Plan *driver.Plan
 
 	// Now is the clock, for tests. Nil means time.Now.
 	Now func() time.Time
@@ -276,6 +282,13 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 			Faults:  choice.Faults,
 			Label:   fmt.Sprintf("replay %s attempt %d/%d", shortID, i, k),
 			KeepUp:  opts.KeepUp && i == k,
+			Plan:    opts.Plan,
+		}
+		// The images are part of what the world IS. A world recorded with none
+		// (resolution failed, or a v1 world from before they were recorded)
+		// constrains nothing, and the report's note says so.
+		if len(opts.World.SUT.Images) > 0 {
+			req.ExpectImages = append([]schema.SUTImage(nil), opts.World.SUT.Images...)
 		}
 		ordinal++
 

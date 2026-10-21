@@ -440,8 +440,15 @@ type WorldRequest struct {
 
 	// Plan overrides the driver plan for this world. When non-nil, its explicit
 	// operations are executed instead of profile generation. Used by Phase 5
-	// shrinking for workload reduction.
+	// shrinking for workload reduction, and by replay to drive the plan a world
+	// recorded rather than one regenerated from the current config.
 	Plan *driver.Plan
+
+	// ExpectImages are the images this world must boot on: a replay passes the
+	// ones the world recorded. A world whose resolved images differ (another
+	// digest, an extra image, or images that could not be resolved) is not the
+	// recorded world and comes back inconclusive. Nil checks nothing.
+	ExpectImages []schema.SUTImage
 }
 
 // seedFor resolves this request's world seed: the pinned one when given, the

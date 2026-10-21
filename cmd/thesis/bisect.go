@@ -207,7 +207,7 @@ func cmdBisect(ctx context.Context, g globals, args []string) schema.ExitCode {
 		if err != nil {
 			return bisect.Skip, "", err
 		}
-		runner, err := runnerFor(p, profile, runID, g.quiet, 0)
+		runner, err := runnerFor(p, profile, runID, g.quiet, 0, worldVariant(world))
 		if err != nil {
 			return bisect.Skip, "", err
 		}
