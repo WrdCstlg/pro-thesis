@@ -76,7 +76,8 @@ func (e *NonCanonicalWorldError) Error() string {
 // keys, so reordering the struct is a no-op rather than a silent rehash of
 // every committed world.
 type World struct {
-	// Schema is always WorldSchema.
+	// Schema is WorldSchema for a world written now, or WorldSchemaV1 for one
+	// recorded before v2. The schema decides what the hash covers.
 	//
 	// ADDITIVE: the directive freezes the world tuple but names no schema id
 	// for the file that carries it, so there is otherwise no way to
@@ -113,6 +114,14 @@ type World struct {
 	// correct, and `reproduced: "3/3"` is a claim about an unknown binary.
 	// Included in the hash. Logged as OQ-011.
 	SUT SUT `json:"sut"`
+
+	// PlanDigest is the digest of the driver workload this world ran
+	// (driver.Plan.WorkloadDigest: profile, seed, clients, ops, mix, operations;
+	// not the per-execution history path, targets or origin). v2 only, and part
+	// of the v2 identity: two worlds that drove different workloads are not the
+	// same world. Replay checks the recorded plan.json against it. Empty when
+	// the world has not been executed.
+	PlanDigest string `json:"plan_digest,omitempty"`
 
 	// Meta is provenance. It is EXCLUDED from the world hash and omitted when
 	// empty, so recording where a world came from never changes its identity,
@@ -214,7 +223,11 @@ func NewWorld(seed uint64, topologyVariant, driverProfile string) World {
 // reorder the corpus entry it was derived from.
 func (w World) Normalized() World {
 	out := w
-	out.Schema = WorldSchema
+	// A v1 world stays v1: restamping it would change what its hash covers and
+	// so its identity. Anything else is stamped with the current schema.
+	if w.Schema != WorldSchemaV1 {
+		out.Schema = WorldSchema
+	}
 
 	out.FaultSchedule.Planned = SortFaultStrings(w.FaultSchedule.Planned)
 	if out.FaultSchedule.Planned == nil {
@@ -281,8 +294,23 @@ func (w *World) identity() worldIdentity {
 	}
 }
 
+// worldIdentityV2 is the v2 hashed projection: the world's INPUTS. The measured
+// phase timings and the realized schedule (targets resolved against the live
+// cluster, windows as measured) are left out, so executing the same world again
+// yields the same identity.
+type worldIdentityV2 struct {
+	DriverProfile   string   `json:"driver_profile"`
+	Planned         []string `json:"planned"`
+	PlanDigest      string   `json:"plan_digest"`
+	Seed            uint64   `json:"seed"`
+	SUT             SUT      `json:"sut"`
+	TopologyVariant string   `json:"topology_variant"`
+}
+
 // Hash returns "sha256:"+hex over the canonical encoding of the world
-// identity, exactly as the receiver stands.
+// identity, exactly as the receiver stands. A v1 world's identity is the v1
+// projection, so every recorded v1 world keeps its hash; any other world uses
+// the v2 projection of its inputs.
 //
 // It does NOT normalize first. That is deliberate: a hand-reordered or
 // hand-edited world must hash differently from the sealed one, or editing a
@@ -292,7 +320,18 @@ func (w *World) identity() worldIdentity {
 // world's identity and its file are two views of one byte string rather than
 // two independently-derived ones that happen to agree.
 func (w *World) Hash() (string, error) {
-	b, err := cjson.EncodeCompact(w.identity())
+	var preimage any = w.identity()
+	if w.Schema != WorldSchemaV1 {
+		preimage = worldIdentityV2{
+			DriverProfile:   w.DriverProfile,
+			Planned:         w.FaultSchedule.Planned,
+			PlanDigest:      w.PlanDigest,
+			Seed:            w.Seed,
+			SUT:             w.SUT,
+			TopologyVariant: w.TopologyVariant,
+		}
+	}
+	b, err := cjson.EncodeCompact(preimage)
 	if err != nil {
 		return "", fmt.Errorf("world: hash preimage: %w", err)
 	}
@@ -315,8 +354,11 @@ func (w *World) ShortID() (string, error) {
 // the file.
 func (w *World) Validate() error {
 	var errs ValidationErrors
-	if w.Schema != WorldSchema {
-		errs.Add("schema", "is %q, want %q", w.Schema, WorldSchema)
+	if w.Schema != WorldSchema && w.Schema != WorldSchemaV1 {
+		errs.Add("schema", "is %q, want %q (or %q for a world recorded before it)", w.Schema, WorldSchema, WorldSchemaV1)
+	}
+	if w.Schema == WorldSchemaV1 && w.PlanDigest != "" {
+		errs.Add("plan_digest", "is set on a %s world, whose identity cannot cover it", WorldSchemaV1)
 	}
 	if w.TopologyVariant == "" {
 		errs.Add("topology_variant", "missing (names the topology this world ran against)")
@@ -437,8 +479,8 @@ func UnmarshalWorld(data []byte) (*World, error) {
 		return nil, ErrWorldTrailingData
 	}
 
-	if w.Schema != WorldSchema {
-		return nil, fmt.Errorf("world: schema is %q, want %q", w.Schema, WorldSchema)
+	if w.Schema != WorldSchema && w.Schema != WorldSchemaV1 {
+		return nil, fmt.Errorf("world: schema is %q, want %q or %q", w.Schema, WorldSchema, WorldSchemaV1)
 	}
 
 	got, err := MarshalWorld(&w)

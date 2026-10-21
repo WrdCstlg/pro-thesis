@@ -147,6 +147,14 @@ type HarnessConfig struct {
 	// here, because compose already namespaces by project.
 	PrefixEnv string `yaml:"prefix_env,omitempty"`
 
+	// VariantEnv is the environment variable the topology file uses to select
+	// the build of the system under test, e.g. `KV_VARIANT` for a compose file
+	// spelling `image: "kv:${KV_VARIANT:-buggy}"`. A world records the value in
+	// force as its topology_variant: the profile's `variant` when it pins one,
+	// otherwise the inherited value, otherwise "default". Optional, and
+	// lock-covered: it decides which program the verdict is about (D-109).
+	VariantEnv string `yaml:"variant_env,omitempty"`
+
 	Nodes       []NodeConfig     `yaml:"nodes"`
 	Health      []HealthProbe    `yaml:"health"`
 	SteadyState SteadyStateProbe `yaml:"steady_state"`
@@ -402,6 +410,11 @@ type Profile struct {
 	// requirement, and validation refuses the combination. Lock-covered, like
 	// every key of the profile.
 	MinWorlds *int `yaml:"min_worlds,omitempty"`
+	// Variant pins the build of the system under test this profile runs: the
+	// value harness.variant_env is set to for compose and the driver, and the
+	// world's topology_variant. Requires harness.variant_env. A `--variant` on
+	// the command line that differs from it narrows the run.
+	Variant string `yaml:"variant,omitempty"`
 	// DriverProfile names an entry of driver.profiles. A top-level profile and
 	// a driver profile may share a name (the directive's own sample uses
 	// smoke/gate/soak for both) and they are resolved in different maps.

@@ -43,8 +43,12 @@ const goldenWorldBytes = `{"driver_profile":"gate",` +
 // world, so it must never change silently.
 const goldenWorldHash = "sha256:db30f2be72f0dec6697a41daaaa06c2a594fadf450cf903f601d4dc86732d1ae"
 
+// goldenWorld is a v1 world, and stays one: the golden bytes and hash above are
+// the guarantee that every recorded v1 world keeps the identity it was given.
+// The v2 format has its own golden (world_v2_test.go).
 func goldenWorld() World {
 	w := NewWorld(424242, "default", "gate")
+	w.Schema = WorldSchemaV1
 	// Deliberately out of canonical order: Normalized must sort them.
 	w.FaultSchedule.Planned = []string{
 		"proc.pause(role:leader)@8200..11000",
@@ -287,7 +291,7 @@ func TestWorldRejectsNonCanonicalInput(t *testing.T) {
 
 func TestWorldRejectsWrongSchema(t *testing.T) {
 	w := goldenWorld()
-	w.Schema = "prothesis.world/v2"
+	w.Schema = "prothesis.world/v9"
 	b, err := CanonicalMarshal(&w)
 	if err != nil {
 		t.Fatalf("CanonicalMarshal: %v", err)

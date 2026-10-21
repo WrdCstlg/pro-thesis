@@ -59,12 +59,20 @@ const (
 	// ConfigVersion is the required value of prothesis.yaml `version`.
 	ConfigVersion = "prothesis/v1"
 
-	// WorldSchema identifies a .thesis world file.
+	// WorldSchema identifies a .thesis world file in the current format, the
+	// one NewWorld writes.
 	//
 	// ADDITIVE: the directive freezes the world tuple (invariant I2) but names
 	// no schema id for the file that carries it. Without one there is no way to
 	// version-gate the format or to tell a .thesis from arbitrary JSON.
-	WorldSchema = "prothesis.world/v1"
+	//
+	// v2 (D-109) hashes the world's inputs only; see World.Hash.
+	WorldSchema = "prothesis.world/v2"
+
+	// WorldSchemaV1 is the first world format. It is still read, and a v1
+	// world keeps the identity it was given: its hash also covers the measured
+	// phase timings and the realized schedule.
+	WorldSchemaV1 = "prothesis.world/v1"
 
 	// VerdictSchema is the `schema` value of prothesis.verdict/v1 (directive 4.6).
 	VerdictSchema = "prothesis.verdict/v1"

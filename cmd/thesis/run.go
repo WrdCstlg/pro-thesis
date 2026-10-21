@@ -22,6 +22,7 @@ func cmdRun(ctx context.Context, g globals, args []string) schema.ExitCode {
 	var budget time.Duration
 	var worlds int
 	var noFaults bool
+	var variant string
 
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -99,6 +100,22 @@ func cmdRun(ctx context.Context, g globals, args []string) schema.ExitCode {
 			profile = args[i]
 		case strings.HasPrefix(a, "--profile="):
 			profile = strings.TrimPrefix(a, "--profile=")
+
+		// --variant selects the build of the system under test through
+		// harness.variant_env. One that differs from the profile's own runs a
+		// different program from the one the lock-covered profile names, so the
+		// run cannot PASS (control.resolveVariant).
+		case a == "--variant", strings.HasPrefix(a, "--variant="):
+			v := strings.TrimPrefix(a, "--variant=")
+			if a == "--variant" {
+				if i+1 >= len(args) {
+					errorf("run: --variant needs a name")
+					return schema.ExitConfigError
+				}
+				i++
+				v = args[i]
+			}
+			variant = v
 
 		case a == "--seed":
 			if i+1 >= len(args) {
@@ -236,6 +253,7 @@ func cmdRun(ctx context.Context, g globals, args []string) schema.ExitCode {
 		Seed:           seed,
 		Faults:         runnerFaults,
 		FaultsSupplied: faultsSupplied,
+		Variant:        variant,
 		OracleLock:     lockReport.OracleLock(),
 		// Injectors is deliberately left unset. The runner assembles the fault
 		// families per world in control.BuildInjectors, because every world

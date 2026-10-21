@@ -412,6 +412,22 @@ func (c *Config) ValidateOracles() error {
 }
 
 // ValidateProfiles checks the top-level run profiles.
+// IsVariantToken reports whether s can name a build variant: it becomes an
+// environment value and a world's topology_variant, so it is restricted to
+// letters, digits, '.', '_' and '-', starting with a letter or digit.
+func IsVariantToken(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i, r := range s {
+		alnum := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
+		if !alnum && (i == 0 || (r != '.' && r != '_' && r != '-')) {
+			return false
+		}
+	}
+	return true
+}
+
 func (c *Config) ValidateProfiles() error {
 	var errs ValidationErrors
 	if len(c.Profiles) == 0 {
@@ -434,6 +450,16 @@ func (c *Config) ValidateProfiles() error {
 			case w < WorldsUnbounded:
 				errs.Add(p+".worlds", "%d is not a world count (write a positive number or %d for unbounded)",
 					w, WorldsUnbounded)
+			}
+		}
+		if pr.Variant != "" {
+			switch {
+			case c.Harness.VariantEnv == "":
+				errs.Add(p+".variant", "%q needs harness.variant_env, the variable that carries it to the "+
+					"build; without it the world would record a variant that did not run", pr.Variant)
+			case !IsVariantToken(pr.Variant):
+				errs.Add(p+".variant", "%q is not a variant name (letters, digits, '.', '_' and '-', "+
+					"starting with a letter or digit)", pr.Variant)
 			}
 		}
 		if pr.MinWorlds != nil {
