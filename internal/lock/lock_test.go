@@ -144,7 +144,13 @@ func TestManifestGolden(t *testing.T) {
 	// Moved on 2026-09-26 by D-090: CoveredPaths gained driver.cmd, and the
 	// driver profiles a run profile names are covered by reference; baseConfig
 	// carries both. The previous value was sha256:1ce27e2a…fd7ef3b.
-	const golden = "sha256:2c1c14f77fe8f0a15230a674cfb33787ca8481eca6e5ff6682d4addf470c24e5"
+	//
+	// Moved on 2026-10-21 by D-109: the manifest schema is v2 and CoveredPaths
+	// gained harness.file, harness.nodes, harness.steady_state,
+	// harness.variant_env and perturber.constraints; baseConfig carries file,
+	// nodes and constraints. (No compose file exists here, so no topology
+	// entry.) The previous value was sha256:2c1c14f7…0c24e5.
+	const golden = "sha256:f41e5ddf46ee0dc274bb5b748de53daceb122a45dd820a297569f0f2f6bb4478"
 	got := digestOfConfig(t, baseConfig)
 	if got != golden {
 		t.Fatalf("manifest digest moved:\n  golden %s\n  got    %s\n"+
@@ -457,10 +463,14 @@ func TestAllowListReorderDoesNotMoveDigest(t *testing.T) {
 // subtest was removed deliberately, as OQ-026 said it must be. What stays
 // uncovered in the driver section, a profile no run profile names, is pinned by
 // TestOnlyDriverProfilesARunProfileNamesAreCovered.
+//
+// A `harness_file` subtest asserted that repointing the compose file moved
+// nothing. D-109 covers harness.file and the compose file's content, and the
+// subtest was removed deliberately; TestTheNewlyCoveredKeysMoveTheDigest pins
+// the opposite.
 func TestUncoveredEditsDoNotMoveDigest(t *testing.T) {
 	for _, tc := range []struct{ name, from, to string }{
 		{"name", "name: locktest", "name: renamed"},
-		{"harness_file", "file: docker-compose.yaml", "file: other-compose.yaml"},
 		{"artifacts_dir", "dir: .prothesis/runs", "dir: .prothesis/elsewhere"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

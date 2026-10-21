@@ -176,11 +176,16 @@ func NewRunner(opts RunnerOptions) (*Runner, error) {
 			"of driver.profiles", profile, driverProfile)
 	}
 
-	// Before the run directory is allocated, so a refused oracle set leaves
-	// nothing behind. Only the production engine is checked: a caller that
-	// supplies its own engine has taken over evaluation.
+	// The production oracle set is built ONCE, here, before the run directory is
+	// allocated: a refused set leaves nothing behind, and every world evaluates
+	// the definitions that were on disk when the run (and the lock check before
+	// it) started, not whatever is there at its ASSERT. A caller that supplies
+	// its own engine has taken over evaluation.
+	var builtOracles *defaultOracleEngine
 	if opts.OracleEngine == nil {
-		if err := checkOraclesEvaluable(cfg, absProjDir); err != nil {
+		var err error
+		builtOracles, err = newDefaultOracleEngine(cfg, absProjDir)
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -236,7 +241,7 @@ func NewRunner(opts RunnerOptions) (*Runner, error) {
 
 	oe := opts.OracleEngine
 	if oe == nil {
-		oe = &defaultOracleEngine{}
+		oe = builtOracles
 	}
 
 	st := opts.SteadyState
@@ -1754,7 +1759,40 @@ func (h *defaultTelemetryHandle) Stop(_ context.Context) error {
 
 func (h *defaultTelemetryHandle) Path() string { return h.path }
 
-type defaultOracleEngine struct{}
+// defaultOracleEngine is the production OracleEngine: the built-ins and the
+// external definitions under oracles.dir, registered into one engine.
+//
+// engine is the set built once by newDefaultOracleEngine when the runner was
+// created, and every world evaluates it. It is nil only when that build failed;
+// each world then builds the set again and fails with the discovery error as
+// its reason, which is how an unparseable definition has always been refused.
+type defaultOracleEngine struct {
+	engine   *oracle.Engine
+	note     string
+	noteOnce sync.Once
+}
+
+// newDefaultOracleEngine builds the production oracle set for a run.
+//
+// A world's oracles are evaluated once, at ASSERT, over the whole recorded
+// history; valid_phases then decides where a violation counts. A set containing
+// an oracle whose valid_phases leaves ASSERT out is refused here, because that
+// oracle would never run; EvaluateEvery's inconclusive finding is the half of
+// the rule that holds if such a set reaches ASSERT anyway.
+func newDefaultOracleEngine(cfg *schema.Config, projectDir string) (*defaultOracleEngine, error) {
+	engine, disc, err := oracle.NewEngineForConfig(cfg, oracle.DefaultOptions(),
+		oracle.ExternalOptions{ProjectDir: projectDir})
+	if err != nil {
+		return &defaultOracleEngine{}, nil
+	}
+	if names := engine.Unevaluable(schema.PhaseAssert); len(names) > 0 {
+		return nil, fmt.Errorf("control: oracle(s) %s declare valid_phases without ASSERT, the only phase "+
+			"a world's oracles are evaluated in; they would never run, and a world they were meant to "+
+			"judge could pass unchecked. Add ASSERT to their valid_phases",
+			strings.Join(names, ", "))
+	}
+	return &defaultOracleEngine{engine: engine, note: disc.Note()}, nil
+}
 
 // plannedFaultWindows converts the perturber's realized schedule into the
 // windows no_crash is willing to excuse.
@@ -1793,15 +1831,20 @@ func (e *defaultOracleEngine) Evaluate(ctx context.Context, req EvalRequest) ([]
 	// A discovery failure is an ERROR, not a shrug. An oracle definition that
 	// does not parse must never be quietly skipped: the run would then report
 	// PASS over a property nobody checked.
-	engine, disc, err := oracle.NewEngineForConfig(req.Config, oracle.DefaultOptions(),
-		oracle.ExternalOptions{ProjectDir: req.ProjectDir})
-	if err != nil {
-		return nil, err
+	engine := e.engine
+	note := e.note
+	if engine == nil {
+		built, disc, err := oracle.NewEngineForConfig(req.Config, oracle.DefaultOptions(),
+			oracle.ExternalOptions{ProjectDir: req.ProjectDir})
+		if err != nil {
+			return nil, err
+		}
+		engine, note = built, disc.Note()
 	}
 	// "No external oracle ran" and "every external oracle passed" are different
-	// facts, and only one of them supports a PASS. Say which one this was.
-	if note := disc.Note(); note != "" {
-		fmt.Fprintf(os.Stderr, "thesis: %s\n", note)
+	// facts, and only one of them supports a PASS. Say which one this was, once.
+	if note != "" {
+		e.noteOnce.Do(func() { fmt.Fprintf(os.Stderr, "thesis: %s\n", note) })
 	}
 
 	input, err := buildOracleInput(ctx, req)
@@ -1817,33 +1860,6 @@ func (e *defaultOracleEngine) Evaluate(ctx context.Context, req EvalRequest) ([]
 		return nil, err
 	}
 	return oracleResultsOf(findings), nil
-}
-
-// checkOraclesEvaluable refuses, before anything is allocated or booted, an
-// oracle set that contains an oracle this runner can never evaluate.
-//
-// A world's oracles are evaluated once, at ASSERT, over the whole recorded
-// history; valid_phases then decides where a violation counts. An oracle whose
-// valid_phases leaves ASSERT out would never run. Refusing here is the fail-fast
-// half of the rule; EvaluateEvery's inconclusive finding is the half that holds
-// if a set reaches ASSERT anyway.
-//
-// A set that does not build at all is left to the per-world path, which already
-// refuses it with the discovery error as the world's reason; that behaviour and
-// its exit code are unchanged by this check.
-func checkOraclesEvaluable(cfg *schema.Config, projectDir string) error {
-	engine, _, err := oracle.NewEngineForConfig(cfg, oracle.DefaultOptions(),
-		oracle.ExternalOptions{ProjectDir: projectDir})
-	if err != nil {
-		return nil
-	}
-	if names := engine.Unevaluable(schema.PhaseAssert); len(names) > 0 {
-		return fmt.Errorf("control: oracle(s) %s declare valid_phases without ASSERT, the only phase "+
-			"a world's oracles are evaluated in; they would never run, and a world they were meant to "+
-			"judge could pass unchecked. Add ASSERT to their valid_phases",
-			strings.Join(names, ", "))
-	}
-	return nil
 }
 
 // buildOracleInput assembles what every oracle is handed for one world.

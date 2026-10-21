@@ -24,7 +24,9 @@ import (
 // ADDITIVE. The directive names `.prothesis/lock` and the verdict's
 // `oracle_lock.manifest_sha` but fixes no internal schema for either, so this
 // identifier is chosen to match the `prothesis.*` family. Logged as OQ-027.
-const ManifestSchema = "prothesis.lock_manifest/v1"
+//
+// v2 (D-109) adds Files, the compose file's content, and five covered keys.
+const ManifestSchema = "prothesis.lock_manifest/v2"
 
 // Manifest is the digested projection: what the lock actually covers.
 //
@@ -45,6 +47,14 @@ type Manifest struct {
 	// Config is the covered configuration leaves, sorted, exactly as written.
 	// A key the user did not write has NO entry here.
 	Config []ConfigEntry `json:"config"`
+	// Topology is the content of the compose file `harness.file` names (default
+	// docker-compose.yaml), whose timeouts, images and topology decide whether a
+	// fault produces a violation. Nil when the file is not on disk.
+	//
+	// A pointer with omitempty (cjson allows omitempty on nothing else) so that
+	// a v1 manifest read back from an old lock re-encodes to the bytes it was
+	// digested from, and its self-check still holds.
+	Topology *OracleFile `json:"topology,omitempty"`
 }
 
 // OracleFile is one file under oracles.dir.
@@ -123,11 +133,56 @@ func Build(projectDir string, configBytes []byte, oraclesDir string) (Manifest, 
 	if err != nil {
 		return Manifest{}, err
 	}
+	compose, err := HashTopologyFile(projectDir, configBytes)
+	if err != nil {
+		return Manifest{}, err
+	}
 	return Manifest{
-		Schema:  ManifestSchema,
-		Oracles: files,
-		Config:  entries,
+		Schema:   ManifestSchema,
+		Oracles:  files,
+		Config:   entries,
+		Topology: compose,
 	}, nil
+}
+
+// HashTopologyFile content-hashes the compose file `harness.file` names, or
+// schema.DefaultHarnessFile when the key is absent, as the backend resolves it.
+//
+// The fallback only decides which file to read; it never enters Config. A
+// missing file yields no entry (the run will fail to boot on its own terms),
+// and a path that exists but is not a regular file is an error, for the reason
+// HashOracleDir gives.
+func HashTopologyFile(projectDir string, configBytes []byte) (*OracleFile, error) {
+	name := schema.DefaultHarnessFile
+	entries, err := ProjectConfig(configBytes)
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range entries {
+		if e.Path == "harness.file" && e.Kind == KindScalar && strings.TrimSpace(e.Value) != "" {
+			name = e.Value
+		}
+	}
+	p := name
+	if !filepath.IsAbs(p) {
+		p = filepath.Join(projectDir, name)
+	}
+	info, err := os.Lstat(p)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("lock: stat %s: %w", p, err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("lock: %s is not a regular file (mode %s); the lock cannot content-hash it",
+			p, info.Mode())
+	}
+	sum, size, err := hashFile(p)
+	if err != nil {
+		return nil, err
+	}
+	return &OracleFile{Path: filepath.ToSlash(name), SHA256: sum, Size: size}, nil
 }
 
 // HashOracleDir content-hashes every regular file under dir, sorted by slash

@@ -33,8 +33,25 @@
 # paths. Two builds of the same commit and the same tree are then byte-identical
 # (prove it with -Verify), the fingerprint becomes a function of the source, and
 # the warning means what it says. Residual, recorded under OQ-057: a commit that
-# does not touch the checker still moves its stamp, so a rebuild after any
-# commit costs one re-lock.
+# does not touch the checker still moved its stamp, so a rebuild after any
+# commit cost one re-lock.
+#
+# WHY THE CHECKER, LOADGEN AND TARGET PROGRAMS ARE NOT STAMPED (D-109)
+#
+# Since D-109 a fingerprinted program that differs from the lock is DRIFT (exit
+# 4) on the platform the lock was made on, not a warning. With a commit stamp
+# inside, every commit would have changed those bytes and forced a re-lock, and
+# a re-lock commit changes HEAD again. So only thesis.exe, which no lock
+# fingerprints, carries the stamp. Every program a lock fingerprints (the
+# checker, the fixture's loadgen, each target's driver) is built with -trimpath
+# -buildvcs=false and nothing else, so its bytes are a function of its source:
+# rebuilding unchanged source reproduces the locked digest, and a different
+# digest means a different program. Their provenance is that digest, recorded in
+# each project's .prothesis/lock.
+#
+# Every target under targets/ is built here too (OQ-088): its programs into
+# targets/<t>/bin, plus a copy of the checker. The Redis health shim runs inside
+# a Linux container, so it is cross-compiled.
 #
 # Usage:
 #   pwsh -File scripts/build.ps1
@@ -120,35 +137,61 @@ Write-Host "stamping commit=$commit dirty=$dirty source_date=$sourceDate"
 
 $oracleOut = 'testdata/kvfixture/bin/linearizable-kv.exe'
 Invoke-Build ($commonBuildArgs + @('-ldflags', $ld, '-o', 'bin/thesis.exe', './cmd/thesis')) $root
-Invoke-Build ($commonBuildArgs + @('-ldflags', $ld, '-o', $oracleOut, './cmd/thesis-oracle-linearizable')) $root
+# Unstamped: fingerprinted by the locks (see the header).
+Invoke-Build ($commonBuildArgs + @('-o', $oracleOut, './cmd/thesis-oracle-linearizable')) $root
+Invoke-Build ($commonBuildArgs + @('-o', 'bin/loadgen.exe', './cmd/loadgen')) (Join-Path $root 'testdata/kvfixture')
+$built = @('bin/thesis.exe', $oracleOut, 'testdata/kvfixture/bin/loadgen.exe')
 
-# The fixture is a separate module; its binaries are stamped with the same
-# values through its own main-package vars.
-$fixtureLd = "-X main.buildCommit=$commit -X main.buildDirty=$dirty -X main.buildSourceDate=$sourceDate"
-Invoke-Build ($commonBuildArgs + @('-ldflags', $fixtureLd, '-o', 'bin/loadgen.exe', './cmd/loadgen')) (Join-Path $root 'testdata/kvfixture')
+# Each target: every program under targets/<t>/cmd, and the checker its locked
+# oracle definition names, copied byte for byte.
+foreach ($t in Get-ChildItem (Join-Path $root 'targets') -Directory) {
+    $cmdDir = Join-Path $t.FullName 'cmd'
+    if (-not (Test-Path $cmdDir)) { continue }
+    $bin = Join-Path $t.FullName 'bin'
+    New-Item -ItemType Directory -Force $bin | Out-Null
+    foreach ($prog in Get-ChildItem $cmdDir -Directory) {
+        $pkgPath = './targets/' + $t.Name + '/cmd/' + $prog.Name
+        if ($prog.Name -eq 'redishealth') {
+            # Runs inside a Linux container, mounted read-only (targets/redis).
+            $savedOS, $savedCGO = $env:GOOS, $env:CGO_ENABLED
+            try {
+                $env:GOOS = 'linux'; $env:CGO_ENABLED = '0'
+                Invoke-Build ($commonBuildArgs + @('-o', "targets/$($t.Name)/bin/$($prog.Name)", $pkgPath)) $root
+            }
+            finally { $env:GOOS = $savedOS; $env:CGO_ENABLED = $savedCGO }
+            $built += "targets/$($t.Name)/bin/$($prog.Name) (linux)"
+            continue
+        }
+        Invoke-Build ($commonBuildArgs + @('-o', "targets/$($t.Name)/bin/$($prog.Name).exe", $pkgPath)) $root
+        $built += "targets/$($t.Name)/bin/$($prog.Name).exe"
+    }
+    Copy-Item -LiteralPath (Join-Path $root $oracleOut) -Destination (Join-Path $bin 'linearizable-kv.exe') -Force
+    $built += "targets/$($t.Name)/bin/linearizable-kv.exe (copy)"
+}
 
-Write-Host "built: bin/thesis.exe, testdata/kvfixture/bin/linearizable-kv.exe, testdata/kvfixture/bin/loadgen.exe"
+Write-Host ("built:`n  " + ($built -join "`n  "))
 
 if ($Verify) {
-    # The property the lock depends on: same commit, same tree, same bytes. The
-    # second build goes to a scratch path so a mismatch cannot overwrite the
-    # binary that was just shipped, and it re-derives the stamp rather than
-    # reusing $ld, so a clock smuggled into Get-Stamp fails here instead of
-    # passing unnoticed.
-    $probe = Join-Path ([IO.Path]::GetTempPath()) 'prothesis-verify-linearizable-kv.exe'
-    $verifyLd = Format-HarnessLdflags (Get-Stamp)
-    Invoke-Build ($commonBuildArgs + @('-ldflags', $verifyLd, '-o', $probe, './cmd/thesis-oracle-linearizable')) $root
-    $shipped = (Get-FileHash $oracleOut -Algorithm SHA256).Hash
-    $second = (Get-FileHash $probe -Algorithm SHA256).Hash
-    try { [IO.File]::Delete($probe) } catch { }
-    if ($shipped -ne $second) {
-        throw "build is NOT reproducible: $oracleOut = $shipped, second build = $second. The oracle lock fingerprints this binary, so a non-reproducible build makes every rebuild indistinguishable from a swapped checker."
+    # The property the locks depend on: same source, same bytes. The second
+    # builds go to scratch paths so a mismatch cannot overwrite what was just
+    # shipped.
+    foreach ($v in @(
+            @{ Out = $oracleOut; Pkg = './cmd/thesis-oracle-linearizable'; Dir = $root },
+            @{ Out = 'testdata/kvfixture/bin/loadgen.exe'; Pkg = './cmd/loadgen'; Dir = (Join-Path $root 'testdata/kvfixture') })) {
+        $probe = Join-Path ([IO.Path]::GetTempPath()) ('prothesis-verify-' + [IO.Path]::GetFileName($v.Out))
+        Invoke-Build ($commonBuildArgs + @('-o', $probe, $v.Pkg)) $v.Dir
+        $shipped = (Get-FileHash (Join-Path $root $v.Out) -Algorithm SHA256).Hash
+        $second = (Get-FileHash $probe -Algorithm SHA256).Hash
+        try { [IO.File]::Delete($probe) } catch { }
+        if ($shipped -ne $second) {
+            throw "build is NOT reproducible: $($v.Out) = $shipped, second build = $second. A lock fingerprints this binary, so a non-reproducible build makes every rebuild indistinguishable from a swapped program."
+        }
+        Write-Host "verified reproducible: $($v.Out) agrees on sha256:$($shipped.ToLower())"
     }
-    Write-Host "verified reproducible: two builds agree on sha256:$($shipped.ToLower())"
 }
 
 if ($dirty -eq '1') {
-    Write-Host 'note: the tree is dirty, so this stamp names a commit the binaries only approximately match.'
+    Write-Host 'note: the tree is dirty, so the thesis.exe stamp names a commit it only approximately matches.'
 }
-Write-Host 'note: if the oracle binary digest moved, re-lock with a reason naming WHY it moved'
-Write-Host '      (what changed in its source, or that only the commit stamp moved) — D-070, D-072, OQ-057.'
+Write-Host 'note: a fingerprinted program whose digest moved is drift on the locking platform (D-109); if its'
+Write-Host '      source changed on purpose, re-lock with a reason that names the change.'
