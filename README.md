@@ -236,7 +236,11 @@ mean what it says.
 | `4` | **Someone changed the test.** A locked definition moved without a recorded reason. | [`.prothesis/lock`](testdata/kvfixture/.prothesis/lock) digests every oracle definition, ten configuration keys (`driver.cmd`, `harness.health`, `harness.role_probe`, `oracles.builtin`, `oracles.dir`, `perturber.allow`, `perturber.budget`, `perturber.deny`, `profiles`, `search`), and every driver profile a run profile names (D-090). Every `thesis run` re-derives the digest before any container starts; a mismatch is `4`. Only `thesis oracles lock --reason "…"` moves it, and the reason is committed with the lock. | Adversarial probe A4 widens a lock-covered budget and requires exit `4` ([`scripts/adversarial.ps1`](scripts/adversarial.ps1)); [`internal/lock/lock_test.go`](internal/lock/lock_test.go), [`cmd/thesis/oracles_test.go`](cmd/thesis/oracles_test.go). CI runs `thesis oracles verify` against both committed locks before any live world. |
 
 Two more codes are not verdicts. `3` (`BUDGET_EXHAUSTED`) means the run stopped before its
-worlds were done, so do not merge on it. `5` (`CONFIG_ERROR`) means the configuration is invalid.
+worlds were done, so do not merge on it: a finite profile ran out of time before every planned world
+finished, or an open-ended one (`worlds: -1`) finished fewer than its `min_worlds` (default 1)
+before the wall budget expired. An open-ended profile whose budget expires after at least that many
+clean worlds is a PASS, because running until the budget expires is what it asked for. `5`
+(`CONFIG_ERROR`) means the configuration is invalid.
 
 **What `4` does not cover.** The oracle *executables* are fingerprinted outside the digest. A
 swapped, rebuilt or missing checker binary is a WARNING in the verdict

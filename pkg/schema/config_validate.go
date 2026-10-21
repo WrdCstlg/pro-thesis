@@ -436,6 +436,16 @@ func (c *Config) ValidateProfiles() error {
 					w, WorldsUnbounded)
 			}
 		}
+		if pr.MinWorlds != nil {
+			switch {
+			case *pr.MinWorlds < 1:
+				errs.Add(p+".min_worlds", "%d cannot be met meaningfully; an open-ended run that finished "+
+					"no world judged nothing (write 1 or more)", *pr.MinWorlds)
+			case pr.Worlds != nil && *pr.Worlds > 0:
+				errs.Add(p+".min_worlds", "applies only to an open-ended profile (worlds: %d); this "+
+					"profile plans %d worlds, which already is its requirement", WorldsUnbounded, *pr.Worlds)
+			}
+		}
 		for i, f := range pr.Faults {
 			if _, err := ParseFault(f); err != nil {
 				errs.Add(fmt.Sprintf("%s.faults[%d]", p, i), "invalid fault %q: %v", f, err)
