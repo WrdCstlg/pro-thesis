@@ -52,27 +52,20 @@ func cmdCluster(ctx context.Context, g globals, args []string) schema.ExitCode {
 }
 
 // clusterProject loads the config, the project directory and the
-// known-problems registry: everything the three verbs share.
+// known-problems registry: everything the three verbs share. A project with no
+// registry clusters against an empty one, as `thesis diagnose` diagnoses it.
 func clusterProject(g globals) (projectDir string, reg *schema.KnownProblems, code schema.ExitCode) {
 	_, projectDir, err := loadConfig(g)
 	if err != nil {
 		errorf("%v", err)
 		return "", nil, schema.ExitConfigError
 	}
-	regPath := filepath.Join(projectDir, ".prothesis", "known-problems.yaml")
-	regData, err := os.ReadFile(regPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			errorf("no known-problem registry at %s", regPath)
-		} else {
-			errorf("%v", err)
-		}
-		return "", nil, schema.ExitConfigError
+	reg, note, code := loadKnownProblems(projectDir)
+	if reg == nil {
+		return "", nil, code
 	}
-	reg, err = schema.DecodeKnownProblems(regData)
-	if err != nil {
-		errorf("%s: %v", regPath, err)
-		return "", nil, schema.ExitConfigError
+	if note != "" && !g.quiet {
+		fmt.Fprintf(os.Stderr, "thesis: cluster: %s\n", note)
 	}
 	return projectDir, reg, schema.ExitPass
 }
@@ -126,6 +119,7 @@ func cmdClusterExtract(_ context.Context, g globals, args []string) schema.ExitC
 		AttributedCount:     attributed,
 		UnattributedCount:   len(items),
 		ExtractionTimestamp: time.Now().UTC().Format(time.RFC3339),
+		FalseRejections:     diagnose.FalseRejectionRates(bundles),
 	}
 	manifestPath := filepath.Join(outDir, "cluster_manifest.json")
 	if err := cluster.WriteManifest(manifestPath, manifest); err != nil {
@@ -136,6 +130,10 @@ func cmdClusterExtract(_ context.Context, g globals, args []string) schema.ExitC
 	infof(g, "wrote %s", csvPath)
 	infof(g, "wrote %s", manifestPath)
 	infof(g, "corpus: %d attributed, %d unattributed outcomes", attributed, len(items))
+	for _, a := range manifest.FalseRejections {
+		infof(g, "false rejections, arm %q: %d unexplained of %d decided run(s) (%.1f%%)",
+			a.Arm, a.Unexplained, a.Denominator, *a.UnexplainedPct)
+	}
 	return schema.ExitPass
 }
 

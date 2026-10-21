@@ -318,7 +318,8 @@ thesis run --profile linear --fault 'net.partition(etcd-n1)@3000..7500'
 echo $?                                                   # 0 pass, 1 fail, 2 nothing proven, 4 gate moved
 thesis regress                                            # replay the committed corpus: 1 a regression is back,
                                                           # 2 a world no longer reproduces (NON_REPRODUCING, not a pass)
-thesis diagnose                                           # every refusal attributes to a known problem (D-082)
+thesis diagnose --out diagnosis.json                      # every refusal attributes to a known problem (D-082);
+                                                          # no registry yet: an empty one, so everything is unattributed
 ```
 
 Pin the tool so a harness release cannot silently change your verdicts. The tagged module resolves

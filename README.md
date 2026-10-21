@@ -75,8 +75,9 @@ exit code must be impossible to earn by accident or by cheating:
   PPV of a FAIL, and `thesis gate` fails on any escape or breached threshold.
 - **Provenance.** A verdict names the commit its binary was built from; a world names the image
   ids it ran against.
-- **Attribution.** `thesis diagnose` maps every recorded non-terminal outcome to a registry of
-  known problems, and exits `2` if anything is unattributed.
+- **Attribution.** `thesis diagnose` maps every recorded non-terminal outcome, and every false
+  rejection of a run expected to PASS, to a registry of known problems, and exits `2` if anything
+  is unattributed. Per calibration arm it reports the unexplained share of false rejections.
 
 ---
 
@@ -412,7 +413,9 @@ node's log. [`docs/EVIDENCE.md`](docs/EVIDENCE.md#what-a-run-leaves-behind) walk
 bundle file by file.
 
 **Clustering.** `thesis cluster` is an advisory lens over the unattributed pool that
-`thesis diagnose` reports. `extract` writes Tier 1 structural features per unattributed outcome;
+`thesis diagnose` reports, unexplained false rejections included (verdict type `FALSE_REJECTION`).
+A project with no `known-problems.yaml` is diagnosed and clustered against an empty registry, so
+its whole unjudged population is the pool. `extract` writes Tier 1 structural features per unattributed outcome;
 `discover` runs DBSCAN and HDBSCAN over them and reconciles the two into CANDIDATE, CONTESTED and
 NOISE outcomes (exit 2 when anything is CONTESTED); `taxonomy` places the candidates next to the
 existing KP entries with Ward hierarchical clustering and flags probable sub-types, splits and

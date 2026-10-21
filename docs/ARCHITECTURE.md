@@ -93,18 +93,30 @@ flowchart TD
         W["world-NNNN/: history.jsonl, telemetry, result.json"]
         MF["MANIFEST.json (only via recorder.OpenBundle / Bundle.Close)"]
     end
-    REG[".prothesis/known-problems.yaml (committed registry, KP-001..KP-014)"]
+    REG[".prothesis/known-problems.yaml (committed registry, KP-001..KP-014; absent: empty, nothing attributes)"]
+    CAL["calibration_report.json records (optional: arm and expected pole per run)"]
     DIAG2["thesis diagnose (read-only)"]
     OK["exit 0: everything attributed"]
     RED["exit 2: UNATTRIBUTED items printed with evidence"]
+    FRA["per arm: unexplained false rejections / (TRUE_PASS + FALSE_REJECTION)"]
+    POOL["thesis cluster pool (diagnose.Scan): unattributed outcomes and false rejections"]
 
     VJF --> DIAG2
     W --> DIAG2
     REG --> DIAG2
+    CAL --> DIAG2
     DIAG2 --> OK
     DIAG2 --> RED
+    DIAG2 --> FRA
+    RED --> POOL
     RED -.->|investigate, catalogue, same change| REG
 ```
+
+A run expected to PASS that came back FAIL (a gold-positive calibration arm's false rejection) is
+not terminal to diagnose: its violating worlds, or the run when it has none, must attribute to an
+entry with `false_rejection: true`, and an entry without it never explains one. An unexplained
+false rejection is UNATTRIBUTED, joins the cluster pool as verdict type `FALSE_REJECTION`, and
+counts toward its arm's unexplained share.
 
 The loop at the bottom is the recursion: a new kind of refusal attributes to nothing, exits 2,
 and is catalogued into the registry with its ledger citation in the same change. The census floor
