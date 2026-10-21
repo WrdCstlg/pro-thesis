@@ -792,6 +792,8 @@ func (e *Engine) finish(ctx context.Context, res Result, stopReason string, fata
 	// empty: coverage_delta_vs_baseline has no baseline commit to compare
 	// against, and inventing one would read as a claim nobody made.
 	v.Coverage = cov
+	seed := e.runner.Seed()
+	v.Seed = &seed
 	v.Normalize()
 
 	res.Verdict = v

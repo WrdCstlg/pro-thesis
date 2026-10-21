@@ -41,6 +41,24 @@ verdict about the target systems.
   the original moved to `.prothesis/runs/.trash/`, never deleted). Runs cited as evidence are not
   archived. The pre-existing fixture corpus is never archived.
 
+## Calibration
+
+An arm with `expected: 0` is a gold-positive pole (a correct system; the right answer is PASS) and
+one with `expected: 1` a buggy-negative pole (a known defect; the right answer is FAIL). An arm may
+name `target_oracle`, the oracle that must raise the FAIL for the run to count as caught.
+
+- `thesis run --arm <id>` (from the arm's target directory; the manifest is found by walking up)
+  runs the arm under its profile and records `arm`, `expected`, `control_type` and a `calibration`
+  block in `verdict.json`. Its exit code is the calibrated one: 0 when the gate answered as the
+  pole requires, 1 for an ESCAPE (a defect that passed) or a FALSE_REJECTION (a correct system
+  failed), the verdict's own code otherwise. `verdict.verdict` still says what the system did.
+- `thesis report` classifies every such run and writes `calibration/calibration_report.json` and
+  `.md`: per arm and in aggregate, the counts, sensitivity, specificity, the false-rejection rate,
+  and the PPV of a FAIL at base rates 0.20, 0.10, 0.042 and 0.01. A rate with no runs behind it is
+  `unmeasured`, never zero.
+- `thesis gate` does the same and exits 1 on any escape, or when `--min-specificity` or
+  `--min-ppv` (at `--ppv-base-rate`) is breached; 2 when nothing was decided.
+
 ## Layout
 
 | Path | What |

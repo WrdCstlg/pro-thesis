@@ -57,6 +57,13 @@ type RunnerOptions struct {
 	// FaultsSupplied indicates the caller/CLI explicitly set Faults (even if empty).
 	FaultsSupplied bool
 
+	// Calibration is set when the run is made for a calibration arm (`thesis
+	// run --arm` or `--expect`). The verdict then records the arm, the pole
+	// and its classification against it, and the exit code becomes the
+	// calibrated one: 0 when the gate answered as the pole requires, 1 when it
+	// escaped or falsely rejected. See schema.CalibrationOutcome.
+	Calibration *Calibration
+
 	// Variant overrides the profile's `variant` (`thesis run --variant`).
 	// Empty means the profile's. One that differs from the profile's runs a
 	// different build from the one the lock-covered profile names, so it marks
@@ -97,6 +104,17 @@ type RunnerOptions struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Quiet  bool
+}
+
+// Calibration is a run's expectation (D-109 upgrades 1 and 2).
+type Calibration struct {
+	// Arm is the evaluation manifest's arm id, when the run is made for one.
+	Arm string
+	// Expected is the pole: PASS for a correct system, FAIL for a known defect.
+	Expected schema.VerdictResult
+	// TargetOracle, when set, is the oracle that must raise the FAIL for a
+	// buggy-negative run to count as caught.
+	TargetOracle string
 }
 
 // Runner executes one run across one or more worlds according to the budget.
@@ -209,6 +227,9 @@ func NewRunner(opts RunnerOptions) (*Runner, error) {
 		seed = uint64(time.Now().UnixNano())
 	}
 
+	if c := opts.Calibration; c != nil && c.Expected != schema.VerdictPass && c.Expected != schema.VerdictFail {
+		return nil, fmt.Errorf("control: a calibration expectation must be PASS or FAIL, got %q", c.Expected)
+	}
 	if opts.Variant != "" {
 		if cfg.Harness.VariantEnv == "" {
 			return nil, fmt.Errorf("control: --variant %q needs harness.variant_env, the variable that "+
@@ -578,13 +599,29 @@ func (r *Runner) Run(ctx context.Context) (schema.Verdict, schema.ExitCode, erro
 	}
 	verdict := BuildVerdict(vInput)
 
+	seed := r.seed
+	verdict.Seed = &seed
+	exit := verdict.Verdict.ExitCode()
+	if c := r.opts.Calibration; c != nil {
+		verdict.Arm = c.Arm
+		verdict.Expected = c.Expected
+		verdict.ControlType = schema.ControlTypeFor(c.Expected)
+		out := schema.CalibrationOutcome{
+			Expected:     c.Expected,
+			TargetOracle: c.TargetOracle,
+			Class:        schema.ClassifyVerdict(c.Expected, &verdict, c.TargetOracle),
+		}
+		verdict.Calibration = &out
+		exit = out.ExitCode(verdict.Verdict)
+	}
+
 	// Write verdict.json
 	verdictPath := filepath.Join(r.runDir, VerdictFileName)
 	if err := WriteVerdictFile(verdictPath, &verdict); err != nil {
 		return verdict, schema.ExitInconclusive, fmt.Errorf("write verdict: %w", err)
 	}
 
-	return verdict, verdict.Verdict.ExitCode(), nil
+	return verdict, exit, nil
 }
 
 // worldSpec is everything ONE world's execution needs that no other world

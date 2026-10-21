@@ -32,4 +32,7 @@ func TestASearchVerdictThatCannotBeWrittenIsExitTwo(t *testing.T) {
 	if res.ExitCode != schema.ExitInconclusive {
 		t.Fatalf("exit = %d, want 2: a clean search whose verdict was never written must not exit 0", res.ExitCode)
 	}
+	if res.Verdict.Seed == nil || *res.Verdict.Seed != 42 {
+		t.Fatalf("the search verdict does not carry the run seed 42: %v", res.Verdict.Seed)
+	}
 }
