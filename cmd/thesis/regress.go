@@ -157,14 +157,15 @@ func cmdRegress(ctx context.Context, g globals, args []string) schema.ExitCode {
 		if err != nil {
 			return nil, err
 		}
-		if r, ok := runners[profile]; ok {
+		key := profile + "\x00" + worldVariant(w)
+		if r, ok := runners[key]; ok {
 			return replay.NewRunnerExecutor(r), nil
 		}
-		r, err := runnerFor(p, profile, runID, g.quiet, 0)
+		r, err := runnerFor(p, profile, runID, g.quiet, 0, worldVariant(w))
 		if err != nil {
 			return nil, err
 		}
-		runners[profile] = r
+		runners[key] = r
 		return replay.NewRunnerExecutor(r), nil
 	}
 

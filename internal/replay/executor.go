@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/WrdCstlg/pro-thesis/internal/control"
+	"github.com/WrdCstlg/pro-thesis/internal/driver"
 	"github.com/WrdCstlg/pro-thesis/pkg/schema"
 )
 
@@ -35,6 +36,12 @@ type ExecRequest struct {
 	// KeepUp asks the executor to leave the topology standing and persist the
 	// up -> down handoff. Only the LAST attempt of a replay ever sets it.
 	KeepUp bool
+	// Plan is the recorded driver plan to drive instead of regenerating one
+	// from the current config. Nil only for a world that recorded none (v1).
+	Plan *driver.Plan
+	// ExpectImages are the images the world recorded. An execution booted on
+	// any other image is not that world and comes back inconclusive.
+	ExpectImages []schema.SUTImage
 }
 
 // Execution is one execution's result, reduced to what a replay judges.
@@ -75,10 +82,12 @@ func NewRunnerExecutor(r *control.Runner) *RunnerExecutor { return &RunnerExecut
 func (e *RunnerExecutor) Execute(ctx context.Context, req ExecRequest) Execution {
 	seed := req.Seed
 	wr := control.WorldRequest{
-		Ordinal: req.Ordinal,
-		Faults:  req.Faults,
-		Label:   req.Label,
-		Seed:    &seed,
+		Ordinal:      req.Ordinal,
+		Faults:       req.Faults,
+		Label:        req.Label,
+		Seed:         &seed,
+		Plan:         req.Plan,
+		ExpectImages: req.ExpectImages,
 	}
 	var out control.WorldOutcome
 	if req.KeepUp {

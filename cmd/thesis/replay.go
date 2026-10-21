@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WrdCstlg/pro-thesis/internal/buildinfo"
 	"github.com/WrdCstlg/pro-thesis/internal/control"
 	"github.com/WrdCstlg/pro-thesis/internal/recorder"
 	"github.com/WrdCstlg/pro-thesis/internal/replay"
@@ -181,7 +182,19 @@ func cmdReplay(ctx context.Context, g globals, args []string) schema.ExitCode {
 	// need a BOOT hook the runner does not expose. Claiming one would be claiming
 	// a capability this does not have.
 	quiet := g.quiet && !attach
-	runner, err := runnerFor(p, profile, runID, quiet, 0)
+	// The workload the world recorded, checked against its plan_digest. A world
+	// that names its workload is not replayed without it: that would drive what
+	// the config says today, which is a different world.
+	recordedPlan, planNote, err := replay.LoadRecordedPlan(worldPath, world)
+	if err != nil {
+		errorf("%v", err)
+		return schema.ExitInconclusive
+	}
+	if !g.quiet || trace {
+		fmt.Fprintf(os.Stderr, "thesis: replay: %s\n", planNote)
+	}
+
+	runner, err := runnerFor(p, profile, runID, quiet, 0, worldVariant(world))
 	if err != nil {
 		errorf("replay: %v", err)
 		return schema.ExitConfigError
@@ -216,10 +229,25 @@ func cmdReplay(ctx context.Context, g globals, args []string) schema.ExitCode {
 		Budget:     budget,
 		KeepUp:     keepUp,
 		Trace:      traceW,
+		Plan:       recordedPlan,
 	})
 	if err != nil {
 		errorf("replay: %v", err)
 		return schema.ExitConfigError
+	}
+
+	// A machine-readable verdict in the replay's own bundle, with the k/n trial
+	// record, as `thesis run` leaves one. Its verdict agrees with the exit code.
+	v := rep.Verdict(replay.VerdictMeta{
+		RunID:      runID,
+		Profile:    profile,
+		Commit:     buildinfo.VerdictCommit(control.GitCommit(ctx, p.dir)),
+		Artifacts:  control.RelativeArtifacts(p.dir, runner.RunDir()),
+		OracleLock: p.lockReport.OracleLock(),
+	})
+	if err := control.WriteVerdictFile(filepath.Join(runner.RunDir(), control.VerdictFileName), &v); err != nil {
+		errorf("replay: write verdict: %v", err)
+		return schema.ExitInconclusive
 	}
 
 	if attach {

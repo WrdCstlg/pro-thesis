@@ -605,8 +605,12 @@ type worldSpec struct {
 	// faults is this world's PLANNED schedule. Phase 4's search varies it per
 	// world; a plain `thesis run` gives every world the same list.
 	faults []string
-	// plan overrides the driver plan for this world (Phase 5 workload reduction).
+	// plan overrides the driver plan for this world (Phase 5 workload reduction,
+	// and replay's recorded plan).
 	plan *driver.Plan
+	// expectImages are the images this world must boot on (replay). See
+	// WorldRequest.ExpectImages.
+	expectImages []schema.SUTImage
 	// env is the per-world environment for compose and for the driver. Empty
 	// for a serial run; the parallel executor fills it so each world publishes
 	// its own host ports (D-042).
@@ -1071,6 +1075,14 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 	if imgErr != nil {
 		fmt.Fprintf(r.stderr, "thesis: world %d: image digest resolution failed: %v (sut.images will be [])\n", ordinal+1, imgErr)
 		sutImages = nil
+	}
+	// A replay names the images its world ran on. Booted on any other image this
+	// is not that world, so it can neither reproduce nor clear it (D-109).
+	if len(spec.expectImages) > 0 {
+		if err := imagesMatch(spec.expectImages, sutImages); err != nil {
+			fmt.Fprintf(r.stderr, "thesis: world %d: %v; INCONCLUSIVE\n", ordinal+1, err)
+			worldOutcome = worldOutcome.Worse(OutcomeInconclusive)
+		}
 	}
 
 	// Before anything drives: the ports this world's driver will be TOLD about
@@ -1540,6 +1552,35 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 		realized: realizedOf(perturb),
 		drain:    drain,
 	}, nil
+}
+
+// imagesMatch reports whether the images a world booted on are exactly the ones
+// it was asked to boot on, compared as (service, digest) sets: another digest,
+// an extra image and an image that could not be resolved are all different
+// worlds.
+func imagesMatch(want, got []schema.SUTImage) error {
+	if len(got) == 0 {
+		return fmt.Errorf("the running images could not be resolved, so they cannot be compared with the %d "+
+			"recorded", len(want))
+	}
+	key := func(i schema.SUTImage) string { return i.Service + "\x00" + i.Digest }
+	wantSet := map[string]bool{}
+	for _, i := range want {
+		wantSet[key(i)] = true
+	}
+	gotSet := map[string]bool{}
+	for _, i := range got {
+		gotSet[key(i)] = true
+		if !wantSet[key(i)] {
+			return fmt.Errorf("booted on %s %s (%s), which the recorded world did not run", i.Service, i.Digest, i.Image)
+		}
+	}
+	for _, i := range want {
+		if !gotSet[key(i)] {
+			return fmt.Errorf("the recorded image %s %s (%s) is not what booted", i.Service, i.Digest, i.Image)
+		}
+	}
+	return nil
 }
 
 // writeWorldFile encodes a world canonically and writes it, reporting either

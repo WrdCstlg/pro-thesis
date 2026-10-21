@@ -67,13 +67,14 @@ func (r *Runner) runWorldSpec(ctx context.Context, req WorldRequest, keepUp bool
 	}
 
 	spec := worldSpec{
-		ordinal: ordinal,
-		seed:    req.seedFor(r.seed),
-		paths:   NewWorldPaths(filepath.Join(r.runDir, WorldDirName(ordinal))),
-		faults:  append([]string(nil), faults...),
-		plan:    req.Plan,
-		slot:    -1,
-		keepUp:  keepUp,
+		ordinal:      ordinal,
+		seed:         req.seedFor(r.seed),
+		paths:        NewWorldPaths(filepath.Join(r.runDir, WorldDirName(ordinal))),
+		faults:       append([]string(nil), faults...),
+		plan:         req.Plan,
+		expectImages: req.ExpectImages,
+		slot:         -1,
+		keepUp:       keepUp,
 	}
 
 	if !r.quiet {

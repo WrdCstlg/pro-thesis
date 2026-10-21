@@ -279,7 +279,7 @@ func cmdShrink(ctx context.Context, g globals, args []string) schema.ExitCode {
 		return schema.ExitInconclusive
 	}
 
-	runner, err := runnerFor(p, profile, runID, g.quiet && !trace, 0)
+	runner, err := runnerFor(p, profile, runID, g.quiet && !trace, 0, worldVariant(world))
 	if err != nil {
 		errorf("shrink: %v", err)
 		return schema.ExitConfigError

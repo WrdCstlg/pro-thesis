@@ -152,7 +152,7 @@ func runProfileFor(cfg *schema.Config, driverProfile string) (string, error) {
 // runID is deliberately shared across every runner a command creates, so one
 // `thesis regress` produces ONE run bundle however many driver profiles its
 // corpus spans.
-func runnerFor(p *project, profile, runID string, quiet bool, budget time.Duration) (*control.Runner, error) {
+func runnerFor(p *project, profile, runID string, quiet bool, budget time.Duration, variant string) (*control.Runner, error) {
 	return control.NewRunner(control.RunnerOptions{
 		ConfigPath: p.configPath,
 		Config:     p.cfg,
@@ -160,9 +160,21 @@ func runnerFor(p *project, profile, runID string, quiet bool, budget time.Durati
 		Profile:    profile,
 		RunID:      runID,
 		Budget:     budget,
+		Variant:    variant,
 		OracleLock: p.lockReport.OracleLock(),
 		Quiet:      quiet,
 	})
+}
+
+// worldVariant is the build a recorded world ran, to pin when it is executed
+// again, or "" when it recorded the topology file's own default. A world is
+// replayed on the build it names, whatever the profile or the environment says
+// now (D-109).
+func worldVariant(w *schema.World) string {
+	if w == nil || w.TopologyVariant == "" || w.TopologyVariant == "default" {
+		return ""
+	}
+	return w.TopologyVariant
 }
 
 // allocRunID reserves a run bundle for a Phase 5 command.

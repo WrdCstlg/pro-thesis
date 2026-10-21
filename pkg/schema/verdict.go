@@ -52,6 +52,25 @@ type Verdict struct {
 	OracleLock OracleLock `json:"oracle_lock"`
 	// Artifacts is the run bundle directory.
 	Artifacts string `json:"artifacts"`
+
+	// Trials is present on a replay's verdict (`thesis replay -k`): which world
+	// was replayed and how its k executions came out. Absent on a run's.
+	Trials *Trials `json:"trials,omitempty"`
+}
+
+// Trials is the k/n record of a replay (D-109).
+type Trials struct {
+	// World is the replayed world's hash.
+	World string `json:"world"`
+	// Attempts is how many executions ran.
+	Attempts int `json:"attempts"`
+	// Reproduced is how many of them produced the violation being replayed.
+	Reproduced int `json:"reproduced_count"`
+	// NotReproduced ran to a clean verdict; Different produced another
+	// violation; Inconclusive could not tell.
+	NotReproduced int `json:"not_reproduced"`
+	Different     int `json:"different_violation"`
+	Inconclusive  int `json:"inconclusive"`
 }
 
 // Budget is the verdict's `budget` object.
