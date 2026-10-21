@@ -64,7 +64,7 @@ func (n *NetInjector) Inject(ctx context.Context, req perturber.InjectRequest) e
 	f, err := n.NewNetFault(NetRequest{
 		FaultID:    req.FaultID,
 		Spec:       req.Spec,
-		Resolution: resolutionFromNodes(req.Nodes),
+		Resolution: resolutionFor(req.Spec, req.Nodes),
 	})
 	if err != nil {
 		return err
@@ -101,7 +101,7 @@ func (n *NetInjector) Withdraw(ctx context.Context, req perturber.WithdrawReques
 		f, err = n.NewNetFault(NetRequest{
 			FaultID:    req.FaultID,
 			Spec:       req.Spec,
-			Resolution: resolutionFromNodes(req.Nodes),
+			Resolution: resolutionFor(req.Spec, req.Nodes),
 		})
 		if err != nil {
 			return err
@@ -210,6 +210,24 @@ func (n *NetInjector) Realized() []*NetFault {
 		out = append(out, f)
 	}
 	return out
+}
+
+// resolutionFor converts the executor's already-resolved target into the
+// mechanism's Resolution.
+//
+// An edge is one link, not a group. The executor reports both endpoints as the
+// resolved Nodes, because that is what the realized schedule records, and hands
+// everyone else down as Peers, the shape it uses for every target. Read as a
+// group, `a<->b` would isolate {a, b} from the rest: it would cut a<->c and b<->c
+// and leave a<->b open, the opposite of the recorded fault. The cut is installed
+// at A against B alone, exactly as ResolveStatic does: INPUT and OUTPUT rules at
+// A naming B sever the link in both directions, and a shaping fault shapes A's
+// egress towards B only.
+func resolutionFor(spec schema.FaultSpec, nodes []perturber.Node) Resolution {
+	if spec.Target.Kind == schema.TargetEdge {
+		return Resolution{Selected: []string{spec.Target.A}, Peers: []string{spec.Target.B}}
+	}
+	return resolutionFromNodes(nodes)
 }
 
 // resolutionFromNodes converts the executor's already-resolved node list into
