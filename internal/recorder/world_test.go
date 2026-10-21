@@ -261,8 +261,10 @@ func identicalIdentity(a, b []byte) bool {
 }
 
 // TestEncodingIsInjectiveOverIdentity checks both directions: worlds that mean
-// the same thing must encode the same, and worlds that differ by one
-// millisecond must encode and hash differently.
+// the same thing must encode the same, and worlds whose INPUTS differ by one
+// millisecond must encode and hash differently. Under v2 a measured phase
+// timing is not an input: it changes the file but not the identity. Under v1 it
+// was, and a v1 world keeps that identity.
 func TestEncodingIsInjectiveOverIdentity(t *testing.T) {
 	base := goldenWorld(t)
 
@@ -272,17 +274,40 @@ func TestEncodingIsInjectiveOverIdentity(t *testing.T) {
 		t.Fatal("two equal worlds encoded differently")
 	}
 
-	// One millisecond apart: different bytes AND a different identity.
+	// An input one millisecond apart (a planned window): different bytes AND a
+	// different identity.
 	shifted := base
-	shifted.PhaseTimings = append(schema.PhaseTimings(nil), base.PhaseTimings...)
-	shifted.PhaseTimings[0].EndMS++
+	shifted.FaultSchedule.Planned = canonicalFaults(t,
+		"proc.pause(role:leader)@8200..11001",
+		"net.partition(minority(kv))@8400..10900",
+		"net.loss(n1<->n2, pct=5)@500..1500",
+	)
 	if bytes.Equal(mustEncode(t, &base), mustEncode(t, &shifted)) {
 		t.Fatal("a one-millisecond difference encoded identically")
 	}
 	hb, _ := HashWorld(&base)
 	hs, _ := HashWorld(&shifted)
 	if hb == hs {
-		t.Fatal("a one-millisecond difference hashed identically")
+		t.Fatal("a one-millisecond difference in a planned window hashed identically")
+	}
+
+	// A measurement one millisecond apart: a different file, the SAME v2
+	// identity, and a different v1 identity.
+	remeasured := base
+	remeasured.PhaseTimings = append(schema.PhaseTimings(nil), base.PhaseTimings...)
+	remeasured.PhaseTimings[0].EndMS++
+	if bytes.Equal(mustEncode(t, &base), mustEncode(t, &remeasured)) {
+		t.Fatal("a one-millisecond timing difference encoded identically")
+	}
+	if hr, _ := HashWorld(&remeasured); hr != hb {
+		t.Fatal("a v2 world's identity moved with a measured phase timing")
+	}
+	v1, v1r := base, remeasured
+	v1.Schema, v1r.Schema = schema.WorldSchemaV1, schema.WorldSchemaV1
+	h1, _ := HashWorld(&v1)
+	h1r, _ := HashWorld(&v1r)
+	if h1 == h1r {
+		t.Fatal("a v1 world's identity no longer covers its phase timings; recorded v1 hashes would move")
 	}
 
 	// Provenance differs: different bytes, SAME identity. This is what lets the

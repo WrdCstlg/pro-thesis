@@ -317,6 +317,18 @@ func (p *Plan) Fingerprint() (string, error) {
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
+// WorkloadDigest is the digest of the workload this plan asks the driver to
+// run: profile, seed, clients, ops, mix, the operation trace and its origin
+// rule. It leaves out what differs on every execution of the same world: the
+// history path, the target addresses and the clock origin's timestamp. A v2
+// world carries it as plan_digest, so its identity covers the workload, and
+// replay checks a recorded plan.json against it (D-109).
+func (p *Plan) WorkloadDigest() (string, error) {
+	w := p.Clone()
+	w.HistoryPath, w.Targets, w.OriginNS = "", nil, 0
+	return w.Fingerprint()
+}
+
 // Validate checks the operation trace.
 //
 // It deliberately says NOTHING about the profile members. Those have been

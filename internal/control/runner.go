@@ -57,6 +57,12 @@ type RunnerOptions struct {
 	// FaultsSupplied indicates the caller/CLI explicitly set Faults (even if empty).
 	FaultsSupplied bool
 
+	// Variant overrides the profile's `variant` (`thesis run --variant`).
+	// Empty means the profile's. One that differs from the profile's runs a
+	// different build from the one the lock-covered profile names, so it marks
+	// the budget narrowed. It needs harness.variant_env.
+	Variant string
+
 	// Injectors are the fault-family mechanisms, from internal/perturber/faults.
 	//
 	// An empty set with a non-empty Faults list is a HARD FAILURE, not a
@@ -116,6 +122,14 @@ type Runner struct {
 
 	faults         []string
 	faultsNarrowed bool
+
+	// variant is the build every world records as its topology_variant;
+	// variantPin is the `<variant_env>=<variant>` entry handed to compose and
+	// the driver when the variant is pinned (empty when it is inherited);
+	// variantNarrowed says a command-line variant differs from the profile's.
+	variant         string
+	variantPin      []string
+	variantNarrowed bool
 
 	// injectors is the EXPLICIT override from RunnerOptions and is read-only
 	// after construction. It used to be reassigned per world, which made two
@@ -194,6 +208,17 @@ func NewRunner(opts RunnerOptions) (*Runner, error) {
 	if seed == 0 {
 		seed = uint64(time.Now().UnixNano())
 	}
+
+	if opts.Variant != "" {
+		if cfg.Harness.VariantEnv == "" {
+			return nil, fmt.Errorf("control: --variant %q needs harness.variant_env, the variable that "+
+				"carries it to the build", opts.Variant)
+		}
+		if !schema.IsVariantToken(opts.Variant) {
+			return nil, fmt.Errorf("control: --variant %q is not a variant name", opts.Variant)
+		}
+	}
+	variant, variantPin, variantNarrowed := resolveVariant(cfg, profCfg, opts.Variant)
 
 	runsDir := cfg.Artifacts.Dir
 	if !filepath.IsAbs(runsDir) {
@@ -308,24 +333,27 @@ func NewRunner(opts RunnerOptions) (*Runner, error) {
 		runFaults = append([]string(nil), opts.Faults...)
 	}
 	return &Runner{
-		opts:           opts,
-		cfg:            cfg,
-		profile:        profile,
-		driverProfile:  driverProfile,
-		seed:           seed,
-		runID:          runID,
-		runDir:         runDir,
-		backend:        b,
-		driver:         drv,
-		telemetry:      tel,
-		oracleEngine:   oe,
-		steadyState:    st,
-		logCollector:   lc,
-		imageResolver:  ir,
-		clock:          clk,
-		faults:         runFaults,
-		faultsNarrowed: faultsNarrowed,
-		injectors:      append([]perturber.Injector(nil), opts.Injectors...),
+		opts:            opts,
+		cfg:             cfg,
+		profile:         profile,
+		driverProfile:   driverProfile,
+		seed:            seed,
+		runID:           runID,
+		runDir:          runDir,
+		backend:         b,
+		driver:          drv,
+		telemetry:       tel,
+		oracleEngine:    oe,
+		steadyState:     st,
+		logCollector:    lc,
+		imageResolver:   ir,
+		clock:           clk,
+		faults:          runFaults,
+		faultsNarrowed:  faultsNarrowed,
+		variant:         variant,
+		variantPin:      variantPin,
+		variantNarrowed: variantNarrowed,
+		injectors:       append([]perturber.Injector(nil), opts.Injectors...),
 
 		drainDeadline: drainDeadline,
 
@@ -408,6 +436,14 @@ func (r *Runner) Run(ctx context.Context) (schema.Verdict, schema.ExitCode, erro
 	budget = ApplyCLIOverrides(budget, r.opts.Budget, r.opts.Worlds)
 	if r.faultsNarrowed {
 		budget.Narrowed = true
+	}
+	if r.variantNarrowed {
+		budget.Narrowed = true
+		if !r.quiet {
+			fmt.Fprintf(r.stderr, "thesis: WARNING: the command line runs variant %q instead of profile "+
+				"%q's own; a run on another build than the profile names cannot report PASS.\n",
+				r.variant, r.profile)
+		}
 	}
 	if budget.Narrowed && !r.quiet {
 		if r.faultsNarrowed {
@@ -622,6 +658,43 @@ func WorldSeedFor(runSeed uint64, ordinal int) uint64 {
 // directory. It is a pure function of the ordinal so a parallel run lays its
 // artifacts out exactly as a serial one does.
 func WorldDirName(ordinal int) string { return fmt.Sprintf("world-%04d", ordinal) }
+
+// resolveVariant decides which build of the system under test a run's worlds
+// use and record as their topology_variant.
+//
+// A pinned variant (the profile's `variant`, or the command line's) is handed
+// to compose and the driver as `<variant_env>=<variant>`. With none pinned, the
+// value the environment already carries is recorded as it is, so a build
+// chosen by the caller's environment is still named in the world; with no
+// variant_env, or the variable unset, the world says "default": whatever the
+// topology file selects by itself. narrowed reports a command-line variant
+// that differs from the profile's.
+func resolveVariant(cfg *schema.Config, prof schema.Profile, cli string) (variant string, pin []string, narrowed bool) {
+	name := cfg.Harness.VariantEnv
+	value := prof.Variant
+	if cli != "" {
+		narrowed = cli != prof.Variant
+		value = cli
+	}
+	if value != "" && name != "" {
+		return value, []string{name + "=" + value}, narrowed
+	}
+	if name != "" {
+		if v := os.Getenv(name); v != "" {
+			return v, nil, narrowed
+		}
+	}
+	return "default", nil, narrowed
+}
+
+// worldEnv is the environment compose and the driver get for one world: the
+// world's own (its parallel slot's ports and names) plus the pinned variant.
+func (r *Runner) worldEnv(spec worldSpec) []string {
+	if len(r.variantPin) == 0 {
+		return spec.env
+	}
+	return append(append([]string(nil), spec.env...), r.variantPin...)
+}
 
 // newWorldSpec builds the serial world spec for a 1-based ordinal.
 func (r *Runner) newWorldSpec(ordinal int, faults []string) worldSpec {
@@ -949,7 +1022,7 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 		if downTop != nil {
 			if err := r.backend.Down(detachedCtx, downTop, harness.DownOptions{
 				Volumes: true,
-				Env:     spec.env,
+				Env:     r.worldEnv(spec),
 			}); err != nil {
 				wres.teardownErr = err
 				fmt.Fprintf(r.stderr, "thesis: world %d: TEARDOWN: %v\n", ordinal+1, err)
@@ -981,7 +1054,7 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 		RunDir:      r.runDir,
 		ProjectName: spec.project,
 		OverlayPath: overlay,
-		Env:         spec.env,
+		Env:         r.worldEnv(spec),
 	})
 	if err != nil {
 		return worldResult{outcome: OutcomeHarnessError, paths: paths, timeline: timeline}, fmt.Errorf("boot up failed: %w", err)
@@ -1113,6 +1186,14 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 		return worldResult{outcome: OutcomeHarnessError, paths: paths, timeline: timeline},
 			fmt.Errorf("write driver plan: %w", err)
 	}
+	// The workload this world drives is part of its v2 identity (D-109). The
+	// digest leaves out what differs per execution, so a replay of this plan
+	// names the same world.
+	planDigest, err := plan.WorkloadDigest()
+	if err != nil {
+		return worldResult{outcome: OutcomeHarnessError, paths: paths, timeline: timeline},
+			fmt.Errorf("driver plan digest: %w", err)
+	}
 
 	drvHandle, err := r.driver.Start(ctx, DriverRequest{
 		Config:       r.cfg,
@@ -1125,7 +1206,7 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 		Seed:         worldSeed,
 		Profile:      r.driverProfile,
 		Topology:     topology,
-		Env:          spec.env,
+		Env:          r.worldEnv(spec),
 		// Ask for the control channel whenever draining is enabled. A driver
 		// that does not read stdin is unaffected: it simply does not drain, and
 		// the deadline reports that as a fact rather than hiding it.
@@ -1312,7 +1393,8 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 	// open it; evaluating first made the path name a file that did not exist yet.
 	// Its contents are already fixed here: the schedule ran, the images were
 	// resolved, and these are the phase timings the oracles are given.
-	world := schema.NewWorld(worldSeed, "default", r.driverProfile)
+	world := schema.NewWorld(worldSeed, r.variant, r.driverProfile)
+	world.PlanDigest = planDigest
 	world.PhaseTimings = timings
 	world.FaultSchedule.Planned = plannedOf(perturb)
 	// nil means resolution never ran or failed: keep NewWorld's explicit []
