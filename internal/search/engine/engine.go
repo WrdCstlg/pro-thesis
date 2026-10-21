@@ -124,6 +124,10 @@ type Engine struct {
 	budget  control.Budget
 	tracker *control.BudgetTracker
 	split   saboteur.BudgetSplit
+	// workloadNarrowed is set when a proposed world drives a driver profile
+	// that no run profile names. The lock covers only those, so such a world is
+	// not the gate's workload and the run cannot PASS.
+	workloadNarrowed bool
 
 	stderr io.Writer
 	quiet  bool
@@ -606,13 +610,21 @@ func (e *Engine) proposeBatch(ctx context.Context, n int, ordinal *int) ([]contr
 		if len(w.FaultSchedule.Planned) == 0 {
 			label = "control"
 		}
+		// The proposal is executed AS PROPOSED: its seed and its driver
+		// profile, not the ones the runner would derive. A world driving a
+		// driver profile no run profile names is outside the lock, so the run
+		// cannot PASS (see finish).
+		seed := w.Seed
+		if w.DriverProfile != "" && !e.lockedDriverProfile(w.DriverProfile) {
+			e.workloadNarrowed = true
+		}
 		reqs = append(reqs, control.WorldRequest{
-			// 1-based for the executor; the strategy counts from 0, and
-			// saboteur.WorldSeedFor / control.WorldSeedFor agree across that
-			// offset by construction.
-			Ordinal: *ordinal,
-			Faults:  append([]string(nil), w.FaultSchedule.Planned...),
-			Label:   label,
+			// 1-based for the executor; the strategy counts from 0.
+			Ordinal:       *ordinal,
+			Faults:        append([]string(nil), w.FaultSchedule.Planned...),
+			Label:         label,
+			Seed:          &seed,
+			DriverProfile: w.DriverProfile,
 		})
 		worlds[*ordinal] = w
 	}
@@ -755,12 +767,22 @@ func (e *Engine) finish(ctx context.Context, res Result, stopReason string, fata
 	cov.NewStates = newS
 	res.Coverage = cov
 
+	budget := e.tracker.Snapshot()
+	if e.workloadNarrowed {
+		budget.Narrowed = true
+		if budget.WorldsRequired == 0 {
+			budget.WorldsRequired = budget.WorldsPlanned
+		}
+		if budget.WallSRequired == 0 {
+			budget.WallSRequired = budget.WallS
+		}
+	}
 	v := control.BuildVerdict(control.VerdictInput{
 		RunID:      e.runner.RunID(),
 		Profile:    e.runner.Profile(),
 		Commit:     buildinfo.VerdictCommit(control.GitCommit(ctx, e.runner.ProjectDir())),
 		Outcome:    outcome,
-		Budget:     e.tracker.Snapshot(),
+		Budget:     budget,
 		Violations: violations,
 		Artifacts:  control.RelativeArtifacts(e.runner.ProjectDir(), e.runner.RunDir()),
 		OracleLock: e.opts.OracleLock,
@@ -795,6 +817,17 @@ func (e *Engine) finish(ctx context.Context, res Result, stopReason string, fata
 	return res, werr
 }
 
+// lockedDriverProfile reports whether a driver profile is one some run profile
+// names: the driver profiles the lock covers (by reference, D-090).
+func (e *Engine) lockedDriverProfile(name string) bool {
+	for _, p := range e.runner.Config().Profiles {
+		if p.DriverProfile == name {
+			return true
+		}
+	}
+	return false
+}
+
 func (e *Engine) logf(format string, args ...any) {
 	if e.quiet || e.stderr == nil {
 		return
@@ -820,6 +853,11 @@ func OutcomeOf(o control.WorldOutcome, w schema.World) search.Outcome {
 	}
 	if h, err := w.Hash(); err == nil {
 		out.WorldHash = h
+	}
+	if ew, err := recorder.LoadWorld(o.Paths.World); err == nil {
+		if h, err := ew.Hash(); err == nil {
+			out.ExecutedHash = h
+		}
 	}
 	if o.Err != nil {
 		out.Err = o.Err.Error()

@@ -88,8 +88,11 @@ type TreeRecord struct {
 
 // WorldRecord is one executed world, as the search read it.
 type WorldRecord struct {
-	Ordinal      int      `json:"ordinal"`
-	Label        string   `json:"label"`
+	Ordinal int    `json:"ordinal"`
+	Label   string `json:"label"`
+	// WorldHash is the identity of the world that ran (its world.thesis), not
+	// of the proposal: see search.Outcome.ExecutedHash.
+	WorldHash    string   `json:"world_hash,omitempty"`
 	Seed         uint64   `json:"seed"`
 	Faults       []string `json:"faults"`
 	Signal       string   `json:"signal"`
@@ -156,7 +159,7 @@ func (e *Engine) writeSearchRecord(res Result) {
 	for _, w := range res.Worlds {
 		out := bySignal[w.Ordinal]
 		wr := WorldRecord{
-			Ordinal: w.Ordinal, Label: w.Label, Seed: w.Seed,
+			Ordinal: w.Ordinal, Label: w.Label, Seed: w.Seed, WorldHash: out.ExecutedHash,
 			Faults:       w.Planned,
 			Signal:       string(out.Signal()),
 			Why:          out.Why(),

@@ -100,8 +100,15 @@ func (f Finding) Definite() bool {
 // class, severity, coverage delta, fault count, duration) without computing
 // that function, which belongs to internal/search/saboteur.
 type Outcome struct {
-	// WorldHash identifies the world that produced it.
+	// WorldHash identifies the PROPOSED world that produced it. Strategies key
+	// their bookkeeping (pending tree rollouts, corpus entries) on it, because
+	// it is the name they gave the world before it ran.
 	WorldHash string
+	// ExecutedHash is the identity of the world that actually ran: the hash of
+	// its world.thesis, which knows the images it booted on and the workload it
+	// drove, as the proposal could not. Empty when the world wrote no file.
+	// It is what a record of the run names (D-109).
+	ExecutedHash string
 	// Faults are the world's planned faults, canonical.
 	Faults []string
 	// Ordinal is the world's position in the run.

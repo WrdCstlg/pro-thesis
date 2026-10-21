@@ -444,6 +444,11 @@ type WorldRequest struct {
 	// recorded rather than one regenerated from the current config.
 	Plan *driver.Plan
 
+	// DriverProfile names the entry of driver.profiles this world drives. Empty
+	// means the run profile's. A search proposes it per world, and the world
+	// both drives and records the one it names.
+	DriverProfile string
+
 	// ExpectImages are the images this world must boot on: a replay passes the
 	// ones the world recorded. A world whose resolved images differ (another
 	// digest, an extra image, or images that could not be resolved) is not the
