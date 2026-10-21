@@ -115,6 +115,18 @@ Two things that catch everyone:
 - **`port` defaults to 8080.** That default is the reference fixture's. A target serving anywhere
   else must say so per node.
 
+Three optional keys decide what a run is about:
+
+- **`harness.variant_env`** names the environment variable your compose file uses to select a build
+  of the system under test (the fixture's is `KV_VARIANT`, `buggy` or `kvfixed`). Every world
+  records the value in force as its `topology_variant`, so a world on one build is not the same
+  world as one on another. A run profile may pin it with **`variant: <name>`**; `thesis run
+  --variant <name>` overrides that, and a value other than the profile's narrows the run (no PASS).
+  Without a pin the inherited value is recorded; without `variant_env` the world says `default`.
+- **`min_worlds`** applies to an open-ended profile (`worlds: -1`): when the wall budget expires
+  with every world clean, the run is a PASS if at least that many worlds finished (default 1), and
+  exit 3 otherwise.
+
 Declare only long-lived services as nodes: `no_crash` matches concrete node ids, so a one-shot init
 container that exits is not a violation unless you declared it.
 
@@ -253,12 +265,15 @@ containers.
 
 ## 8. The lock, and what it is for
 
-`.prothesis/lock` hashes every oracle definition byte for byte plus exactly ten configuration keys,
-which the lock file lists under `covers`: `driver.cmd`, `harness.health`, `harness.role_probe`,
-`oracles.builtin`, `oracles.dir`, `perturber.allow`, `perturber.budget`, `perturber.deny`,
-`profiles`, `search`. It also hashes `driver.profiles.<name>` for every name a run profile's
-`driver_profile` names (D-090), because that is the workload the gate runs. Every run re-derives
-the digest before a container starts. A mismatch is exit **4**: not "a test failed"
+`.prothesis/lock` hashes every oracle definition byte for byte, the content of the compose file
+`harness.file` names, and fifteen configuration keys, which the lock file lists under `covers`:
+`driver.cmd`, `harness.file`, `harness.health`, `harness.nodes`, `harness.role_probe`,
+`harness.steady_state`, `harness.variant_env`, `oracles.builtin`, `oracles.dir`,
+`perturber.allow`, `perturber.budget`, `perturber.constraints`, `perturber.deny`, `profiles`,
+`search`. It also hashes `driver.profiles.<name>` for every name a run profile's `driver_profile`
+names (D-090), because that is the workload the gate runs. The compose file is covered because
+the timeouts, images and topology in it decide whether a fault produces a violation (D-109). Every
+run re-derives the digest before a container starts. A mismatch is exit **4**: not "a test failed"
 but "someone changed the test". Moving it is deliberate, and the reason lands in the diff:
 
 ```bash
@@ -277,9 +292,11 @@ Two holes the lock file states about itself, both of which matter to you:
   profile name from its own table, as the fixture's `loadgen` does, review a change to that table
   as a gate change. A driver profile that no run profile names is not covered at all (OQ-026).
 - **The digest covers oracle definitions and the driver command, not the executables they name**
-  (D-060, D-090). A rebuilt or swapped checker or driver is a warning in the verdict, never exit 4.
-  Each resolved program's SHA-256 is recorded outside the digest, the driver's as `driver.cmd`, so
-  the change is visible rather than silent.
+  (D-060, D-090). Each resolved program's SHA-256 is recorded outside the digest, the driver's as
+  `driver.cmd`, with the platform it was taken on. On that platform a changed checker or driver is
+  exit **4** (D-109); on any other it is a warning in the verdict, because a build for another OS
+  can never match. Build your fingerprinted programs without a commit stamp (as
+  `scripts/build.ps1` does), so unchanged source reproduces the locked bytes.
 
 ---
 
@@ -397,18 +414,16 @@ That is the shape every fix in this repository has to take, applied to the integ
   name.
 - **`PROTHESIS_TARGETS` gives addresses, not node ids** (OQ-092). Label targets by the order of
   `harness.nodes`, and accept an explicit `id=addr` form if you can.
-- **The image under test is outside the lock** (OQ-093). Pin it by digest in the compose file and
-  compare each world's `sut.images` with the pin before trusting a result
-  (`eval/tools/check-images.ps1` does this per world).
-- **Nothing locks the compose file** (OQ-097). Timing and topology set there (Consul's
-  `raft_multiplier`, an election timeout, a replica count) decide verdicts, and can change between
-  two runs that report the same lock digest. Commit the compose file with the lock and name both in
-  any result you publish.
+- **Pin the image under test by digest** (OQ-093). The compose file is now locked, so a pinned
+  reference cannot change behind the lock; a tag alone can still be re-pulled to different bytes.
+  Each world records the image it ran in `sut.images`, and a replay refuses to count a world booted
+  on another image (`eval/tools/check-images.ps1` checks a whole run).
 - **Check the server version on every answer if your system sends it.** A system that does not
   (Consul's KV API sends none) can only be checked at start, and a node replaced during a run goes
   unnoticed.
-- **Role-probe and steady-state programs are not fingerprinted** (OQ-094), and `harness.steady_state`
-  is not a lock-covered key. Record their hashes yourself.
+- **Role-probe and steady-state programs are not fingerprinted** (OQ-094). Their commands are
+  locked (`harness.role_probe`, `harness.steady_state`); the programs they run are not. Record
+  their hashes yourself.
 - **The role probe breaks ties by Raft term** (OQ-095). If your system exposes no term, make the probe
   refuse any disagreement rather than guess.
 - **A passing steady-state probe leaves no trace in the bundle** (OQ-096).
@@ -417,9 +432,9 @@ That is the shape every fix in this repository has to take, applied to the integ
 - **A node declares one port, used both for health and as the address handed to your programs**
   (OQ-099). If health and data are on different ports, write the data addresses into the driver
   and probe commands; parallel lanes cannot then remap them.
-- **`topology_variant` in `world.thesis` is always "default"** (OQ-100). Record the topology your
-  verdict depends on yourself; the Redis driver puts it on the first history record and refuses a
-  world that differs from the lock-covered values.
+- **`topology_variant` names a build, not a topology** (OQ-100). Set `harness.variant_env` and it
+  records which build ran; a topology your verdict depends on beyond that (Redis's primary, quorum
+  and timings) is yours to record, as the Redis driver does on the first history record.
 - **Only declared nodes are in the evidence** (OQ-101). Images, logs and crashes of other compose
   services (a Sentinel, a shim) are not recorded.
 - **Launch runs from the project directory.** Launched from elsewhere, teardown can leave the
