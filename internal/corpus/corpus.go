@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/WrdCstlg/pro-thesis/internal/driver"
 	"github.com/WrdCstlg/pro-thesis/internal/recorder"
 	"github.com/WrdCstlg/pro-thesis/pkg/schema"
 )
@@ -93,15 +94,15 @@ func (e *ErrNotConfirmed) Error() string {
 			"would spend a world on it to learn nothing"
 	case e.Confirmation.Reproduced == 0:
 		return fmt.Sprintf("corpus: refusing to commit a world that reproduced %s. "+
-			"A world that never reproduces makes `thesis regress` report PASS whatever the "+
-			"system under test does, which is a green gate that checked nothing",
+			"A world that never reproduces would make `thesis regress` report it NON_REPRODUCING "+
+			"whatever the system under test does: a regression that tests nothing",
 			e.Confirmation)
 	default:
 		return fmt.Sprintf("corpus: refusing to commit a world that reproduced %s rather than %d/%d. "+
-			"`thesis regress` reports PASS when a corpus world does not reproduce, so a flaky "+
-			"entry manufactures a FALSE GREEN at that rate. Shrink further, or confirm at a k "+
-			"you are willing to publish — the measured number is reported either way and is "+
-			"never rounded up",
+			"`thesis regress` reports a corpus world that does not reproduce as NON_REPRODUCING "+
+			"(exit 2), so a flaky entry turns the gate inconclusive at that rate. Shrink further, "+
+			"or confirm at a k you are willing to publish — the measured number is reported "+
+			"either way and is never rounded up",
 			e.Confirmation, e.Confirmation.Attempts, e.Confirmation.Attempts)
 	}
 }
@@ -205,6 +206,10 @@ func (c *Corpus) List() ([]Entry, error) {
 		// from regress, converting a real failure into a vacuous pass (OQ-062).
 		// A suffix test alone missed the last two of those.
 		name := de.Name()
+		// A committed world's driver plan (w_xxxx.plan.json) is not a world.
+		if strings.HasSuffix(name, PlanFileSuffix) {
+			continue
+		}
 		if strings.HasPrefix(name, schema.WorldIDPrefix) ||
 			strings.Contains(strings.ToLower(name), schema.WorldFileExt) {
 			names = append(names, name)
@@ -270,9 +275,45 @@ func (c *Corpus) List() ([]Entry, error) {
 // It returns the entry's path. Adding the identical world twice is a no-op and
 // returns the existing path with no error, so a re-run of a shrink that already
 // committed its answer does not fail.
+//
+// A world that names its workload (plan_digest) must be committed with it:
+// AddWithPlan.
 func (c *Corpus) Add(w *schema.World, conf Confirmation) (string, error) {
+	return c.AddWithPlan(w, conf, nil)
+}
+
+// PlanFileSuffix names the driver plan committed beside a corpus world:
+// w_xxxx.thesis drove w_xxxx.plan.json.
+const PlanFileSuffix = ".plan.json"
+
+// AddWithPlan is Add for a world that names its workload. plan is the driver
+// plan the confirmed world drove (for a shrink, the operation subset op-level
+// ddmin reduced the workload to). It must be the workload the world's
+// plan_digest names, and it is committed beside the world as w_xxxx.plan.json,
+// with the per-execution history path, targets and clock origin removed (they
+// are outside the digest, and a committed file must not carry one machine's
+// paths). Replay and regress then drive it (D-109).
+func (c *Corpus) AddWithPlan(w *schema.World, conf Confirmation, plan []byte) (string, error) {
 	if w == nil {
 		return "", errors.New("corpus: Add(nil)")
+	}
+	var committedPlan []byte
+	if w.PlanDigest != "" {
+		if plan == nil {
+			return "", fmt.Errorf("corpus: the world names its workload (plan_digest %s) but no plan was "+
+				"given; an entry without it could not be replayed as itself", w.PlanDigest)
+		}
+		p, err := driver.ParsePlan(plan)
+		if err != nil {
+			return "", fmt.Errorf("corpus: plan: %w", err)
+		}
+		if d, err := p.WorkloadDigest(); err != nil || d != w.PlanDigest {
+			return "", fmt.Errorf("corpus: the plan drives workload %s, but the world's plan_digest is %s", d, w.PlanDigest)
+		}
+		p.HistoryPath, p.Targets, p.OriginNS = "", nil, 0
+		if committedPlan, err = p.Marshal(); err != nil {
+			return "", fmt.Errorf("corpus: plan: %w", err)
+		}
 	}
 	if !conf.Passed() {
 		return "", &ErrNotConfirmed{Confirmation: conf}
@@ -323,6 +364,18 @@ func (c *Corpus) Add(w *schema.World, conf Confirmation) (string, error) {
 	if _, err := recorder.LoadWorld(path); err != nil {
 		return "", fmt.Errorf("corpus: %s did not survive a round trip: %w", path, err)
 	}
+	if committedPlan != nil {
+		pp := strings.TrimSuffix(path, schema.WorldFileExt) + PlanFileSuffix
+		// Append-only like the world: the same plan again is a no-op, a
+		// different one under the same name is refused.
+		if existing, err := os.ReadFile(pp); err == nil {
+			if !bytes.Equal(existing, committedPlan) {
+				return "", fmt.Errorf("corpus: %s already exists with different content", pp)
+			}
+		} else if err := os.WriteFile(pp, committedPlan, 0o644); err != nil {
+			return "", fmt.Errorf("corpus: write %s: %w", pp, err)
+		}
+	}
 	return path, nil
 }
 
@@ -342,11 +395,17 @@ not a cleanup.
 Two rules the tooling enforces so you do not have to:
 
 - a world that did not reproduce k/k is REFUSED entry, because
-  ` + "`thesis regress`" + ` reports PASS when a corpus world does not reproduce, and a
-  flaky entry manufactures a false green at exactly its flake rate;
+  ` + "`thesis regress`" + ` reports a corpus world that does not reproduce as
+  NON_REPRODUCING (exit 2), and a flaky entry turns every gate run it misses
+  into an unjudged one at exactly its flake rate;
 - a DIFFERENT world wanting a filename already taken is an error, never a silent
   overwrite. Filenames are the first four hex digits of the world hash, so a
   collision is possible; losing a regression to one is not.
+
+A world that names its workload (` + "`plan_digest`" + `) is stored with that workload
+beside it as ` + "`w_xxxx.plan.json`" + `, and ` + "`thesis regress`" + ` replays that exact
+operation sequence. The plan's digest must match the world's, so a plan file
+cannot be swapped without the world refusing it.
 
 The files are LF-only and byte-identical to their canonical encoding. Do not
 hand-edit them: the loader re-encodes and byte-compares on every read, so an

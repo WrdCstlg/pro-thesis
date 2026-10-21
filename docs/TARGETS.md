@@ -308,7 +308,8 @@ thesis history verify .prothesis/runs/r_*/world-*/history.jsonl   # the historie
 thesis run --profile smoke                                # no faults: boot and teardown are sane
 thesis run --profile linear --fault 'net.partition(etcd-n1)@3000..7500'
 echo $?                                                   # 0 pass, 1 fail, 2 nothing proven, 4 gate moved
-thesis regress                                            # replay the committed corpus
+thesis regress                                            # replay the committed corpus: 1 a regression is back,
+                                                          # 2 a world no longer reproduces (NON_REPRODUCING, not a pass)
 thesis diagnose                                           # every refusal attributes to a known problem (D-082)
 ```
 

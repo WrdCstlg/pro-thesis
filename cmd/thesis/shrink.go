@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WrdCstlg/pro-thesis/internal/buildinfo"
 	"github.com/WrdCstlg/pro-thesis/internal/control"
 	"github.com/WrdCstlg/pro-thesis/internal/corpus"
 	"github.com/WrdCstlg/pro-thesis/internal/driver"
@@ -357,7 +358,14 @@ func cmdShrink(ctx context.Context, g globals, args []string) schema.ExitCode {
 					Reproduced:   res.Confirmation.Reproduced,
 					Inconclusive: res.Confirmation.Unknown,
 				}
-				cp, addErr := c.Add(shrunkWorld, conf)
+				// The plan the confirmed world drove (the op subset stage 2
+				// reduced the workload to) is committed beside it, so regress
+				// and replay drive that exact workload (D-109).
+				var planRaw []byte
+				if shrunkWorld.PlanDigest != "" {
+					planRaw, _ = os.ReadFile(filepath.Join(filepath.Dir(res.WorldPath), driver.PlanFileName))
+				}
+				cp, addErr := c.AddWithPlan(shrunkWorld, conf, planRaw)
 				if addErr == nil {
 					corpusPath = cp
 				} else if !g.quiet {
@@ -367,6 +375,25 @@ func cmdShrink(ctx context.Context, g globals, args []string) schema.ExitCode {
 		}
 	}
 
+	// The shrink's verdict, in its own bundle: the reduction and the minimal
+	// reproduction on the violation it shrank. A recorded run's verdict.json is
+	// never edited (D-109).
+	relCorpus := ""
+	if corpusPath != "" {
+		relCorpus = control.RelativeArtifacts(p.dir, corpusPath)
+	}
+	sv := shrinkVerdict(res, origID, replay.VerdictMeta{
+		RunID:      runID,
+		Profile:    profile,
+		Commit:     buildinfo.VerdictCommit(control.GitCommit(ctx, p.dir)),
+		Artifacts:  control.RelativeArtifacts(p.dir, runner.RunDir()),
+		OracleLock: p.lockReport.OracleLock(),
+	}, relCorpus)
+	if err := control.WriteVerdictFile(filepath.Join(runner.RunDir(), control.VerdictFileName), &sv); err != nil {
+		errorf("shrink: write verdict: %v", err)
+		return schema.ExitInconclusive
+	}
+
 	if g.json {
 		emitShrinkJSON(res, world, worldPath, corpusPath, runner.RunDir(), p.dir)
 	} else if !g.quiet {
@@ -374,6 +401,51 @@ func cmdShrink(ctx context.Context, g globals, args []string) schema.ExitCode {
 	}
 
 	return shrinkExitCode(res)
+}
+
+// shrinkVerdict renders a shrink as a prothesis.verdict/v1 document.
+//
+// Its verdict describes the SYSTEM, as every verdict.json does: FAIL with the
+// violation when the confirmation reproduced it at least once, carrying the
+// measured reduction (shrink) and the minimal reproduction (minimal_repro,
+// pointing at the committed corpus entry when there is one); BUDGET_EXHAUSTED
+// or INCONCLUSIVE when nothing reproduced. The command's exit code describes
+// the SHRINK (0: a minimal repro was confirmed); see shrinkExitCode.
+func shrinkVerdict(res *shrink.Result, original shrink.Identity, m replay.VerdictMeta, corpusPath string) schema.Verdict {
+	v := schema.Verdict{
+		Schema: schema.VerdictSchema, RunID: m.RunID, Profile: m.Profile, Commit: m.Commit,
+		Violations: []schema.Violation{}, OracleLock: m.OracleLock, Artifacts: m.Artifacts,
+		Budget: schema.Budget{
+			UsedS:     int64(res.Elapsed.Round(time.Second).Seconds()),
+			WorldsRun: res.WorldsRun,
+		},
+	}
+	switch {
+	case res.Confirmation.Reproduced > 0:
+		v.Verdict = schema.VerdictFail
+		vi := schema.Violation{
+			ID:     control.ViolationID(1),
+			Oracle: original.Oracle,
+			Class:  original.Class,
+			Explanation: fmt.Sprintf("shrunk from %d to %d fault(s) and %d to %d operation(s); the "+
+				"reduced world reproduced %s", res.FaultsBefore, res.FaultsAfter, res.OpsBefore,
+				res.OpsAfter, res.Confirmation.String()),
+			Witness: schema.Witness{Key: original.Key, OpIDs: original.OpIDs},
+		}
+		res.Apply(&vi)
+		if corpusPath != "" {
+			if mr := res.MinimalReproAt(corpusPath); mr != nil {
+				vi.MinimalRepro = mr
+			}
+		}
+		v.Violations = append(v.Violations, vi)
+	case res.Stop == shrink.StopWallBudget || res.Stop == shrink.StopWorldBudget:
+		v.Verdict = schema.VerdictBudgetExhausted
+	default:
+		v.Verdict = schema.VerdictInconclusive
+	}
+	v.Normalize()
+	return v
 }
 
 func parseStrictness(s string) (shrink.Strictness, error) {

@@ -527,6 +527,70 @@ func TestExternalOracleReportsOK(t *testing.T) {
 	}
 }
 
+// A formal-verification oracle carries its evidence in the witness: the unsat
+// core of its proof, a counterexample model, the status of a premise ablation.
+// Those members must arrive in the finding exactly as the external process
+// wrote them, and survive a second trip through the oracle_output document the
+// verdict archives, or the evidence a reviewer needs is lost on the way.
+func TestAFormalWitnessRoundTripsThroughTheExternalProtocol(t *testing.T) {
+	sent := FormalWitness{
+		UnsatCore:           []string{"lease_holds", "clock_monotone", "read_after_write"},
+		CounterexampleModel: json.RawMessage(`{"t_lease_end":7500,"t_read":7420,"leader":"kv-n2"}`),
+		AblationStatus:      "verdict survives without clock_monotone",
+	}
+	out := okDoc()
+	out.Status = schema.StatusViolated
+	out.Explanation = "no linearization: the lease premise and the observed read are unsatisfiable together"
+	out.Witness = schema.Witness{Key: "k/42"}
+	if err := sent.Into(&out.Witness); err != nil {
+		t.Fatalf("Into: %v", err)
+	}
+
+	res := evaluate(t, helperDef(t, helperCmd(t, "emit", "1", docFile(t, out))), testInput(t), ExternalOptions{})
+	if res.Status != schema.StatusViolated {
+		t.Fatalf("status = %q (%s), want violated", res.Status, res.Explanation)
+	}
+	got, ok, err := FormalWitnessOf(res.Witness)
+	if err != nil || !ok {
+		t.Fatalf("FormalWitnessOf: ok %v, err %v; the formal members did not arrive", ok, err)
+	}
+	same := func(a, b FormalWitness) bool {
+		var ma, mb any
+		_ = json.Unmarshal(a.CounterexampleModel, &ma)
+		_ = json.Unmarshal(b.CounterexampleModel, &mb)
+		return strings.Join(a.UnsatCore, ",") == strings.Join(b.UnsatCore, ",") &&
+			a.AblationStatus == b.AblationStatus && fmt.Sprint(ma) == fmt.Sprint(mb)
+	}
+	if !same(got, sent) {
+		t.Fatalf("received %+v, sent %+v", got, sent)
+	}
+	if res.Witness.Key != "k/42" {
+		t.Fatalf("the witness's own key was lost beside the formal members: %q", res.Witness.Key)
+	}
+
+	// The archived oracle_output: marshal, parse, read again.
+	doc := schema.OracleOutput{Oracle: testOracleName, Class: schema.ClassConsistency,
+		ValidPhases: []schema.Phase{schema.PhaseAssert}, Status: res.Status, Witness: res.Witness,
+		Explanation: res.Explanation}
+	b, err := schema.MarshalOracleOutput(&doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := schema.ParseOracleOutput(b)
+	if err != nil {
+		t.Fatalf("ParseOracleOutput: %v", err)
+	}
+	if again, ok, err := FormalWitnessOf(back.Witness); err != nil || !ok || !same(again, sent) {
+		t.Fatalf("after the archive round trip: %+v (ok %v, err %v)", again, ok, err)
+	}
+
+	// A member of the wrong type is malformed evidence, not absent evidence.
+	bad := schema.Witness{Extra: map[string]json.RawMessage{WitnessUnsatCore: json.RawMessage(`"not-a-list"`)}}
+	if _, _, err := FormalWitnessOf(bad); err == nil {
+		t.Fatal("an unsat_core that is not a list was read as valid")
+	}
+}
+
 func TestExternalOracleReportsAViolationWithItsWitness(t *testing.T) {
 	in := testInput(t)
 	out := okDoc()
