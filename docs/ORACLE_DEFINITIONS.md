@@ -32,7 +32,7 @@ timeout: 120s
 | `version` | yes | always `prothesis.oracle_def/v1` |
 | `name` | yes | the oracle's identity: `violations[].oracle` in the verdict, and what `.prothesis/lock` addresses. Unique across the directory, and it may not collide with a built-in |
 | `class` | yes | one of the eight `schema.OracleClass` values: `crash`, `consistency`, `liveness`, `convergence`, `resource`, `safety`, `differential`, `metamorphic` |
-| `valid_phases` | yes | invariant I5: the lifecycle phases in which **evaluating** the oracle is meaningful. Non-empty |
+| `valid_phases` | yes | invariant I5: the lifecycle phases in which **evaluating** the oracle is meaningful. Non-empty, and it must include `ASSERT`: a world's oracles are evaluated once, at ASSERT, over the whole recorded history, so a set without it would never run and is refused before anything boots (exit 5) |
 | `cmd` | yes | the executable and its arguments, split quote-aware exactly as `driver.cmd` is. A relative program resolves against the directory `prothesis.yaml` lives in, which is also the working directory. No placeholders |
 | `timeout` | yes | wall-clock bound on one evaluation (`120s`, `2m`). Positive, at most 1h |
 
@@ -98,6 +98,11 @@ third-party dependency (D-002, D-007).
 
 The **engine** filters, not the oracle. An oracle is never asked to evaluate outside its declared
 `valid_phases`; asking one anyway is an engine bug and fails loudly with a `*PhaseError`.
+
+Filtering never makes an oracle disappear. A world's evaluation returns a finding for **every**
+registered oracle; one that could not be evaluated at ASSERT comes back `inconclusive`, with the
+reason, so the world cannot pass over a check that never ran. `thesis run` refuses such a set before
+anything boots, so in practice that finding is a second line of defence.
 
 `valid_phases` (this file) and `violations[].phase` (the verdict) are **different fields with
 different meanings**, and the frozen examples invite conflating them (OQ-004). Nothing checks one
