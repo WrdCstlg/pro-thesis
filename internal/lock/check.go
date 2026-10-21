@@ -25,6 +25,10 @@ type GateOptions struct {
 	// BuiltinOptionsFingerprint is internal/oracle.Options.Fingerprint().
 	// Compared for a WARNING only; see Report.OptionsMoved and D-035.
 	BuiltinOptionsFingerprint string
+	// Platform is the GOOS/GOARCH this check runs on, compared with the lock's
+	// recorded platform. Empty means CurrentPlatform(); tests set it to check
+	// the other side of the rule.
+	Platform string
 }
 
 // Report is the result of one drift check.
@@ -61,16 +65,22 @@ type Report struct {
 	// ExecutablesNow are the resolved-program fingerprints measured during this
 	// check, so a caller writing a lock does not have to measure them twice.
 	ExecutablesNow []ExecutableFingerprint
-	// ExecutablesMoved names external oracles whose resolved program no longer
-	// matches the lock. Like OptionsMoved it is a WARNING and NEVER drift, and
-	// for the same shape of reason: hashing a binary into the digest would make
-	// an ordinary rebuild exit 4 on every downstream project, and the correct
-	// response would become re-locking without reading the diff.
-	//
-	// Unlike OptionsMoved it also reaches the VERDICT, because this is the
-	// program that DECIDED the verdict. A green result whose checker changed has
-	// to carry that fact or the result is not interpretable. See OQ-057, D-060.
+	// ExecutablesMoved names the oracles (and `driver.cmd`) whose resolved
+	// program no longer matches the lock. The fingerprints are outside the
+	// digest, so this is never a field-level config change. It reaches the
+	// VERDICT, because this is the program that DECIDED the verdict: a green
+	// result whose checker changed has to carry that fact. See OQ-057, D-060.
 	ExecutablesMoved []ExecutableChange
+	// ExecutablesFatal is set when ExecutablesMoved is non-empty AND this check
+	// runs on the platform the lock's fingerprints were taken on. The status is
+	// then mismatch (exit 4): there a matching build was possible, so a
+	// difference is a different program (D-109). Off that platform, or for a
+	// lock that recorded none, a difference only warns.
+	ExecutablesFatal bool
+	// Platform is the platform this check ran on; LockedPlatform is the one the
+	// lock recorded, "" for a lock written before it was recorded.
+	Platform       string
+	LockedPlatform string
 
 	// InternallyInconsistent reports that the lock file's own recorded manifest
 	// does not hash to its own recorded digest, which only hand-editing
@@ -170,6 +180,13 @@ func Gate(opts GateOptions) (*Report, error) {
 	rep.OptionsFingerprintWas = locked.BuiltinOptionsFingerprint
 	rep.OptionsFingerprintNow = opts.BuiltinOptionsFingerprint
 	rep.ExecutablesMoved = DiffExecutables(locked.Executables, rep.ExecutablesNow)
+	rep.Platform = opts.Platform
+	if rep.Platform == "" {
+		rep.Platform = CurrentPlatform()
+	}
+	rep.LockedPlatform = locked.Platform
+	rep.ExecutablesFatal = len(rep.ExecutablesMoved) > 0 &&
+		locked.Platform != "" && locked.Platform == rep.Platform
 	rep.OptionsMoved = locked.BuiltinOptionsFingerprint != "" &&
 		opts.BuiltinOptionsFingerprint != "" &&
 		locked.BuiltinOptionsFingerprint != opts.BuiltinOptionsFingerprint
@@ -191,6 +208,11 @@ func Gate(opts GateOptions) (*Report, error) {
 
 	if locked.ManifestSHA == sum {
 		rep.Status = schema.LockOK
+		if rep.ExecutablesFatal {
+			// The definitions are unchanged and a program is not: on the platform
+			// the lock was made on, that is a different checker or driver.
+			rep.Status = schema.LockMismatch
+		}
 		return rep, nil
 	}
 
@@ -278,7 +300,10 @@ func (r *Report) Diagnosis() string {
 		if r.InternallyInconsistent {
 			fmt.Fprintf(&b, "  LOCK FILE INTEGRITY: %s\n", r.InconsistencyExplanation)
 		}
-		if len(r.Changes) == 0 {
+		if len(r.Changes) == 0 && r.ExecutablesFatal {
+			fmt.Fprintf(&b, "  No definition or covered key moved. A program the verdict depends on "+
+				"did, on %s, the platform this lock's fingerprints were taken on (D-109).\n", r.Platform)
+		} else if len(r.Changes) == 0 {
 			fmt.Fprintf(&b, "  The digest differs but no field-level difference was found. "+
 				"That means the manifest FORMAT changed, not your configuration; "+
 				"this is a thesis-version issue, not a gate weakening.\n")
@@ -302,7 +327,11 @@ func (r *Report) Diagnosis() string {
 	// appeared alongside other bad news would appear exactly when it was not
 	// needed. See OQ-057, D-060.
 	if len(r.ExecutablesMoved) > 0 {
-		b.WriteString(indent(FormatExecutableChanges(r.ExecutablesMoved), "  "))
+		if r.ExecutablesFatal {
+			b.WriteString(indent(FormatExecutableDrift(r.ExecutablesMoved, r.Platform), "  "))
+		} else {
+			b.WriteString(indent(FormatExecutableChanges(r.ExecutablesMoved), "  "))
+		}
 	}
 	return b.String()
 }

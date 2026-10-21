@@ -240,6 +240,24 @@ func shortSum(s string) string {
 // instruction is a line people learn to scroll past. A rebuild is the common
 // and legitimate cause; a swap is the one that matters; the text refuses to
 // guess which.
+// FormatExecutableDrift renders changed programs found on the platform the lock
+// was made on, where they are drift rather than a warning (D-109).
+func FormatExecutableDrift(changes []ExecutableChange, platform string) string {
+	if len(changes) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "thesis: ORACLE DRIFT: %d program(s) the verdict depends on differ from the lock, "+
+		"on %s, the platform it was made on:\n", len(changes), platform)
+	for _, c := range changes {
+		fmt.Fprintf(&b, "  %s: %s\n", c.Oracle, c.Detail)
+	}
+	b.WriteString("  Here a build from unchanged source reproduces the locked bytes, so a difference is a\n" +
+		"  different program. Restore the locked build, or, if the change is intended, re-lock\n" +
+		"  with a reason that names it.\n")
+	return b.String()
+}
+
 func FormatExecutableChanges(changes []ExecutableChange) string {
 	if len(changes) == 0 {
 		return ""

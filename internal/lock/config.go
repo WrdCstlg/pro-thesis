@@ -36,17 +36,29 @@ import (
 // `driver.profiles.<name>` for every name a run profile's `driver_profile`
 // names, and no other. A driver profile no run profile uses is not the gate's
 // workload, and covering it would fire exit 4 on routine edits (OQ-026, D-090).
+//
+// D-109 adds the settings that decide whether a fault produces a violation,
+// which two runs could otherwise change under the same digest: the compose file
+// `harness.file` names (its CONTENT is digested too, see Manifest.Files),
+// `harness.nodes`, `harness.steady_state` (what "ready" means before DRIVE),
+// `harness.variant_env` (which build of the system under test runs) and
+// `perturber.constraints`.
 var CoveredPaths = []string{
 	"driver.cmd",
+	"harness.file",
 	// D-066. harness.health is the URL availability_after_heal judges a node
 	// at (convergenceProbes), so repointing it at an always-200 path is a gate
 	// weakening; harness.role_probe decides which node `role:leader` hits.
 	"harness.health",
+	"harness.nodes",
 	"harness.role_probe",
+	"harness.steady_state",
+	"harness.variant_env",
 	"oracles.builtin",
 	"oracles.dir",
 	"perturber.allow",
 	"perturber.budget",
+	"perturber.constraints",
 	"perturber.deny",
 	"profiles",
 	"search",

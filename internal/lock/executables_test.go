@@ -190,7 +190,9 @@ func TestFingerprintingDoesNotMoveTheDigest(t *testing.T) {
 }
 
 // End to end through Gate and Write: lock a project, swap the program, and
-// require the next check to report it as a WARNING while the status stays ok.
+// require a check on ANOTHER platform to report it as a WARNING while the status
+// stays ok. On the locking platform the same swap is drift; see
+// TestAChangedProgramIsDriftOnTheLockingPlatform.
 func TestASwappedProgramIsWarnedAboutAndTheStatusStaysOK(t *testing.T) {
 	dir := newProject(t, baseConfig, map[string]string{
 		"lin.kv.yaml": oracleDef("linearizable.kv", "./bin/checker"),
@@ -243,19 +245,19 @@ func TestASwappedProgramIsWarnedAboutAndTheStatusStaysOK(t *testing.T) {
 	if err := os.WriteFile(prog, []byte("a program that always prints ok\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	swapped, err := Gate(GateOptions{ProjectDir: dir})
+	swapped, err := Gate(GateOptions{ProjectDir: dir, Platform: otherPlatform})
 	if err != nil {
 		t.Fatalf("Gate: %v", err)
 	}
 
-	// The status MUST stay ok. The digest covers definitions and no definition
-	// moved; claiming drift here would be the fix that makes every rebuild exit
-	// 4, which D-060 explicitly declines to do.
+	// Off the locking platform the status MUST stay ok. A fingerprint taken on
+	// another OS can never match this platform's build, so claiming drift here
+	// would make every cross-platform check exit 4 (D-060, D-109).
 	if swapped.Status != schema.LockOK {
-		t.Errorf("status = %q, want ok: a swapped program is a warning, not drift", swapped.Status)
+		t.Errorf("status = %q, want ok: off the locking platform a swapped program is a warning", swapped.Status)
 	}
 	if swapped.EnforceExitCode() != schema.ExitPass {
-		t.Errorf("a swapped program blocked the run with exit %d; D-060 reports, it does not refuse",
+		t.Errorf("a swapped program blocked the run with exit %d off the locking platform; it must warn",
 			swapped.EnforceExitCode())
 	}
 

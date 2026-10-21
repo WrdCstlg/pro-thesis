@@ -17,6 +17,9 @@ const (
 	ChangeConfigRemoved  ChangeKind = "config_removed"
 	ChangeConfigChanged  ChangeKind = "config_changed"
 	ChangeSchema         ChangeKind = "manifest_schema_changed"
+	ChangeFileAdded      ChangeKind = "file_added"
+	ChangeFileRemoved    ChangeKind = "file_removed"
+	ChangeFileModified   ChangeKind = "file_modified"
 )
 
 // Change is one difference between the locked manifest and the recomputed one.
@@ -53,6 +56,12 @@ func (c Change) String() string {
 	case ChangeSchema:
 		return fmt.Sprintf("manifest schema:      %s -> %s (the LOCK FORMAT changed, not your config; "+
 			"re-lock with a reason naming the thesis version)", c.Was, c.Now)
+	case ChangeFileAdded:
+		return fmt.Sprintf("file ADDED:           %s (%s)", c.Subject, c.Now)
+	case ChangeFileRemoved:
+		return fmt.Sprintf("file REMOVED:         %s (was %s)", c.Subject, c.Was)
+	case ChangeFileModified:
+		return fmt.Sprintf("file EDITED:          %s\n      was %s\n      now %s", c.Subject, c.Was, c.Now)
 	default:
 		return fmt.Sprintf("%s: %s: %s -> %s", c.Kind, c.Subject, c.Was, c.Now)
 	}
@@ -68,7 +77,25 @@ func Diff(was, now Manifest) []Change {
 	}
 	out = append(out, diffOracles(was.Oracles, now.Oracles)...)
 	out = append(out, diffConfig(was.Config, now.Config)...)
+	for _, c := range diffOracles(topologyList(was.Topology), topologyList(now.Topology)) {
+		switch c.Kind {
+		case ChangeOracleAdded:
+			c.Kind = ChangeFileAdded
+		case ChangeOracleRemoved:
+			c.Kind = ChangeFileRemoved
+		case ChangeOracleModified:
+			c.Kind = ChangeFileModified
+		}
+		out = append(out, c)
+	}
 	return out
+}
+
+func topologyList(f *OracleFile) []OracleFile {
+	if f == nil {
+		return nil
+	}
+	return []OracleFile{*f}
 }
 
 func diffOracles(was, now []OracleFile) []Change {

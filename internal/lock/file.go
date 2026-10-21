@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -70,12 +71,17 @@ type File struct {
 	// time. Informational; outside the digest.
 	BuiltinOptionsFingerprint string `json:"builtin_options_fingerprint,omitempty"`
 	// Executables records what each external oracle's cmd resolved to, and what
-	// that file hashed to, at write time. Informational; OUTSIDE the digest, for
-	// the reason given on ExecutableFingerprint. See D-060 and OQ-057.
+	// that file hashed to, at write time. OUTSIDE the digest, for the reason
+	// given on ExecutableFingerprint. See D-060 and OQ-057.
 	//
 	// Omitted when empty so that a project with no external oracles, and a lock
 	// written before this block existed, both stay byte-identical.
 	Executables []ExecutableFingerprint `json:"executables,omitempty"`
+	// Platform is the GOOS/GOARCH the Executables fingerprints were taken on.
+	// On that platform a program that no longer matches is drift (exit 4); on
+	// any other it is a warning, because a build for another OS can never match
+	// (D-109). Empty in a lock written before it was recorded, which only warns.
+	Platform string `json:"platform,omitempty"`
 	// Covers names the prothesis.yaml paths the manifest digests, so a reader
 	// of the file can see the scope without reading this package.
 	Covers []string `json:"covers"`
@@ -93,16 +99,16 @@ type File struct {
 // The first entry is the verdict-signing concern (v3) and is the one that
 // matters: hashing a definition is not hashing an executable.
 var Limitations = []string{
-	"The DIGEST does not cover the EXECUTABLE an oracle names. Files under oracles.dir are " +
-		"covered byte for byte; the binary, interpreter, shared library, container image or " +
-		"PATH entry an oracle resolves at run time is NOT hashed into manifest_sha, so " +
-		"swapping a checker does not produce ORACLE_DRIFT and never will: hashing it into " +
-		"the digest would make an ordinary rebuild exit 4 and turn re-locking into a reflex. " +
-		"Since D-060 the `executables` block above records each resolved program's SHA-256 " +
-		"OUTSIDE the digest, and `verify` and every run report a moved or missing one as a " +
-		"WARNING that also lands in the verdict. That removes the SILENCE OQ-057 measured; " +
-		"it does not make a swap impossible, and nothing short of signing would. Only the " +
-		"program is fingerprinted — not its arguments, its interpreter, or anything it loads.",
+	"The DIGEST does not cover the EXECUTABLE an oracle or the driver names. Files under " +
+		"oracles.dir are covered byte for byte; the binary, interpreter, shared library, " +
+		"container image or PATH entry resolved at run time is NOT hashed into manifest_sha. " +
+		"The `executables` block records each resolved program's SHA-256 OUTSIDE the digest, " +
+		"with the `platform` it was taken on. On that platform a changed, missing or newly " +
+		"resolvable program is ORACLE_DRIFT (exit 4, D-109); on any other platform it is a " +
+		"WARNING that also lands in the verdict, because a build for another OS can never match " +
+		"(D-060). A program is reproducible from unchanged source only if it is built without a " +
+		"commit stamp. Only the program is fingerprinted — not its arguments, its interpreter, " +
+		"or anything it loads — and nothing short of signing makes a swap impossible.",
 	"File modes are not covered. The executable bit does not survive a Windows checkout, so " +
 		"hashing it would fire a spurious ORACLE_DRIFT on a cross-platform clone.",
 	"Built-in oracle thresholds are compiled in and reachable from no config key. " +
@@ -167,9 +173,16 @@ type WriteOptions struct {
 	BuiltinOptionsFingerprint string
 	// Executables are the resolved-program fingerprints. Recorded, never hashed.
 	Executables []ExecutableFingerprint
+	// Platform overrides the recorded GOOS/GOARCH, for tests. Empty means
+	// CurrentPlatform().
+	Platform string
 	// Now overrides the timestamp, for tests.
 	Now time.Time
 }
+
+// CurrentPlatform is the GOOS/GOARCH this binary runs on, the form recorded in
+// File.Platform.
+func CurrentPlatform() string { return runtime.GOOS + "/" + runtime.GOARCH }
 
 // ErrNoReason is returned when a lock bump carries no justification.
 var ErrNoReason = errors.New("lock: --reason is mandatory: a lock bump with no stated reason is " +
@@ -189,6 +202,10 @@ func Write(opts WriteOptions) (*File, error) {
 	if now.IsZero() {
 		now = time.Now()
 	}
+	platform := opts.Platform
+	if platform == "" {
+		platform = CurrentPlatform()
+	}
 	f := &File{
 		Schema:                    FileSchema,
 		ManifestSHA:               sum,
@@ -197,6 +214,7 @@ func Write(opts WriteOptions) (*File, error) {
 		ToolVersion:               opts.ToolVersion,
 		BuiltinOptionsFingerprint: opts.BuiltinOptionsFingerprint,
 		Executables:               append([]ExecutableFingerprint(nil), opts.Executables...),
+		Platform:                  platform,
 		Covers:                    append(append([]string(nil), CoveredPaths...), CoveredByReference),
 		Limitations:               append([]string(nil), Limitations...),
 		Manifest:                  opts.Manifest,

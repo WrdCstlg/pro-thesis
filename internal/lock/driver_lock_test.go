@@ -130,12 +130,13 @@ func TestTheDriverProgramIsFingerprintedAndASwapIsWarnedAbout(t *testing.T) {
 	if err := os.WriteFile(loadgen, []byte("a driver that issues one read and exits\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	swapped, err := Gate(GateOptions{ProjectDir: dir})
+	swapped, err := Gate(GateOptions{ProjectDir: dir, Platform: otherPlatform})
 	if err != nil {
 		t.Fatalf("Gate: %v", err)
 	}
-	// A rebuilt driver binary is expected on every build, so it warns and does
-	// not block, exactly as a rebuilt checker does (D-060).
+	// Off the locking platform a changed driver warns and does not block,
+	// exactly as a changed checker does (D-060). On the locking platform it is
+	// drift: TestAChangedProgramIsDriftOnTheLockingPlatform (D-109).
 	if swapped.Status != schema.LockOK || swapped.EnforceExitCode() != schema.ExitPass {
 		t.Errorf("a swapped driver program changed the lock status to %q (exit %d); it must "+
 			"warn, not refuse", swapped.Status, swapped.EnforceExitCode())
