@@ -131,4 +131,9 @@ func TestAnAttemptWhoseDriverIgnoredTheOperationPlanIsInconclusive(t *testing.T)
 		t.Fatalf("a driver that generated its own workload: %s, exit %d, reason %q; want inconclusive",
 			a.Signal, ignored.ExitCode(), a.Reason)
 	}
+	iv := ignored.Verdict(VerdictMeta{RunID: "r_2026_10_21_0005", Profile: "smoke", Commit: "abc1234",
+		Artifacts: ".prothesis/runs/r_2026_10_21_0005/"})
+	if iv.Verdict != schema.VerdictInconclusive || !strings.Contains(iv.Error, a.Reason) {
+		t.Fatalf("the INCONCLUSIVE replay verdict's error %q does not carry the attempt's reason", iv.Error)
+	}
 }

@@ -36,6 +36,47 @@ type VerdictInput struct {
 	// verdict claiming a clean drift check, and an agent that deleted
 	// .prothesis/lock must not thereby clear it.
 	OracleLock schema.OracleLock
+	// Error is why an INCONCLUSIVE run could not be judged (WorldCause). When
+	// it is empty, BuildVerdict states the cause it knows, so an INCONCLUSIVE
+	// verdict always says why: a consumer attributing unjudged runs (`thesis
+	// diagnose`) must never be handed an empty reason.
+	Error string
+}
+
+// WorldCause names why one world could not be judged: its own execution
+// error, else the first oracle that could not evaluate or was inconclusive,
+// else its outcome's description.
+func WorldCause(ordinal int, outcome Outcome, err error, findings []OracleResult) string {
+	prefix := fmt.Sprintf("world %d: %s", ordinal, outcome)
+	if err != nil {
+		return prefix + ": " + err.Error()
+	}
+	for _, f := range findings {
+		if f.Err != nil {
+			return fmt.Sprintf("%s: oracle %s could not be evaluated: %v", prefix, f.Output.Oracle, f.Err)
+		}
+	}
+	for _, f := range findings {
+		if f.Output.Status == schema.StatusInconclusive {
+			return fmt.Sprintf("%s: oracle %s was inconclusive: %s", prefix, f.Output.Oracle, f.Output.Explanation)
+		}
+	}
+	return prefix + ": " + outcome.Describe()
+}
+
+// RunCause is the cause of a run whose worlds folded to an INCONCLUSIVE
+// outcome: the first world that produced that outcome, or, when none did (the
+// run was interrupted between worlds, or ran none), the outcome itself.
+func RunCause(outcome Outcome, worlds []WorldOutcome) string {
+	for _, w := range worlds {
+		if w.Outcome == outcome {
+			return WorldCause(w.Ordinal, w.Outcome, w.Err, w.Findings)
+		}
+	}
+	if len(worlds) == 0 {
+		return fmt.Sprintf("%s: no world ran", outcome.Describe())
+	}
+	return fmt.Sprintf("%s (after %d world(s))", outcome.Describe(), len(worlds))
 }
 
 // BuildVerdict assembles prothesis.verdict/v1.
@@ -101,9 +142,12 @@ func BuildVerdict(in VerdictInput) schema.Verdict {
 	//    `thesis oracles verify`.
 	//
 	// See D-059 and OQ-059.
+	cause := in.Error
 	if in.Budget.Narrowed {
 		if outcome == OutcomePass {
 			outcome = OutcomeInconclusive
+			cause = "the command line narrowed the profile's budget or fault schedule and no violation " +
+				"was found: a narrowed run cannot report PASS (D-059)"
 		}
 		if lock.Status == schema.LockOK {
 			lock.Status = schema.LockBypassed
@@ -124,6 +168,12 @@ func BuildVerdict(in VerdictInput) schema.Verdict {
 
 		OracleLock: lock,
 		Artifacts:  in.Artifacts,
+	}
+	if v.Verdict == schema.VerdictInconclusive {
+		if cause == "" {
+			cause = outcome.Describe()
+		}
+		v.Error = cause
 	}
 	v.Normalize()
 	return v
