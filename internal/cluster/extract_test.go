@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -72,7 +73,7 @@ func TestManifestRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if back != m {
+	if !reflect.DeepEqual(back, m) {
 		t.Fatalf("manifest: %+v vs %+v", back, m)
 	}
 	if m.CorpusSize != m.AttributedCount+m.UnattributedCount {

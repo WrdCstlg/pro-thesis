@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+
+	"github.com/WrdCstlg/pro-thesis/internal/diagnose"
 )
 
 // extract.go is the Layer 1 feature contract: cluster_features.csv (the
@@ -21,6 +23,10 @@ type ExtractManifest struct {
 	AttributedCount     int    `json:"attributed_count"`
 	UnattributedCount   int    `json:"unattributed_count"`
 	ExtractionTimestamp string `json:"extraction_timestamp"`
+	// FalseRejections is diagnose's per-arm false-rejection tally, with the
+	// unexplained share of each arm's decided gold-positive runs; absent when
+	// no run was expected to PASS.
+	FalseRejections []diagnose.FalseRejectionArm `json:"false_rejections,omitempty"`
 }
 
 // WriteFeaturesCSV writes items in the given (deterministic) order.

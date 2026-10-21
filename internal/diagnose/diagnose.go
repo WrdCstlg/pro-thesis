@@ -23,44 +23,99 @@ import (
 	"github.com/WrdCstlg/pro-thesis/pkg/schema"
 )
 
+// ClassFalseRejection marks an Item that is a false rejection: a run expected
+// to PASS (a gold-positive calibration arm) that came back FAIL.
+const ClassFalseRejection = string(schema.ClassFalseRejection)
+
 // Item is one thing that needed attribution but matched nothing.
 type Item struct {
-	Level  string // world | bundle
-	Bundle string // run directory name
-	Detail string // what was seen, for the human reader
+	Level  string `json:"level"`  // world | bundle
+	Bundle string `json:"bundle"` // run directory name
+	Detail string `json:"detail"` // what was seen, for the human reader
+	// Class is ClassFalseRejection for a false rejection, empty for an
+	// unjudged outcome.
+	Class string `json:"class,omitempty"`
 }
 
 // Count is one known problem's attribution tally.
 type Count struct {
-	ID             string
-	Title          string
-	Classification string
-	N              int
+	ID             string `json:"id"`
+	Title          string `json:"title"`
+	Classification string `json:"classification"`
+	N              int    `json:"n"`
+}
+
+// FalseRejectionArm is one calibration arm's false rejections.
+type FalseRejectionArm struct {
+	// Arm is the arm the runs were made for; "" for gold-positive runs that
+	// name none (`thesis run --expect PASS` without --arm).
+	Arm string `json:"arm"`
+	// Denominator is the arm's decided gold-positive runs, TRUE_PASS +
+	// FALSE_REJECTION: the denominator of its false-rejection rate in a
+	// calibration report. An undecided run enters it no more than it enters
+	// that rate.
+	Denominator     int `json:"denominator"`
+	FalseRejections int `json:"false_rejections"`
+	// Unexplained counts the false rejections with at least one item no
+	// registry entry explains.
+	Unexplained int `json:"unexplained"`
+	// UnexplainedPct is 100 * Unexplained / Denominator, null when the arm
+	// has no decided run.
+	UnexplainedPct *float64 `json:"unexplained_pct"`
 }
 
 // Report is the full attribution pass.
 type Report struct {
-	Bundles      int     // run directories examined (excluding .trash)
-	Worlds       int     // world-* directories examined
-	Counts       []Count // per known problem with at least one hit, sorted by id
-	Unattributed []Item  // empty means the corpus is fully attributed
+	Bundles      int     `json:"bundles"`      // run directories examined (excluding .trash)
+	Worlds       int     `json:"worlds"`       // world-* directories examined
+	Counts       []Count `json:"counts"`       // per known problem with at least one hit, sorted by id
+	Unattributed []Item  `json:"unattributed"` // empty means the corpus is fully attributed
+	// FalseRejections is per arm, sorted by arm; empty when no run was
+	// expected to PASS.
+	FalseRejections []FalseRejectionArm `json:"false_rejections"`
+}
+
+// Options are what a diagnosis may know beyond the corpus.
+type Options struct {
+	// Calibration records (a calibration report's per-run records) give a
+	// run's arm and expectation. A record is the pre-registered pole, so it
+	// takes precedence over what the run's verdict.json says.
+	Calibration []schema.CalibrationRecord
+}
+
+func (o Options) records() map[string]schema.CalibrationRecord {
+	out := map[string]schema.CalibrationRecord{}
+	for _, r := range o.Calibration {
+		out[r.RunID] = r
+	}
+	return out
 }
 
 // Diagnose walks runsDir and attributes every non-terminal world outcome and
 // every non-terminal or absent run verdict to a registry entry.
 func Diagnose(runsDir string, reg *schema.KnownProblems) (*Report, error) {
+	return DiagnoseWith(runsDir, reg, Options{})
+}
+
+// DiagnoseWith is Diagnose with Options. Beyond the unjudged outcomes, it
+// attributes every false rejection: each violating world of a run expected to
+// PASS that came back FAIL, or the run itself when it has none. An
+// unexplained false rejection is unattributed like any other item.
+func DiagnoseWith(runsDir string, reg *schema.KnownProblems, opts Options) (*Report, error) {
 	if err := reg.Validate(); err != nil {
 		return nil, err
 	}
 	worldKPs, bundleKPs := splitByLevel(reg)
+	recs := opts.records()
 
 	entries, err := os.ReadDir(runsDir)
 	if err != nil {
 		return nil, fmt.Errorf("reading runs dir: %w", err)
 	}
 
-	rep := &Report{}
+	rep := &Report{Counts: []Count{}, Unattributed: []Item{}}
 	counts := map[string]int{}
+	var frRuns []frRun
 
 	for _, e := range entries {
 		if !e.IsDir() || e.Name() == ".trash" || !strings.HasPrefix(e.Name(), "r_") {
@@ -75,41 +130,56 @@ func Diagnose(runsDir string, reg *schema.KnownProblems) (*Report, error) {
 			})
 			continue
 		}
+		bf.applyCalibration(recs[e.Name()])
+		av := attribute(bf, worlds, worldKPs, bundleKPs)
+		frRuns = append(frRuns, newFRRun(bf.arm, bf.expected, bf.verdict, av.unexplainedFR))
 
 		// World level: every recorded outcome that is not pass|violation must
-		// attribute, and so must every world dir with no result.json at all.
-		for _, w := range worlds {
+		// attribute, and so must every world dir with no result.json at all,
+		// and every violating world of a false rejection.
+		for i, w := range worlds {
 			rep.Worlds++
-			if w.hasResult && (w.outcome == "pass" || w.outcome == "violation") {
-				continue
-			}
-			id := matchWorld(worldKPs, w)
-			if id == "" {
+			wv := av.worlds[i]
+			switch {
+			case wv.terminal:
+			case wv.kp != "":
+				counts[wv.kp]++
+			case wv.falseRejection:
+				rep.Unattributed = append(rep.Unattributed, Item{
+					Level: "world", Bundle: e.Name(), Class: ClassFalseRejection,
+					Detail: fmt.Sprintf("%s: FALSE_REJECTION in arm %q (expected PASS, run FAIL): violated %s "+
+						"with no matching known problem", w.name, bf.arm, strings.Join(w.violated(), ", ")),
+				})
+			default:
 				rep.Unattributed = append(rep.Unattributed, Item{
 					Level: "world", Bundle: e.Name(),
 					Detail: fmt.Sprintf("%s: outcome=%q hasResult=%v with no matching known problem",
 						w.name, w.outcome, w.hasResult),
 				})
-				continue
 			}
-			counts[id]++
 		}
 
-		// Bundle level: terminal verdicts need no attribution.
-		if bf.verdict == "PASS" || bf.verdict == "FAIL" {
-			continue
-		}
-		id := matchBundle(bundleKPs, bf)
-		if id == "" {
+		// Bundle level: terminal verdicts need no attribution, except a false
+		// rejection with no violating world to carry it.
+		switch {
+		case av.terminal:
+		case av.kp != "":
+			counts[av.kp]++
+		case av.falseRejection:
+			rep.Unattributed = append(rep.Unattributed, Item{
+				Level: "bundle", Bundle: e.Name(), Class: ClassFalseRejection,
+				Detail: fmt.Sprintf("FALSE_REJECTION in arm %q (expected PASS, run FAIL) with no violating "+
+					"world and no matching known problem", bf.arm),
+			})
+		default:
 			rep.Unattributed = append(rep.Unattributed, Item{
 				Level: "bundle", Bundle: e.Name(),
 				Detail: fmt.Sprintf("verdict=%q narrowed=%v zeroWorlds=%v missingResults=%v interrupted=%v unrecorded=%v",
 					bf.verdict, bf.narrowed, bf.zeroWorlds, bf.missingResults, bf.interrupted, bf.unrecorded),
 			})
-			continue
 		}
-		counts[id]++
 	}
+	rep.FalseRejections = tallyFalseRejections(frRuns)
 
 	for _, p := range reg.Problems {
 		if counts[p.ID] == 0 {
@@ -153,6 +223,22 @@ type worldScan struct {
 	exitCode     int     // driver exit code, 0 when absent
 	hasTelemetry bool    // telemetry.json present beside result.json
 	durationMs   float64 // search.json duration for this ordinal, 0 when absent
+
+	// falseRejection marks a violating world of a false-rejection run, set by
+	// attribute: it is matched only by false_rejection entries, and only on
+	// its violated oracles.
+	falseRejection bool
+}
+
+// violated names the world's violated oracles.
+func (w worldScan) violated() []string {
+	var out []string
+	for _, o := range w.reasons {
+		if o.status == string(schema.StatusViolated) {
+			out = append(out, o.oracle)
+		}
+	}
+	return out
 }
 
 type oracleReason struct {
@@ -166,6 +252,9 @@ type oracleReason struct {
 func matchWorld(kps []schema.KnownProblem, w worldScan) string {
 	for _, p := range kps {
 		m := p.Match
+		if m.ExplainsFalseRejections() != w.falseRejection {
+			continue
+		}
 		if m.NoResult != nil && *m.NoResult != !w.hasResult {
 			continue
 		}
@@ -179,6 +268,9 @@ func matchWorld(kps []schema.KnownProblem, w worldScan) string {
 			return p.ID // outcome/legacy/no_result-only entry
 		}
 		for _, o := range w.reasons {
+			if w.falseRejection && o.status != string(schema.StatusViolated) {
+				continue // a false rejection is explained by what fired
+			}
 			if m.Oracle != "" && m.Oracle != o.oracle {
 				continue
 			}
@@ -199,11 +291,36 @@ type bundleFacts struct {
 	missingResults bool // at least one world dir without result.json
 	interrupted    bool // no verdict.json, at least one result.json
 	unrecorded     bool // no verdict.json, no result.json anywhere
+
+	arm      string // calibration arm, from a calibration record or verdict.json
+	expected string // the pole the run was expected to land on, "" when none
+	// falseRejection: expected PASS, verdict FAIL.
+	falseRejection bool
+}
+
+// applyCalibration takes the run's arm and expectation from its calibration
+// record, which is the pre-registered pole and outranks the verdict's own
+// claim, then derives whether the run is a false rejection.
+func (bf *bundleFacts) applyCalibration(rec schema.CalibrationRecord) {
+	if rec.Expected != "" {
+		bf.expected = string(rec.Expected)
+		if rec.Arm != "" {
+			bf.arm = rec.Arm
+		}
+	}
+	bf.falseRejection = schema.Classify(schema.VerdictResult(bf.expected), schema.VerdictResult(bf.verdict)) ==
+		schema.ClassFalseRejection
 }
 
 func matchBundle(kps []schema.KnownProblem, bf bundleFacts) string {
 	for _, p := range kps {
 		m := p.Match
+		if m.ExplainsFalseRejections() != bf.falseRejection {
+			continue
+		}
+		if m.Arm != "" && m.Arm != bf.arm {
+			continue
+		}
 		if m.Verdict != "" && m.Verdict != bf.verdict {
 			continue
 		}
@@ -225,6 +342,112 @@ func matchBundle(kps []schema.KnownProblem, bf bundleFacts) string {
 		return p.ID
 	}
 	return ""
+}
+
+// worldAttribution is one world's attribution: terminal (nothing to
+// attribute), or kp ("" when unattributed).
+type worldAttribution struct {
+	terminal       bool
+	falseRejection bool
+	kp             string
+}
+
+// bundleAttribution is one run's attribution, its worlds' included. It is the
+// single place both Diagnose and Scan decide what needs attribution and what
+// explains it, so the two cannot disagree.
+type bundleAttribution struct {
+	worlds []worldAttribution
+	// terminal: the run's verdict needs no attribution of its own.
+	terminal bool
+	// falseRejection: the run itself is the false-rejection item (it has no
+	// violating world to carry it).
+	falseRejection bool
+	kp             string
+	// unexplainedFR: the run is a false rejection with an unexplained item.
+	unexplainedFR bool
+}
+
+func attribute(bf bundleFacts, worlds []worldScan, worldKPs, bundleKPs []schema.KnownProblem) bundleAttribution {
+	var a bundleAttribution
+	violating := 0
+	for _, w := range worlds {
+		var wa worldAttribution
+		switch {
+		case bf.falseRejection && w.hasResult && w.outcome == "violation":
+			violating++
+			w.falseRejection = true
+			wa.falseRejection = true
+			wa.kp = matchWorld(worldKPs, w)
+			a.unexplainedFR = a.unexplainedFR || wa.kp == ""
+		case w.hasResult && (w.outcome == "pass" || w.outcome == "violation"):
+			wa.terminal = true
+		default:
+			wa.kp = matchWorld(worldKPs, w)
+		}
+		a.worlds = append(a.worlds, wa)
+	}
+	switch {
+	case bf.falseRejection && violating == 0:
+		a.falseRejection = true
+		a.kp = matchBundle(bundleKPs, bf)
+		a.unexplainedFR = a.kp == ""
+	case bf.verdict == "PASS" || bf.verdict == "FAIL":
+		a.terminal = true
+	default:
+		a.kp = matchBundle(bundleKPs, bf)
+	}
+	return a
+}
+
+// frRun is one run's contribution to its arm's false-rejection tally
+// (newFRRun).
+type frRun struct {
+	arm         string
+	decided     bool // a gold-positive run that reached PASS or FAIL
+	rejected    bool
+	unexplained bool
+}
+
+func newFRRun(arm, expected, verdict string, unexplained bool) frRun {
+	class := schema.Classify(schema.VerdictResult(expected), schema.VerdictResult(verdict))
+	return frRun{
+		arm:         arm,
+		decided:     class == schema.ClassTruePass || class == schema.ClassFalseRejection,
+		rejected:    class == schema.ClassFalseRejection,
+		unexplained: unexplained,
+	}
+}
+
+// tallyFalseRejections folds runs into per-arm false-rejection rates, over the
+// arm's decided gold-positive runs (TRUE_PASS + FALSE_REJECTION), the
+// denominator a calibration report divides by.
+func tallyFalseRejections(runs []frRun) []FalseRejectionArm {
+	byArm := map[string]*FalseRejectionArm{}
+	for _, r := range runs {
+		if !r.decided {
+			continue
+		}
+		a := byArm[r.arm]
+		if a == nil {
+			a = &FalseRejectionArm{Arm: r.arm}
+			byArm[r.arm] = a
+		}
+		a.Denominator++
+		if r.rejected {
+			a.FalseRejections++
+			if r.unexplained {
+				a.Unexplained++
+			}
+		}
+	}
+	out := []FalseRejectionArm{}
+	for _, a := range byArm {
+		pct := 100 * float64(a.Unexplained) / float64(a.Denominator)
+		a.UnexplainedPct = &pct
+		out = append(out, *a)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Arm < out[j].Arm })
+	return out
 }
 
 // readBundle reads a run directory's verdict.json and world-*/result.json
@@ -257,6 +480,11 @@ func readBundle(dir string) (bundleFacts, []worldScan, error) {
 			Budget  struct {
 				Narrowed bool `json:"narrowed"`
 			} `json:"budget"`
+			Arm         string `json:"arm"`
+			Expected    string `json:"expected"`
+			Calibration *struct {
+				Expected string `json:"expected"`
+			} `json:"calibration"`
 		}
 		if err := json.Unmarshal(data, &v); err != nil {
 			return bf, nil, fmt.Errorf("verdict.json: %w", err)
@@ -264,6 +492,11 @@ func readBundle(dir string) (bundleFacts, []worldScan, error) {
 		bf.verdict = v.Verdict
 		bf.profile = v.Profile
 		bf.narrowed = v.Budget.Narrowed
+		bf.arm = v.Arm
+		bf.expected = v.Expected
+		if bf.expected == "" && v.Calibration != nil {
+			bf.expected = v.Calibration.Expected
+		}
 	}
 
 	// Per-world durations live in search.json (search runs only). This read is
@@ -342,6 +575,7 @@ func readBundle(dir string) (bundleFacts, []worldScan, error) {
 	}
 	bf.interrupted = bf.verdict == "" && hasResults
 	bf.unrecorded = bf.verdict == "" && !hasResults
+	bf.applyCalibration(schema.CalibrationRecord{})
 	return bf, worlds, nil
 }
 

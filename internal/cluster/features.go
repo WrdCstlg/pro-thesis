@@ -22,7 +22,11 @@
 //	                  computed from pre-DRIVE telemetry; no telemetry, no baseline)
 //	WorldFixture      the run's profile from verdict.json ("unknown" when absent)
 //	VerdictType       the world outcome from result.json; for bundle-level items
-//	                  the verdict string, or "NO_VERDICT" when no verdict.json exists
+//	                  the verdict string, or "NO_VERDICT" when no verdict.json exists;
+//	                  "FALSE_REJECTION" for an unexplained false rejection (a
+//	                  violating world, or a run with none, of a run expected to
+//	                  PASS that came back FAIL), which diagnose routes into the
+//	                  pool beside the unjudged outcomes
 //	DurationMs        the world's duration_ms from search.json (search runs only);
 //	                  0 when unrecorded, which is deterministic and documented here
 //	ReasonTokenCount  tokens over the concatenated explanations+errors of the
@@ -125,7 +129,10 @@ func worldItem(bundle string, w diagnose.WorldFact, profile string) Item {
 		fixture = "unknown"
 	}
 	verdictType := w.Outcome
-	if verdictType == "" {
+	switch {
+	case w.FalseRejection:
+		verdictType = diagnose.ClassFalseRejection
+	case verdictType == "":
 		verdictType = "NO_RESULT"
 	}
 	tokens, unique := reasonStats(reasons)
@@ -158,7 +165,10 @@ func bundleDetail(b diagnose.BundleFact) string {
 // bundleItem extracts one bundle-level outcome's features.
 func bundleItem(b diagnose.BundleFact) Item {
 	verdictType := b.Verdict
-	if verdictType == "" {
+	switch {
+	case b.FalseRejection:
+		verdictType = diagnose.ClassFalseRejection
+	case verdictType == "":
 		verdictType = "NO_VERDICT"
 	}
 	fixture := b.Profile

@@ -41,11 +41,22 @@ var kpLedgerPattern = regexp.MustCompile(`^(?:OQ|D)-\d{3}[a-z]?$`)
 // KnownProblemMatch is a conjunctive matcher: every field that is set must
 // match the fact set of the item under diagnosis. World-level entries may set
 // Outcome, Oracle, ReasonRegex, Legacy and NoResult; bundle-level entries may
-// set Verdict, Narrowed, ZeroWorlds, MissingResults, Interrupted and
-// Unrecorded. The validator rejects cross-level fields and entries that set
+// set Verdict, Narrowed, ZeroWorlds, MissingResults, Interrupted, Unrecorded
+// and Arm. The validator rejects cross-level fields and entries that set
 // no predicate at all. Registry order is precedence order: the first entry
 // whose predicates all match wins, so specific entries precede fallbacks.
+//
+// FalseRejection (either level) selects what the entry explains. A false
+// rejection is a run expected to PASS (a gold-positive calibration arm) that
+// came back FAIL; its items are the run's violating worlds, or the run itself
+// when it has none. An entry explains false rejections only when it sets
+// false_rejection: true, and then explains nothing else, so no entry written
+// for a refusal can silently explain a false rejection. Such an entry must
+// name an oracle or reason_regex (world) or an arm (bundle): one that matched
+// every false rejection would be the catch-all this registry forbids.
 type KnownProblemMatch struct {
+	FalseRejection *bool `yaml:"false_rejection,omitempty"`
+
 	// world level
 	Outcome     string `yaml:"outcome,omitempty"`
 	Oracle      string `yaml:"oracle,omitempty"`
@@ -60,6 +71,13 @@ type KnownProblemMatch struct {
 	MissingResults *bool  `yaml:"missing_results,omitempty"` // a world dir without result.json
 	Interrupted    *bool  `yaml:"interrupted,omitempty"`     // no verdict.json, at least one result.json
 	Unrecorded     *bool  `yaml:"unrecorded,omitempty"`      // no verdict.json, no result.json anywhere
+	Arm            string `yaml:"arm,omitempty"`             // the calibration arm the run was made for
+}
+
+// ExplainsFalseRejections reports whether the entry explains false rejections
+// (and therefore nothing else).
+func (m KnownProblemMatch) ExplainsFalseRejections() bool {
+	return m.FalseRejection != nil && *m.FalseRejection
 }
 
 // KnownProblem is one catalogued cause. Ledger must cite an OQ- or D- entry;
@@ -119,19 +137,26 @@ func (kp *KnownProblems) Validate() error {
 		switch p.Level {
 		case KPLevelWorld:
 			if m.Verdict != "" || m.Narrowed != nil || m.ZeroWorlds != nil ||
-				m.MissingResults != nil || m.Interrupted != nil || m.Unrecorded != nil {
+				m.MissingResults != nil || m.Interrupted != nil || m.Unrecorded != nil || m.Arm != "" {
 				errs.Add(path+".match", "world-level entry sets a bundle-level predicate")
 			}
 			if m.Outcome == "" && m.Oracle == "" && m.ReasonRegex == "" && m.Legacy == nil && m.NoResult == nil {
 				errs.Add(path+".match", "world-level entry sets no predicate; it would match everything")
+			}
+			if m.ExplainsFalseRejections() && m.Oracle == "" && m.ReasonRegex == "" {
+				errs.Add(path+".match", "false_rejection entry names no oracle or reason_regex; "+
+					"it would explain every false rejection")
 			}
 		case KPLevelBundle:
 			if m.Outcome != "" || m.Oracle != "" || m.ReasonRegex != "" || m.Legacy != nil || m.NoResult != nil {
 				errs.Add(path+".match", "bundle-level entry sets a world-level predicate")
 			}
 			if m.Verdict == "" && m.Narrowed == nil && m.ZeroWorlds == nil &&
-				m.MissingResults == nil && m.Interrupted == nil && m.Unrecorded == nil {
+				m.MissingResults == nil && m.Interrupted == nil && m.Unrecorded == nil && m.Arm == "" {
 				errs.Add(path+".match", "bundle-level entry sets no predicate; it would match everything")
+			}
+			if m.ExplainsFalseRejections() && m.Arm == "" {
+				errs.Add(path+".match", "false_rejection entry names no arm; it would explain every false rejection")
 			}
 		default:
 			errs.Add(path+".level", "must be %q or %q, got %q", KPLevelWorld, KPLevelBundle, p.Level)
