@@ -1308,6 +1308,39 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 	})
 	collectedLogs = logs
 
+	// Write world.thesis BEFORE any oracle is handed world_path.
+	//
+	// prothesis.oracle_input/v1 names it and an external oracle is entitled to
+	// open it; evaluating first made the path name a file that did not exist yet.
+	// Its contents are already fixed here: the schedule ran, the images were
+	// resolved, and these are the phase timings the oracles are given.
+	world := schema.NewWorld(worldSeed, "default", r.driverProfile)
+	world.PhaseTimings = timings
+	world.FaultSchedule.Planned = plannedOf(perturb)
+	// nil means resolution never ran or failed: keep NewWorld's explicit []
+	// ("recorded that none were resolved"), never a null.
+	if sutImages != nil {
+		world.SUT.Images = sutImages
+	}
+	// Realized is a non-nil empty list for a world that executed and injected
+	// nothing. That is a DIFFERENT statement from null, which means the world was
+	// never executed at all.
+	if rf := realizedOf(perturb); rf != nil {
+		world.FaultSchedule.Realized = rf
+	}
+	world = world.Normalized()
+	if err := writeWorldFile(paths.World, &world); err != nil {
+		// Replay, shrink and the corpus all start from this file, so a world
+		// whose record could not be written is a harness error, not a detail.
+		fmt.Fprintf(r.stderr, "thesis: world %d: could not write world.thesis: %v\n", ordinal+1, err)
+		worldOutcome = worldOutcome.Worse(OutcomeHarnessError)
+	}
+
+	// Write oracle_input.json: the document the oracles are about to be handed.
+	oiDoc := paths.OracleInputDoc(timings)
+	oiBytes, _ := json.MarshalIndent(oiDoc, "", "  ")
+	_ = os.WriteFile(paths.OracleInput, append(oiBytes, '\n'), 0o644)
+
 	// Read history
 	hist := oracle.ReadHistoryFile(paths.History)
 
@@ -1355,33 +1388,6 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 			}
 		}
 	}
-
-	// Write world.thesis
-	world := schema.NewWorld(worldSeed, "default", r.driverProfile)
-	world.PhaseTimings = timings
-	world.FaultSchedule.Planned = plannedOf(perturb)
-	// nil means resolution never ran or failed: keep NewWorld's explicit []
-	// ("recorded that none were resolved"), never a null.
-	if sutImages != nil {
-		world.SUT.Images = sutImages
-	}
-	// Realized is a non-nil empty list for a world that executed and injected
-	// nothing. That is a DIFFERENT statement from null, which means the world was
-	// never executed at all.
-	if rf := realizedOf(perturb); rf != nil {
-		world.FaultSchedule.Realized = rf
-	}
-	world = world.Normalized()
-
-	worldBytes, wErr := recorder.EncodeWorld(&world)
-	if wErr == nil {
-		_ = os.WriteFile(paths.World, worldBytes, 0o644)
-	}
-
-	// Write oracle_input.json
-	oiDoc := paths.OracleInputDoc(timings)
-	oiBytes, _ := json.MarshalIndent(oiDoc, "", "  ")
-	_ = os.WriteFile(paths.OracleInput, append(oiBytes, '\n'), 0o644)
 
 	// Write result.json
 	// Record EVERY oracle's finding, not only the violations.
@@ -1454,6 +1460,16 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 		realized: realizedOf(perturb),
 		drain:    drain,
 	}, nil
+}
+
+// writeWorldFile encodes a world canonically and writes it, reporting either
+// failure.
+func writeWorldFile(path string, w *schema.World) error {
+	b, err := recorder.EncodeWorld(w)
+	if err != nil {
+		return fmt.Errorf("encode: %w", err)
+	}
+	return os.WriteFile(path, b, 0o644)
 }
 
 // drainDriver runs QUIESCE's drain and reports it, once, in one place.

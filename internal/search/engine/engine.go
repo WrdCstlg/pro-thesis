@@ -513,7 +513,8 @@ func (e *Engine) Run(ctx context.Context) (Result, error) {
 				stopReason = "the strategy has nothing further to propose"
 				break
 			}
-			return e.finish(ctx, res, stopReason, err), err
+			out, werr := e.finish(ctx, res, stopReason, err)
+			return out, errors.Join(err, werr)
 		}
 		if len(batch) == 0 {
 			stopReason = "the strategy proposed no further worlds"
@@ -580,7 +581,7 @@ func (e *Engine) Run(ctx context.Context) (Result, error) {
 	if free, err := nets.Probe(ctx); err == nil {
 		res.NetworksAfter = free
 	}
-	return e.finish(ctx, res, stopReason, nil), nil
+	return e.finish(ctx, res, stopReason, nil)
 }
 
 // proposeBatch asks the strategy for up to n worlds.
@@ -711,7 +712,10 @@ func terminationFor(out search.Outcome) saboteur.Termination {
 }
 
 // finish assembles the verdict.
-func (e *Engine) finish(ctx context.Context, res Result, stopReason string, fatal error) Result {
+// finish folds the executed worlds into the verdict, writes verdict.json and
+// search.json, and returns the result. The error is the verdict write's: a
+// search whose verdict nobody can read exits 2, as `thesis run` does.
+func (e *Engine) finish(ctx context.Context, res Result, stopReason string, fatal error) (Result, error) {
 	outcome := control.OutcomePass
 	sawViolation := false
 	for _, o := range res.Worlds {
@@ -788,9 +792,13 @@ func (e *Engine) finish(ctx context.Context, res Result, stopReason string, fata
 		}
 	}
 
-	_ = control.WriteVerdictFile(filepath.Join(e.runner.RunDir(), control.VerdictFileName), &v)
+	var werr error
+	if err := control.WriteVerdictFile(filepath.Join(e.runner.RunDir(), control.VerdictFileName), &v); err != nil {
+		werr = fmt.Errorf("write verdict: %w", err)
+		res.ExitCode = schema.ExitInconclusive
+	}
 	e.writeSearchRecord(res)
-	return res
+	return res, werr
 }
 
 func (e *Engine) logf(format string, args ...any) {
