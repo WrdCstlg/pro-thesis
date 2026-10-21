@@ -1,8 +1,8 @@
 {
   "schema": "prothesis.lock/v1",
-  "manifest_sha": "sha256:3395e4cffeebc6a186c3b0231370838a29408d22aabcb828fdfcc3b56ec8a261",
-  "reason": "initial lock of the rqlite target (P1 onboarding, no verdict arm run): linearizable.kv definition byte-identical to targets/etcd's; checker bin/linearizable-kv.exe is the fixture's locked build (stamp 91f5e8f, sha256 5b2ffd29...); driver rqliteload and the role and steady probes built from eval/p1-rqlite with -trimpath -buildvcs=false; run profiles smoke (1 world, no faults) and linear, strong, weak, none (each net.partition(role:leader)@3000..7500)",
-  "locked_at": "2026-10-20T03:44:48Z",
+  "manifest_sha": "sha256:2db191547b432dadfb2f1383ebb2d60535f942e24ad5c9efc3bb153e7e5ca8c6",
+  "reason": "Lock manifest v2: the compose file content and harness.file, harness.nodes, harness.steady_state, harness.variant_env and perturber.constraints are now covered; their values are unchanged. Program fingerprints now carry the platform they were taken on (windows/amd64), where a changed program is drift. linearizable-kv.exe is rebuilt without a commit stamp by scripts/build.ps1 -Verify from source unchanged since 91f5e8f (two builds byte-identical); only the removed stamp moved its digest. rqliteload.exe is rebuilt from unchanged source and is byte-identical to the locked build (c6d65098e965).",
+  "locked_at": "2026-10-21T07:01:36Z",
   "tool_version": "0.1.0-phase0",
   "builtin_options_fingerprint": "sha256:ca5cba3edb828e29bd4b1357c9ff2d86ae2e3eb6a6bd009a2430b076304064bf",
   "executables": [
@@ -17,32 +17,38 @@
       "oracle": "linearizable.kv",
       "cmd": "./bin/linearizable-kv",
       "resolved": "bin/linearizable-kv.exe",
-      "sha256": "sha256:5b2ffd297b35d095461aa1ab88695c453d9b42078827198676ef1ee2b4bc650c",
-      "size": 4926976
+      "sha256": "sha256:3e82e70c097d49cd6c50e0c68f8a4413b7604a0259ebef7ad0e554d9848f090c",
+      "size": 4925952
     }
   ],
+  "platform": "windows/amd64",
   "covers": [
     "driver.cmd",
+    "harness.file",
     "harness.health",
+    "harness.nodes",
     "harness.role_probe",
+    "harness.steady_state",
+    "harness.variant_env",
     "oracles.builtin",
     "oracles.dir",
     "perturber.allow",
     "perturber.budget",
+    "perturber.constraints",
     "perturber.deny",
     "profiles",
     "search",
     "driver.profiles.<name>, for every <name> a profiles.*.driver_profile names"
   ],
   "limitations": [
-    "The DIGEST does not cover the EXECUTABLE an oracle names. Files under oracles.dir are covered byte for byte; the binary, interpreter, shared library, container image or PATH entry an oracle resolves at run time is NOT hashed into manifest_sha, so swapping a checker does not produce ORACLE_DRIFT and never will: hashing it into the digest would make an ordinary rebuild exit 4 and turn re-locking into a reflex. Since D-060 the `executables` block above records each resolved program's SHA-256 OUTSIDE the digest, and `verify` and every run report a moved or missing one as a WARNING that also lands in the verdict. That removes the SILENCE OQ-057 measured; it does not make a swap impossible, and nothing short of signing would. Only the program is fingerprinted — not its arguments, its interpreter, or anything it loads.",
+    "The DIGEST does not cover the EXECUTABLE an oracle or the driver names. Files under oracles.dir are covered byte for byte; the binary, interpreter, shared library, container image or PATH entry resolved at run time is NOT hashed into manifest_sha. The `executables` block records each resolved program's SHA-256 OUTSIDE the digest, with the `platform` it was taken on. On that platform a changed, missing or newly resolvable program is ORACLE_DRIFT (exit 4, D-109); on any other platform it is a WARNING that also lands in the verdict, because a build for another OS can never match (D-060). A program is reproducible from unchanged source only if it is built without a commit stamp. Only the program is fingerprinted — not its arguments, its interpreter, or anything it loads — and nothing short of signing makes a swap impossible.",
     "File modes are not covered. The executable bit does not survive a Windows checkout, so hashing it would fire a spurious ORACLE_DRIFT on a cross-platform clone.",
     "Built-in oracle thresholds are compiled in and reachable from no config key. builtin_options_fingerprint records them for review but is OUTSIDE the digest: including it would turn any release that adjusts a default into exit 4 on every downstream project at once. `thesis oracles verify` reports a moved fingerprint as a warning, never as drift.",
     "The driver is covered by its COMMAND and by the driver profiles a run profile names (D-090). A driver profile no run profile names is not covered, because it is not the gate's workload and covering it would fire exit 4 on routine edits (OQ-026). The driver's PROGRAM is fingerprinted in the `executables` block as `driver.cmd`, outside the digest, so a rebuilt or swapped driver is a WARNING and not drift. Neither the workload a driver compiles in for a profile name nor the environment it inherits is covered: a driver that reads its workload from its own table or from environment variables can still be changed without moving this digest (OQ-076).",
     "The digest covers the USER-SUPPLIED prothesis.yaml with defaults NOT applied. A key you did not write contributes nothing, so upgrading thesis cannot move this digest by changing a compiled-in default."
   ],
   "manifest": {
-    "schema": "prothesis.lock_manifest/v1",
+    "schema": "prothesis.lock_manifest/v2",
     "oracles": [
       {
         "path": "linearizable.kv.yaml",
@@ -157,6 +163,11 @@
         "value": "60000"
       },
       {
+        "path": "harness.file",
+        "kind": "scalar",
+        "value": "docker-compose.yaml"
+      },
+      {
         "path": "harness.health[0].node",
         "kind": "scalar",
         "value": "rqlite:*"
@@ -172,6 +183,96 @@
         "value": "60s"
       },
       {
+        "path": "harness.nodes[0].compose_service",
+        "kind": "scalar",
+        "value": "rq-n1"
+      },
+      {
+        "path": "harness.nodes[0].id",
+        "kind": "scalar",
+        "value": "rq-n1"
+      },
+      {
+        "path": "harness.nodes[0].port",
+        "kind": "scalar",
+        "value": "4001"
+      },
+      {
+        "path": "harness.nodes[0].port_env",
+        "kind": "scalar",
+        "value": "RQ_PORT_N1"
+      },
+      {
+        "path": "harness.nodes[0].role_hint",
+        "kind": "scalar",
+        "value": "replica"
+      },
+      {
+        "path": "harness.nodes[0].service",
+        "kind": "scalar",
+        "value": "rqlite"
+      },
+      {
+        "path": "harness.nodes[1].compose_service",
+        "kind": "scalar",
+        "value": "rq-n2"
+      },
+      {
+        "path": "harness.nodes[1].id",
+        "kind": "scalar",
+        "value": "rq-n2"
+      },
+      {
+        "path": "harness.nodes[1].port",
+        "kind": "scalar",
+        "value": "4001"
+      },
+      {
+        "path": "harness.nodes[1].port_env",
+        "kind": "scalar",
+        "value": "RQ_PORT_N2"
+      },
+      {
+        "path": "harness.nodes[1].role_hint",
+        "kind": "scalar",
+        "value": "replica"
+      },
+      {
+        "path": "harness.nodes[1].service",
+        "kind": "scalar",
+        "value": "rqlite"
+      },
+      {
+        "path": "harness.nodes[2].compose_service",
+        "kind": "scalar",
+        "value": "rq-n3"
+      },
+      {
+        "path": "harness.nodes[2].id",
+        "kind": "scalar",
+        "value": "rq-n3"
+      },
+      {
+        "path": "harness.nodes[2].port",
+        "kind": "scalar",
+        "value": "4001"
+      },
+      {
+        "path": "harness.nodes[2].port_env",
+        "kind": "scalar",
+        "value": "RQ_PORT_N3"
+      },
+      {
+        "path": "harness.nodes[2].role_hint",
+        "kind": "scalar",
+        "value": "replica"
+      },
+      {
+        "path": "harness.nodes[2].service",
+        "kind": "scalar",
+        "value": "rqlite"
+      },
+      {
         "path": "harness.role_probe.probe",
         "kind": "scalar",
         "value": "./bin/rqliterole --timeout 2s"
@@ -180,6 +281,16 @@
         "path": "harness.role_probe.timeout",
         "kind": "scalar",
         "value": "10s"
+      },
+      {
+        "path": "harness.steady_state.probe",
+        "kind": "scalar",
+        "value": "./bin/rqlitesteady --timeout 55s --request-timeout 2s"
+      },
+      {
+        "path": "harness.steady_state.timeout",
+        "kind": "scalar",
+        "value": "60s"
       },
       {
         "path": "oracles.builtin",
@@ -240,6 +351,11 @@
         "path": "perturber.budget.max_faults_per_world",
         "kind": "scalar",
         "value": "24"
+      },
+      {
+        "path": "perturber.constraints",
+        "kind": "scalar",
+        "value": "never partition more than minority of rqlite"
       },
       {
         "path": "perturber.deny",
@@ -351,6 +467,11 @@
         "kind": "scalar",
         "value": "2"
       }
-    ]
+    ],
+    "topology": {
+      "path": "docker-compose.yaml",
+      "sha256": "sha256:8f2d84523e563cf513f18002fa5c0a8372b76ce2e5bf02d2d4d52a6b7abfa7f4",
+      "size": 4521
+    }
   }
 }

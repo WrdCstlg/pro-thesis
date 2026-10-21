@@ -1,8 +1,8 @@
 {
   "schema": "prothesis.lock/v1",
-  "manifest_sha": "sha256:699a1a3960b206980105ecda20a406e3ea4a6309c05225e087cb1b68da06dbc8",
-  "reason": "linearizable-kv.exe rebuilt from 91f5e8f, whose source changed: the checker refuses an operation record with no t_ns (H6a, OQ-079, D-104); loadgen.exe moved only by its stamp; both from a clean scripts/build.ps1 -Verify build, dirty=0, two builds byte-identical (D-072)",
-  "locked_at": "2026-10-14T09:39:00Z",
+  "manifest_sha": "sha256:0719a26f393ba64afa7af6615ab4ed08c0d543e3fb4db1b5535f21637946f058",
+  "reason": "Lock manifest v2: the compose file content and harness.file, harness.nodes, harness.steady_state, harness.variant_env and perturber.constraints are now covered; their values are unchanged. Program fingerprints now carry the platform they were taken on (windows/amd64), where a changed program is drift. linearizable-kv.exe is rebuilt without a commit stamp by scripts/build.ps1 -Verify from source unchanged since 91f5e8f (two builds byte-identical); only the removed stamp moved its digest. harness.variant_env: KV_VARIANT is added to this file so every world records the build it ran. loadgen.exe is rebuilt the same way from unchanged source; only its removed stamp moved its digest.",
+  "locked_at": "2026-10-21T07:01:36Z",
   "tool_version": "0.1.0-phase0",
   "builtin_options_fingerprint": "sha256:ca5cba3edb828e29bd4b1357c9ff2d86ae2e3eb6a6bd009a2430b076304064bf",
   "executables": [
@@ -10,39 +10,45 @@
       "oracle": "driver.cmd",
       "cmd": "./bin/loadgen --history {history_path} --seed {seed} --profile {profile}",
       "resolved": "bin/loadgen.exe",
-      "sha256": "sha256:b1139c10677b8dfa930540ce32faec4c6da65b2cdaef80ee990b4e7dfab90312",
+      "sha256": "sha256:8fa6182840ba83d583ef346765b9b58c2922c99c071dfe820d09b5d58d6dc5be",
       "size": 10180096
     },
     {
       "oracle": "linearizable.kv",
       "cmd": "./bin/linearizable-kv",
       "resolved": "bin/linearizable-kv.exe",
-      "sha256": "sha256:5b2ffd297b35d095461aa1ab88695c453d9b42078827198676ef1ee2b4bc650c",
-      "size": 4926976
+      "sha256": "sha256:3e82e70c097d49cd6c50e0c68f8a4413b7604a0259ebef7ad0e554d9848f090c",
+      "size": 4925952
     }
   ],
+  "platform": "windows/amd64",
   "covers": [
     "driver.cmd",
+    "harness.file",
     "harness.health",
+    "harness.nodes",
     "harness.role_probe",
+    "harness.steady_state",
+    "harness.variant_env",
     "oracles.builtin",
     "oracles.dir",
     "perturber.allow",
     "perturber.budget",
+    "perturber.constraints",
     "perturber.deny",
     "profiles",
     "search",
     "driver.profiles.<name>, for every <name> a profiles.*.driver_profile names"
   ],
   "limitations": [
-    "The DIGEST does not cover the EXECUTABLE an oracle names. Files under oracles.dir are covered byte for byte; the binary, interpreter, shared library, container image or PATH entry an oracle resolves at run time is NOT hashed into manifest_sha, so swapping a checker does not produce ORACLE_DRIFT and never will: hashing it into the digest would make an ordinary rebuild exit 4 and turn re-locking into a reflex. Since D-060 the `executables` block above records each resolved program's SHA-256 OUTSIDE the digest, and `verify` and every run report a moved or missing one as a WARNING that also lands in the verdict. That removes the SILENCE OQ-057 measured; it does not make a swap impossible, and nothing short of signing would. Only the program is fingerprinted — not its arguments, its interpreter, or anything it loads.",
+    "The DIGEST does not cover the EXECUTABLE an oracle or the driver names. Files under oracles.dir are covered byte for byte; the binary, interpreter, shared library, container image or PATH entry resolved at run time is NOT hashed into manifest_sha. The `executables` block records each resolved program's SHA-256 OUTSIDE the digest, with the `platform` it was taken on. On that platform a changed, missing or newly resolvable program is ORACLE_DRIFT (exit 4, D-109); on any other platform it is a WARNING that also lands in the verdict, because a build for another OS can never match (D-060). A program is reproducible from unchanged source only if it is built without a commit stamp. Only the program is fingerprinted — not its arguments, its interpreter, or anything it loads — and nothing short of signing makes a swap impossible.",
     "File modes are not covered. The executable bit does not survive a Windows checkout, so hashing it would fire a spurious ORACLE_DRIFT on a cross-platform clone.",
     "Built-in oracle thresholds are compiled in and reachable from no config key. builtin_options_fingerprint records them for review but is OUTSIDE the digest: including it would turn any release that adjusts a default into exit 4 on every downstream project at once. `thesis oracles verify` reports a moved fingerprint as a warning, never as drift.",
     "The driver is covered by its COMMAND and by the driver profiles a run profile names (D-090). A driver profile no run profile names is not covered, because it is not the gate's workload and covering it would fire exit 4 on routine edits (OQ-026). The driver's PROGRAM is fingerprinted in the `executables` block as `driver.cmd`, outside the digest, so a rebuilt or swapped driver is a WARNING and not drift. Neither the workload a driver compiles in for a profile name nor the environment it inherits is covered: a driver that reads its workload from its own table or from environment variables can still be changed without moving this digest (OQ-076).",
     "The digest covers the USER-SUPPLIED prothesis.yaml with defaults NOT applied. A key you did not write contributes nothing, so upgrading thesis cannot move this digest by changing a compiled-in default."
   ],
   "manifest": {
-    "schema": "prothesis.lock_manifest/v1",
+    "schema": "prothesis.lock_manifest/v2",
     "oracles": [
       {
         "path": "linearizable.kv.yaml",
@@ -152,6 +158,11 @@
         "value": "500000"
       },
       {
+        "path": "harness.file",
+        "kind": "scalar",
+        "value": "docker-compose.yaml"
+      },
+      {
         "path": "harness.health[0].node",
         "kind": "scalar",
         "value": "kv:*"
@@ -165,6 +176,96 @@
         "path": "harness.health[0].timeout",
         "kind": "scalar",
         "value": "30s"
+      },
+      {
+        "path": "harness.nodes[0].compose_service",
+        "kind": "scalar",
+        "value": "kv-n1"
+      },
+      {
+        "path": "harness.nodes[0].id",
+        "kind": "scalar",
+        "value": "kv-n1"
+      },
+      {
+        "path": "harness.nodes[0].port_env",
+        "kind": "scalar",
+        "value": "KV_PORT_N1"
+      },
+      {
+        "path": "harness.nodes[0].role_hint",
+        "kind": "scalar",
+        "value": "replica"
+      },
+      {
+        "path": "harness.nodes[0].service",
+        "kind": "scalar",
+        "value": "kv"
+      },
+      {
+        "path": "harness.nodes[1].compose_service",
+        "kind": "scalar",
+        "value": "kv-n2"
+      },
+      {
+        "path": "harness.nodes[1].id",
+        "kind": "scalar",
+        "value": "kv-n2"
+      },
+      {
+        "path": "harness.nodes[1].port_env",
+        "kind": "scalar",
+        "value": "KV_PORT_N2"
+      },
+      {
+        "path": "harness.nodes[1].role_hint",
+        "kind": "scalar",
+        "value": "replica"
+      },
+      {
+        "path": "harness.nodes[1].service",
+        "kind": "scalar",
+        "value": "kv"
+      },
+      {
+        "path": "harness.nodes[2].compose_service",
+        "kind": "scalar",
+        "value": "kv-n3"
+      },
+      {
+        "path": "harness.nodes[2].id",
+        "kind": "scalar",
+        "value": "kv-n3"
+      },
+      {
+        "path": "harness.nodes[2].port_env",
+        "kind": "scalar",
+        "value": "KV_PORT_N3"
+      },
+      {
+        "path": "harness.nodes[2].role_hint",
+        "kind": "scalar",
+        "value": "replica"
+      },
+      {
+        "path": "harness.nodes[2].service",
+        "kind": "scalar",
+        "value": "kv"
+      },
+      {
+        "path": "harness.steady_state.probe",
+        "kind": "scalar",
+        "value": "docker compose exec -T kv-n1 /kv steady --targets http://kv-n1:8080,http://kv-n2:8080,http://kv-n3:8080 --timeout 55s"
+      },
+      {
+        "path": "harness.steady_state.timeout",
+        "kind": "scalar",
+        "value": "60s"
+      },
+      {
+        "path": "harness.variant_env",
+        "kind": "scalar",
+        "value": "KV_VARIANT"
       },
       {
         "path": "oracles.builtin",
@@ -240,6 +341,11 @@
         "path": "perturber.budget.max_faults_per_world",
         "kind": "scalar",
         "value": "24"
+      },
+      {
+        "path": "perturber.constraints",
+        "kind": "scalar",
+        "value": "never partition more than minority of kv"
       },
       {
         "path": "perturber.deny",
@@ -341,6 +447,11 @@
         "kind": "scalar",
         "value": "-1"
       }
-    ]
+    ],
+    "topology": {
+      "path": "docker-compose.yaml",
+      "sha256": "sha256:ecd03f88ce01fbb8d00c84bf7447ca86b918808e30a83fc13cf82745535986ff",
+      "size": 4040
+    }
   }
 }

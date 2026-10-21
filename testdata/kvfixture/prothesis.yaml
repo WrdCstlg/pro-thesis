@@ -4,6 +4,11 @@ name: kvfixture
 harness:
   backend: compose
   file: docker-compose.yaml
+  # The compose file selects the planted-bug build or the fixed one with
+  # KV_VARIANT (default buggy). Naming it here makes every world record which
+  # build it ran as its topology_variant, so a world on the fixed build is not
+  # the same world as one on the buggy build.
+  variant_env: KV_VARIANT
   # The compose file parameterises its container names and its published ports so
   # the parallel executor can give each worker its own. Naming those variables
   # here is what lets a bare "thesis search" allocate a per-worker port band
