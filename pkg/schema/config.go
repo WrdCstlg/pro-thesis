@@ -394,6 +394,14 @@ type Profile struct {
 	//	n > 0             run exactly n worlds
 	//	0                 rejected: meaningless, and better reported than guessed
 	Worlds *int `yaml:"worlds"`
+	// MinWorlds is an open-ended profile's completion requirement: when the
+	// wall budget expires with no violation and nothing inconclusive, the run is
+	// a PASS if at least this many worlds finished, and BUDGET_EXHAUSTED
+	// otherwise. Nil means 1. It is meaningful only with `worlds: -1` (or
+	// `worlds` omitted); a finite profile's planned count already is its
+	// requirement, and validation refuses the combination. Lock-covered, like
+	// every key of the profile.
+	MinWorlds *int `yaml:"min_worlds,omitempty"`
 	// DriverProfile names an entry of driver.profiles. A top-level profile and
 	// a driver profile may share a name (the directive's own sample uses
 	// smoke/gate/soak for both) and they are resolved in different maps.

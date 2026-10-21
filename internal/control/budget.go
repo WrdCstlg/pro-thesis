@@ -42,6 +42,30 @@ type Budget struct {
 	RequiredWall   time.Duration
 	RequiredWorlds int
 	Narrowed       bool
+
+	// MinWorlds is an open-ended budget's completion requirement: the profile's
+	// `min_worlds`, 1 when it is not written. It is zero for a finite budget,
+	// whose planned count is the requirement. See ExpiryOutcome.
+	MinWorlds int
+}
+
+// BudgetForProfile is a profile's own budget, before any argv narrowing.
+//
+// `worlds` omitted is open-ended, as it always has been in Runner.Run. Both the
+// runner and the search engine build their budget here, so the two cannot
+// disagree about what a profile asks for.
+func BudgetForProfile(prof schema.Profile) Budget {
+	b := Budget{Wall: prof.Budget.Std(), Worlds: schema.WorldsUnbounded}
+	if prof.Worlds != nil {
+		b.Worlds = *prof.Worlds
+	}
+	if b.WorldsUnbounded() {
+		b.MinWorlds = 1
+		if prof.MinWorlds != nil {
+			b.MinWorlds = *prof.MinWorlds
+		}
+	}
+	return b
 }
 
 // ApplyCLIOverrides returns b narrowed by `--budget` and `--worlds`, recording
@@ -274,4 +298,39 @@ func BudgetOutcome(coverageProgress bool) Outcome {
 		return OutcomePass
 	}
 	return OutcomeBudgetExhausted
+}
+
+// ExpiryOutcome decides what a CLEAN run's wall-clock expiry means: the caller
+// has already established that no world violated and none was inconclusive.
+//
+// Expiry is BUDGET_EXHAUSTED when it stopped the run short of what the profile
+// asked for, and only then:
+//
+//   - An open-ended profile (worlds: -1) is DEFINED by running until the budget
+//     expires, so expiry is how it completes. It is a PASS once at least
+//     MinWorlds worlds FINISHED. A world entered and cut short by expiry
+//     consumed time and judged nothing, so it does not count.
+//   - A finite profile is a PASS only if every planned world finished; one that
+//     ran out of time before its planned worlds were done did not perform the
+//     gate. (The last world finishing just after expiry used to make a complete
+//     run exit 3 as well.)
+//
+// Coverage progress (BudgetOutcome's parameter) remains unmeasured here.
+func ExpiryOutcome(t *BudgetTracker) Outcome {
+	b := t.Budget()
+	finished := t.WorldsFinished()
+	if b.WorldsUnbounded() {
+		min := b.MinWorlds
+		if min < 1 {
+			min = 1
+		}
+		if finished >= min {
+			return OutcomePass
+		}
+		return BudgetOutcome(false)
+	}
+	if finished >= b.Worlds {
+		return OutcomePass
+	}
+	return BudgetOutcome(false)
 }

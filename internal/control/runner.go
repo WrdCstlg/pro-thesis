@@ -394,15 +394,7 @@ func (r *Runner) Run(ctx context.Context) (schema.Verdict, schema.ExitCode, erro
 		return schema.Verdict{}, schema.ExitConfigError, fmt.Errorf("control: create run dir: %w", err)
 	}
 
-	profCfg := r.cfg.Profiles[r.profile]
-	worlds := -1
-	if profCfg.Worlds != nil {
-		worlds = *profCfg.Worlds
-	}
-	budget := Budget{
-		Wall:   profCfg.Budget.Std(),
-		Worlds: worlds,
-	}
+	budget := BudgetForProfile(r.cfg.Profiles[r.profile])
 	// `--budget` and `--worlds` narrow the profile; see ApplyCLIOverrides for
 	// why narrowing is permitted but is not safe, and D-059 for the correction
 	// to D-033 that claimed it was. The two consequences (no PASS and no
@@ -482,9 +474,10 @@ func (r *Runner) Run(ctx context.Context) (schema.Verdict, schema.ExitCode, erro
 		ordinal++
 	}
 
-	// Check if budget expired without finding violations
+	// A clean run whose wall budget expired: ExpiryOutcome decides whether
+	// that completed the gate the profile asked for.
 	if runOutcome == OutcomePass && tracker.WallExpired() {
-		runOutcome = BudgetOutcome(false)
+		runOutcome = ExpiryOutcome(tracker)
 	}
 
 	// The verdict names the binary's build stamp when it carries one; the

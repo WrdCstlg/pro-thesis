@@ -363,13 +363,7 @@ func New(o Options) (*Engine, error) {
 // reporting PASS and `oracle_lock: ok` for as long as it did: the fix went into
 // one copy and the other was never going to be found by reading the first.
 func (e *Engine) resolveBudget(prof schema.Profile) control.Budget {
-	worlds := -1
-	if prof.Worlds != nil {
-		worlds = *prof.Worlds
-	}
-	return control.ApplyCLIOverrides(
-		control.Budget{Wall: prof.Budget.Std(), Worlds: worlds},
-		e.opts.Budget, e.opts.Worlds)
+	return control.ApplyCLIOverrides(control.BudgetForProfile(prof), e.opts.Budget, e.opts.Worlds)
 }
 
 func (e *Engine) buildStrategy(name schema.SearchStrategy) error {
@@ -736,7 +730,7 @@ func (e *Engine) finish(ctx context.Context, res Result, stopReason string, fata
 		outcome = outcome.Worse(control.OutcomeCanceled)
 	}
 	if outcome == control.OutcomePass && e.tracker.WallExpired() && !sawViolation {
-		outcome = control.BudgetOutcome(false)
+		outcome = control.ExpiryOutcome(e.tracker)
 	}
 
 	var violations []schema.Violation
