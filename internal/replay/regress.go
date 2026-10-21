@@ -33,9 +33,12 @@ import (
 type Status string
 
 const (
-	// StatusPass: the world replayed and did NOT reproduce. The bug it records
-	// is not present in this build.
-	StatusPass Status = "PASS"
+	// StatusNonReproducing: the world replayed to a clean verdict and did NOT
+	// reproduce. That is not a PASS: the harness cannot tell "the defect is
+	// fixed" from "this world no longer reaches the defect" (a changed timing,
+	// a workload that drifted), so a corpus of such worlds is a gate that tested
+	// nothing. It makes the run inconclusive (D-109).
+	StatusNonReproducing Status = "NON_REPRODUCING"
 	// StatusFail: the world reproduced. The regression is back.
 	StatusFail Status = "FAIL"
 	// StatusInconclusive: the world could not be judged; it did not decode, the
@@ -121,10 +124,10 @@ type RegressReport struct {
 	// Worlds is every entry, in corpus order, including the ones not reached.
 	Worlds []WorldResult
 
-	Passed       int
-	Failed       int
-	Inconclusive int
-	NotReached   int
+	NonReproducing int
+	Failed         int
+	Inconclusive   int
+	NotReached     int
 
 	BudgetExpired bool
 	Elapsed       time.Duration
@@ -133,15 +136,17 @@ type RegressReport struct {
 // ExitCode maps the corpus run onto the normative exit codes.
 //
 //	any reproduction        -> 1  the regression is back; this is the whole point
-//	any inconclusive        -> 2  something could not be judged; retry or escalate
+//	any inconclusive or
+//	non-reproducing world   -> 2  something could not be judged, or a world no
+//	                              longer reaches its defect; retry or escalate
 //	anything not reached    -> 3  the budget ran out with corpus left; soft warning
-//	otherwise               -> 0  including an EMPTY corpus, which the report says
-//	                              in words rather than implying with a zero
+//	otherwise               -> 0  only an EMPTY corpus, which the report says in
+//	                              words rather than implying with a zero
 func (r RegressReport) ExitCode() schema.ExitCode {
 	switch {
 	case r.Failed > 0:
 		return schema.ExitFail
-	case r.Inconclusive > 0:
+	case r.Inconclusive > 0 || r.NonReproducing > 0:
 		return schema.ExitInconclusive
 	case r.NotReached > 0:
 		return schema.ExitBudgetExhausted
@@ -159,8 +164,8 @@ func (r RegressReport) Summary() string {
 		}
 		return fmt.Sprintf("there are no regressions: %s holds no worlds", r.CorpusDir)
 	}
-	s := fmt.Sprintf("%d regression(s): %d passed, %d failed, %d inconclusive",
-		len(r.Worlds), r.Passed, r.Failed, r.Inconclusive)
+	s := fmt.Sprintf("%d regression(s): %d reproduced, %d non-reproducing, %d inconclusive",
+		len(r.Worlds), r.Failed, r.NonReproducing, r.Inconclusive)
 	if r.NotReached > 0 {
 		s += fmt.Sprintf(", %d NOT REACHED (budget expired)", r.NotReached)
 	}
@@ -259,10 +264,22 @@ func Regress(ctx context.Context, opts RegressOptions) (RegressReport, error) {
 			remaining = deadline.Sub(opts.now())
 		}
 
+		// The workload the entry was confirmed with, committed beside it. An
+		// entry that names its workload and has no matching plan cannot be
+		// replayed as itself.
+		plan, _, perr := LoadRecordedPlan(e.Path, e.World)
+		if perr != nil {
+			rep.Worlds = append(rep.Worlds, WorldResult{Entry: e, Status: StatusInconclusive, Err: perr})
+			rep.Inconclusive++
+			tracef(opts.Trace, "%-16s INCONCLUSIVE: %v", e.Name, perr)
+			continue
+		}
+
 		r, rerr := Run(ctx, Options{
 			World:        e.World,
 			WorldPath:    e.Path,
 			Exec:         exec,
+			Plan:         plan,
 			Attempts:     opts.attempts(),
 			FirstOrdinal: ordinal,
 			Budget:       remaining,
@@ -289,8 +306,8 @@ func Regress(ctx context.Context, opts RegressOptions) (RegressReport, error) {
 			wr.Status = StatusInconclusive
 			rep.Inconclusive++
 		default:
-			wr.Status = StatusPass
-			rep.Passed++
+			wr.Status = StatusNonReproducing
+			rep.NonReproducing++
 		}
 		if r.BudgetExpired {
 			rep.BudgetExpired = true

@@ -19,11 +19,13 @@ import (
 const regressUsage = `usage: thesis regress [flags]
 
 Replay every world in the committed regression corpus (.prothesis/regressions/)
-in deterministic order and report each one PASS, FAIL or INCONCLUSIVE.
+in deterministic order and report each one FAIL, NON_REPRODUCING or INCONCLUSIVE.
 
-A world that REPRODUCES is a FAIL: the regression is back. A world that does not
-reproduce is a PASS. An empty corpus is exit 0 and says so in words — "there are
-no regressions" and "0 regressions passed" are different facts.
+A world that REPRODUCES is a FAIL (exit 1): the regression is back. A world that
+does not reproduce is NON_REPRODUCING (exit 2), not a pass: the harness cannot
+tell "the defect is fixed" from "this world no longer reaches it". A corpus
+entry that names its workload is replayed with the plan committed beside it. An
+empty corpus is exit 0 and says so in words.
 
 Flags:
   --budget DUR   wall budget for the whole corpus (invariant I7). Worlds not
@@ -259,19 +261,19 @@ func emitRegressJSON(rep replay.RegressReport, runDir, projectDir string) {
 		worlds = append(worlds, d)
 	}
 	doc := map[string]any{
-		"schema":         RegressReportSchema,
-		"corpus_dir":     rep.CorpusDir,
-		"corpus_exists":  rep.CorpusExists,
-		"empty":          rep.Empty,
-		"worlds":         worlds,
-		"passed":         rep.Passed,
-		"failed":         rep.Failed,
-		"inconclusive":   rep.Inconclusive,
-		"not_reached":    rep.NotReached,
-		"budget_expired": rep.BudgetExpired,
-		"elapsed_ms":     rep.Elapsed.Milliseconds(),
-		"summary":        rep.Summary(),
-		"exit_code":      int(rep.ExitCode()),
+		"schema":          RegressReportSchema,
+		"corpus_dir":      rep.CorpusDir,
+		"corpus_exists":   rep.CorpusExists,
+		"empty":           rep.Empty,
+		"worlds":          worlds,
+		"non_reproducing": rep.NonReproducing,
+		"failed":          rep.Failed,
+		"inconclusive":    rep.Inconclusive,
+		"not_reached":     rep.NotReached,
+		"budget_expired":  rep.BudgetExpired,
+		"elapsed_ms":      rep.Elapsed.Milliseconds(),
+		"summary":         rep.Summary(),
+		"exit_code":       int(rep.ExitCode()),
 	}
 	if runDir != "" {
 		doc["artifacts"] = control.RelativeArtifacts(projectDir, runDir)

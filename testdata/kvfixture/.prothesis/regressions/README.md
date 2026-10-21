@@ -14,11 +14,17 @@ not a cleanup.
 Two rules the tooling enforces so you do not have to:
 
 - a world that did not reproduce k/k is REFUSED entry, because
-  `thesis regress` reports PASS when a corpus world does not reproduce, and a
-  flaky entry manufactures a false green at exactly its flake rate;
+  `thesis regress` reports a corpus world that does not reproduce as
+  NON_REPRODUCING (exit 2), and a flaky entry turns every gate run it misses
+  into an unjudged one at exactly its flake rate;
 - a DIFFERENT world wanting a filename already taken is an error, never a silent
   overwrite. Filenames are the first four hex digits of the world hash, so a
   collision is possible; losing a regression to one is not.
+
+A world that names its workload (`plan_digest`) is stored with that workload
+beside it as `w_xxxx.plan.json`, and `thesis regress` replays that exact
+operation sequence. The plan's digest must match the world's, so a plan file
+cannot be swapped without the world refusing it.
 
 The files are LF-only and byte-identical to their canonical encoding. Do not
 hand-edit them: the loader re-encodes and byte-compares on every read, so an

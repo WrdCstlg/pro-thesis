@@ -18,9 +18,11 @@
 // A WORLD THAT DID NOT REPRODUCE IS REFUSED. Add takes the confirmation gate's
 // measured result and requires k/k. A world that never reproduced is dead weight
 // that costs ~30s of every future gate run and proves nothing; a world that
-// reproduced 2/3 is worse, because `thesis regress` reports PASS when a corpus
-// world does not reproduce, so a flaky entry manufactures a FALSE GREEN one run
-// in three. Neither is a corpus this project can stand behind, and the honest
+// reproduced 2/3 is worse, because `thesis regress` reports a corpus world that
+// does not reproduce as NON_REPRODUCING (exit 2), so a flaky entry leaves one
+// gate run in three unjudged. (Before NON_REPRODUCING existed, that miss was
+// reported as PASS: a false green.) Neither is a corpus this project can stand
+// behind, and the honest
 // remedies (shrink further, or confirm at a k you are willing to publish) are
 // both available and both visible.
 //
