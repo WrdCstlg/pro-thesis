@@ -191,6 +191,13 @@ func (r Report) Verdict(m VerdictMeta) schema.Verdict {
 		v.Verdict = schema.VerdictPass
 	default:
 		v.Verdict = schema.VerdictInconclusive
+		v.Error = "no attempt ran"
+		for _, a := range r.Attempts {
+			if a.Signal == SignalUnknown {
+				v.Error = fmt.Sprintf("attempt %d of %d could not be judged: %s", a.N, r.Planned, a.Reason)
+				break
+			}
+		}
 	}
 	t := &schema.Trials{World: r.WorldHash, Workload: r.Workload}
 	n := 1

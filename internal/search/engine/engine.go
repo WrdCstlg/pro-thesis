@@ -777,6 +777,15 @@ func (e *Engine) finish(ctx context.Context, res Result, stopReason string, fata
 			budget.WallSRequired = budget.WallS
 		}
 	}
+	cause := ""
+	if outcome.VerdictResult() == schema.VerdictInconclusive {
+		switch {
+		case fatal != nil:
+			cause = "the search stopped on a harness error: " + fatal.Error()
+		default:
+			cause = control.RunCause(outcome, res.Worlds)
+		}
+	}
 	v := control.BuildVerdict(control.VerdictInput{
 		RunID:      e.runner.RunID(),
 		Profile:    e.runner.Profile(),
@@ -786,6 +795,7 @@ func (e *Engine) finish(ctx context.Context, res Result, stopReason string, fata
 		Violations: violations,
 		Artifacts:  control.RelativeArtifacts(e.runner.ProjectDir(), e.runner.RunDir()),
 		OracleLock: e.opts.OracleLock,
+		Error:      cause,
 	})
 	// Phase 4 is the phase that MEASURES coverage, so the verdict stops
 	// carrying zeros for it. Everything else BuildVerdict leaves empty stays

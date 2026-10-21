@@ -486,6 +486,7 @@ func (r *Runner) Run(ctx context.Context) (schema.Verdict, schema.ExitCode, erro
 
 	var (
 		worldResults []worldResult
+		worldErrs    []error
 		allFindings  []OracleResult
 		runOutcome   = OutcomePass
 	)
@@ -521,6 +522,7 @@ func (r *Runner) Run(ctx context.Context) (schema.Verdict, schema.ExitCode, erro
 			}
 		}
 		worldResults = append(worldResults, wres)
+		worldErrs = append(worldErrs, err)
 		allFindings = append(allFindings, wres.findings...)
 
 		// Fold world outcome
@@ -596,6 +598,13 @@ func (r *Runner) Run(ctx context.Context) (schema.Verdict, schema.ExitCode, erro
 		Violations: violations,
 		Artifacts:  RelativeArtifacts(r.opts.ProjectDir, r.runDir),
 		OracleLock: r.opts.OracleLock,
+	}
+	if runOutcome.VerdictResult() == schema.VerdictInconclusive {
+		ran := make([]WorldOutcome, len(worldResults))
+		for i, w := range worldResults {
+			ran[i] = WorldOutcome{Ordinal: w.ordinal, Outcome: w.outcome, Findings: w.findings, Err: worldErrs[i]}
+		}
+		vInput.Error = RunCause(runOutcome, ran)
 	}
 	verdict := BuildVerdict(vInput)
 

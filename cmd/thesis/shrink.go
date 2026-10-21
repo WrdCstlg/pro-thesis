@@ -449,6 +449,10 @@ func shrinkVerdict(res *shrink.Result, original shrink.Identity, m replay.Verdic
 		v.Verdict = schema.VerdictBudgetExhausted
 	default:
 		v.Verdict = schema.VerdictInconclusive
+		v.Error = res.Stop.Describe()
+		if res.Stop == shrink.StopComplete {
+			v.Error = "the reduced world's confirmation reproduced nothing (" + res.Confirmation.String() + ")"
+		}
 	}
 	v.Normalize()
 	return v

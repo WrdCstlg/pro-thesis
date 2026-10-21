@@ -45,4 +45,7 @@ func TestAShrinkVerdictCarriesTheMinimalRepro(t *testing.T) {
 	if nv.Verdict != schema.VerdictInconclusive || len(nv.Violations) != 0 {
 		t.Fatalf("a shrink whose violation never reproduced: verdict %s, %d violation(s)", nv.Verdict, len(nv.Violations))
 	}
+	if nv.Error == "" {
+		t.Fatal("an INCONCLUSIVE shrink verdict does not say why")
+	}
 }
