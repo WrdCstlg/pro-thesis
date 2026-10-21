@@ -6,6 +6,11 @@ Every run the evaluation suite made, in order. The artifacts stay in the target'
 the run; anything other than 0 excludes the run's worlds from the precision and reproducibility
 figures.
 
+Run bundles are not committed. For every run cited below, `manifests/<run id>.sha256.json` records
+the SHA-256 of each file in its bundle, so a bundle found on disk later can be checked against what
+was cited. The P1 bundles were built in separate worktrees and copied into this tree's
+`targets/<t>/.prothesis/runs/`, verified file by file, before those worktrees could be removed.
+
 | Arm | Phase | Run id | Commit | Exit (shell) | Worlds | Volumes after | Archived |
 |---|---|---|---|---|---|---|---|
 | rqlite onboarding smoke (no arm) | P1 | `r_2026_10_20_95ab` (targets/rqlite) | `5e55347` (harness build) | 0 | 1 | 0 | no |

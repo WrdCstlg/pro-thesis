@@ -1,0 +1,26 @@
+{
+  "schema": "prothesis.run_manifest/v1",
+  "run": "r_2026_10_20_9237",
+  "project": "targets/consul",
+  "copied_from": "worktree synthesis-p1-consul (branch eval/p1-consul)",
+  "files": 16,
+  "bytes": 304040.0,
+  "sha256": {
+    "verdict.json": "4f545be47235121359cd125af7df5789d95e0e5c3d87c6eda1545d2116546d59",
+    "world-0001/final_state.json": "6ecf05f3401b08439158eaf6d5da3ff5816a0c666188f13e564c1a22680c544d",
+    "world-0001/history.jsonl": "054ce3904530ed84761a999d06cbbecc2b8651e198ce05d1095801b2e498a742",
+    "world-0001/logs/consul-n1.log": "b098285e9112697db2b70d79e034ffbdfbbaf79990d22fc9cf252f356141dc03",
+    "world-0001/logs/consul-n2.log": "a67be0140a25df10f5cf4e3bd348bc3001083f75bffcdc3f055405fee3af3a13",
+    "world-0001/logs/consul-n3.log": "e6a60b5ef14d7a4462bfb497858e7c2159245c93c7378dfc47c9cd96a4ca3ef0",
+    "world-0001/oracle_input.json": "e3e92c180aa2f5d50fba719421590f09c6d1d3bbade863be12e4f79c375f1fb7",
+    "world-0001/oracles/linearizable.kv.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "world-0001/phases.json": "a5565913eb2b01959fc1ac7478795f7a12bc444c57f14ea4e3a5fd897c3027cb",
+    "world-0001/phases.jsonl": "b599b78087709d51ec31997a801baebfcef4d7e659ec4e2052b35d928671a0fe",
+    "world-0001/plan.json": "3d4a6531763a9698669c26313747b98449b32f8807013881e1f364f9b0bb23bd",
+    "world-0001/prothesis-overlay.yaml": "3b795e821d640194f4c7ddef0d78cf2e305d2070ad42d589c1c730ea7f74f3b6",
+    "world-0001/result.json": "16bdf740719e9b37fbf34dd9b16c4f9bc8112c743ab2f07c8c993a75ba5becc5",
+    "world-0001/telemetry.json": "dc73fccc2a76931144e79280e614336f6cff2a2732bcbd3de25e983d03a5e09f",
+    "world-0001/telemetry.jsonl": "4063c9a693dd503f6138f2cb38e2c5255a6594bd75a3f0eaee9d2d828379e040",
+    "world-0001/world.thesis": "f45ed9cbcb6fb4ee3b78d6fe43fa95fc0ce003e4cd02667124cb16607127db64"
+  }
+}
