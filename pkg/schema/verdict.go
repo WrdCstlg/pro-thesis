@@ -56,6 +56,21 @@ type Verdict struct {
 	// Trials is present on a replay's verdict (`thesis replay -k`): which world
 	// was replayed and how its k executions came out. Absent on a run's.
 	Trials *Trials `json:"trials,omitempty"`
+
+	// Seed is the run seed every world's seed was derived from (D-109). A
+	// pointer because zero is a legal seed and "not recorded" must stay
+	// distinguishable from it; omitted when not recorded, so the directive's
+	// 4.6 document is still re-emitted byte for byte.
+	Seed *uint64 `json:"seed,omitempty"`
+	// Arm, Expected and ControlType are set when the run was made for a
+	// calibration arm (`thesis run --arm`, or `--expect`): which arm, the pole
+	// it was expected to land on, and which side of the gate it tests.
+	Arm         string        `json:"arm,omitempty"`
+	Expected    VerdictResult `json:"expected,omitempty"`
+	ControlType ControlType   `json:"control_type,omitempty"`
+	// Calibration is the run's classification against Expected (the dual-pole
+	// fold): present exactly when Expected is.
+	Calibration *CalibrationOutcome `json:"calibration,omitempty"`
 }
 
 // Trials is the k/n record of a replay (D-109).

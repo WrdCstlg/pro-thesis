@@ -65,10 +65,14 @@ exit code must be impossible to earn by accident or by cheating:
   witness; a history it cannot soundly split is refused, not guessed at.
 - **Refusal as a feature.** An oracle that crashes, hangs or emits malformed output, a probe the
   target lacks, a world no oracle judged: each is INCONCLUSIVE, loudly.
-- **A lock on the gate.** Oracle definitions, ten configuration keys and every driver profile a
-  run profile names are digested into `.prothesis/lock`. Drift is exit `4`.
-- **Replayable worlds.** Each world is a content-addressed `.thesis` file holding its fault
-  schedule as planned and as realized. `thesis replay -k 3` runs it again and counts.
+- **A lock on the gate.** Oracle definitions, the compose file, fifteen configuration keys and
+  every driver profile a run profile names are digested into `.prothesis/lock`. Drift is exit `4`.
+- **Replayable worlds.** Each world is a `.thesis` file whose identity is its inputs: seed,
+  planned fault schedule, driver workload, build variant and image digests. `thesis replay -k 3`
+  runs it again on the recorded images and workload, counts, and writes a verdict.
+- **A calibrated gate.** Runs made for the evaluation manifest's arms (`thesis run --arm`) are
+  classified against their known answer; `thesis report` gives sensitivity, specificity and the
+  PPV of a FAIL, and `thesis gate` fails on any escape or breached threshold.
 - **Provenance.** A verdict names the commit its binary was built from; a world names the image
   ids it ran against.
 - **Attribution.** `thesis diagnose` maps every recorded non-terminal outcome to a registry of
@@ -242,15 +246,15 @@ before the wall budget expired. An open-ended profile whose budget expires after
 clean worlds is a PASS, because running until the budget expires is what it asked for. `5`
 (`CONFIG_ERROR`) means the configuration is invalid.
 
-**What `4` does not cover.** The oracle *executables* are fingerprinted outside the digest. A
-swapped, rebuilt or missing checker binary is a WARNING in the verdict
-(`oracle_lock.executables_moved`), not exit `4`, because a routine rebuild would otherwise be an
-incident that trains people to re-lock without reading (D-060; the measured gap is OQ-057). The
-load generator's program is fingerprinted the same way, as `driver.cmd`, and is a warning for the
-same reason (D-090). Neither the workload a driver compiles in for a profile name nor the
-environment it inherits is covered (OQ-076). `thesis search --strategy` overrides the locked
-`search.strategy` without drift and without narrowing the run, so such a run can still report
-PASS with the lock `ok` (OQ-081). The fault schedule of `thesis run` is covered since item H1:
+**What `4` does not cover.** The oracle and driver *executables* are fingerprinted outside the
+digest, with the platform the fingerprint was taken on. On that platform a swapped, rebuilt or
+missing checker or driver is exit `4`; on any other it is a WARNING in the verdict
+(`oracle_lock.executables_moved`), because a build for another OS can never match (D-060, D-090,
+D-109). They are built without a commit stamp, so unchanged source reproduces the locked bytes;
+a change in a package they link moves them too. Neither the workload a driver compiles in for a
+profile name nor the environment it inherits is covered (OQ-076). `thesis search --strategy`
+other than the locked `search.strategy` narrows the run, so it cannot report PASS (OQ-081
+closed). The fault schedule of `thesis run` is covered since item H1:
 it lives in the lock-covered run profile (`profiles.<name>.faults`), and an argv schedule that
 differs from it, including `--no-faults`, narrows the run under D-059 so it cannot report PASS
 (D-097 ruling 1; OQ-085 closed, measured by attack B1 turning from a false PASS into exit `1`).

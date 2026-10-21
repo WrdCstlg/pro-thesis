@@ -23,6 +23,8 @@ func cmdRun(ctx context.Context, g globals, args []string) schema.ExitCode {
 	var worlds int
 	var noFaults bool
 	var variant string
+	var profileSet bool
+	var arm, manifestPath, expect, expectOracle string
 
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -98,8 +100,37 @@ func cmdRun(ctx context.Context, g globals, args []string) schema.ExitCode {
 			}
 			i++
 			profile = args[i]
+			profileSet = true
 		case strings.HasPrefix(a, "--profile="):
 			profile = strings.TrimPrefix(a, "--profile=")
+			profileSet = true
+
+		// --arm runs a calibration arm of the evaluation manifest: its pole
+		// becomes the run's expectation, its profile the default --profile, and
+		// the exit code the calibrated one (0 when the gate answered as the
+		// pole requires). --expect states a pole without an arm.
+		case a == "--arm", a == "--manifest", a == "--expect", a == "--expect-oracle",
+			strings.HasPrefix(a, "--arm="), strings.HasPrefix(a, "--manifest="),
+			strings.HasPrefix(a, "--expect="), strings.HasPrefix(a, "--expect-oracle="):
+			name, v, hasValue := strings.Cut(a, "=")
+			if !hasValue {
+				if i+1 >= len(args) {
+					errorf("run: %s needs a value", name)
+					return schema.ExitConfigError
+				}
+				i++
+				v = args[i]
+			}
+			switch name {
+			case "--arm":
+				arm = v
+			case "--manifest":
+				manifestPath = v
+			case "--expect":
+				expect = strings.ToUpper(v)
+			case "--expect-oracle":
+				expectOracle = v
+			}
 
 		// --variant selects the build of the system under test through
 		// harness.variant_env. One that differs from the profile's own runs a
@@ -153,6 +184,11 @@ func cmdRun(ctx context.Context, g globals, args []string) schema.ExitCode {
 		errorf("resolve config path: %v", err)
 		return schema.ExitConfigError
 	}
+
+	calibration, code := runCalibration(filepath.Dir(absConfig), arm, manifestPath, expect, expectOracle, &profile, profileSet)
+	if code != schema.ExitPass {
+		return code
+	}
 	data, err := os.ReadFile(absConfig)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -193,9 +229,9 @@ func cmdRun(ctx context.Context, g globals, args []string) schema.ExitCode {
 	// verdict is void before it begins, and a drifted gate's PASS is worse
 	// than no run at all, because an agent would act on it.
 	//
-	// Phase 3's definition of done names `thesis gate`, which is a Phase 6
-	// deliverable. The check therefore lives in lock.Gate, which `thesis gate`
-	// will wrap unchanged rather than reimplement.
+	// The check lives in lock.Gate so that every command that boots a world
+	// makes it the same way. (`thesis gate` is the calibration gate over the
+	// evaluation manifest, a different question: see calibrate.go.)
 	lockReport, lockErr := lock.Gate(lock.GateOptions{
 		ProjectDir:                projectDir,
 		ConfigPath:                absConfig,
@@ -254,6 +290,7 @@ func cmdRun(ctx context.Context, g globals, args []string) schema.ExitCode {
 		Faults:         runnerFaults,
 		FaultsSupplied: faultsSupplied,
 		Variant:        variant,
+		Calibration:    calibration,
 		OracleLock:     lockReport.OracleLock(),
 		// Injectors is deliberately left unset. The runner assembles the fault
 		// families per world in control.BuildInjectors, because every world

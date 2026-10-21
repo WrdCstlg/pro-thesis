@@ -54,10 +54,12 @@ Commands:
   cluster         discover candidate failure categories in the unattributed pool
   history         check a history log against the driver contract, offline
   doctor          verify harness, container and target readiness pre-flight
+  report          calibrate the gate against the evaluation manifest's arms
+  gate            report, then fail on an escape or a breached threshold
   version         print version information
 
 Declared, not yet implemented:
-  gate, report, watch, serve
+  watch, serve
 
 Global flags:
   --config PATH   path to prothesis.yaml (default: ./prothesis.yaml)
@@ -178,7 +180,12 @@ func run() schema.ExitCode {
 	case "doctor":
 		return cmdDoctor(ctx, g, rest)
 
-	case "gate", "report", "watch", "serve":
+	case "report":
+		return cmdReport(ctx, g, rest)
+	case "gate":
+		return cmdGate(ctx, g, rest)
+
+	case "watch", "serve":
 		fmt.Fprintf(os.Stderr, "thesis: `%s` is declared by the directive but not implemented yet.\n", cmd)
 		fmt.Fprintf(os.Stderr, "        Phase 0 delivers init, up and down. Phase 1 delivers run. %s\n", phaseOf(cmd))
 		return schema.ExitConfigError
@@ -199,7 +206,7 @@ func phaseOf(cmd string) string {
 		return "`oracles` arrives in Phase 3 with the external oracle contract and the lock manifest."
 	case "search":
 		return "`search` arrives in Phase 4 with the Saboteur engine."
-	case "gate", "watch", "serve", "report":
+	case "watch", "serve":
 		return "This arrives in Phase 6 with the agent-loop surfaces."
 	default:
 		return ""

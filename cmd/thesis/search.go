@@ -42,7 +42,7 @@ Flags:
                        e.g. --worker-env prefix=KV_PREFIX,kv-n1=KV_PORT_N1
 
 WHETHER a search runs is decided by the PROFILE's ` + "`search:`" + ` boolean; WHICH search
-runs is decided by the top-level ` + "`search:`" + ` block. ` + "`thesis gate`" + ` never runs MCTS.
+runs is decided by the top-level ` + "`search:`" + ` block.
 `
 
 func cmdSearch(ctx context.Context, g globals, args []string) schema.ExitCode {
