@@ -1,8 +1,8 @@
 {
   "schema": "prothesis.lock/v1",
   "manifest_sha": "sha256:0ef9a7547f67eda0b6e9fe9d7995b9c887035db13338ecc1967c4bcbcd6fddda",
-  "reason": "Lock manifest v2: the compose file content and harness.file, harness.nodes, harness.steady_state, harness.variant_env and perturber.constraints are now covered; their values are unchanged. Program fingerprints now carry the platform they were taken on (windows/amd64), where a changed program is drift. linearizable-kv.exe is rebuilt without a commit stamp by scripts/build.ps1 -Verify from source unchanged since 91f5e8f (two builds byte-identical); only the removed stamp moved its digest. consulload.exe is rebuilt from unchanged source and is byte-identical to the locked build (0ef07fc64daf).",
-  "locked_at": "2026-10-21T07:01:36Z",
+  "reason": "Supersedes the reason of the previous re-lock, which said only the removed commit stamp moved the checker digest: linearizable-kv.exe also links pkg/schema, which this branch changed (world identity v2, the verdict trials record, the min_worlds and variant profile keys), so its bytes moved for that reason too. Re-locked from a clean scripts/build.ps1 -Verify build of 1d55b2e (two builds byte-identical); manifest digests are unchanged. consulload.exe links no harness package and is unchanged.",
+  "locked_at": "2026-10-21T07:03:44Z",
   "tool_version": "0.1.0-phase0",
   "builtin_options_fingerprint": "sha256:ca5cba3edb828e29bd4b1357c9ff2d86ae2e3eb6a6bd009a2430b076304064bf",
   "executables": [
@@ -17,8 +17,8 @@
       "oracle": "linearizable.kv",
       "cmd": "./bin/linearizable-kv",
       "resolved": "bin/linearizable-kv.exe",
-      "sha256": "sha256:3e82e70c097d49cd6c50e0c68f8a4413b7604a0259ebef7ad0e554d9848f090c",
-      "size": 4925952
+      "sha256": "sha256:d737f88d527ef3cd8b4613a2e3e599be40dc5636a32ae306362d22dbc8f1f10e",
+      "size": 4926464
     }
   ],
   "platform": "windows/amd64",
