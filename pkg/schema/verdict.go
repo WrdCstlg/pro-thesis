@@ -86,6 +86,10 @@ type Trials struct {
 	NotReproduced int `json:"not_reproduced"`
 	Different     int `json:"different_violation"`
 	Inconclusive  int `json:"inconclusive"`
+	// Workload is the digest of the workload the attempts drove, present only
+	// when it is not the one World recorded (a plan supplied to the replay).
+	// The trials are then about World's schedule under this workload.
+	Workload string `json:"workload,omitempty"`
 }
 
 // Budget is the verdict's `budget` object.

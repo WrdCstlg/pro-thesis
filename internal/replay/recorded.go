@@ -29,11 +29,17 @@ import (
 // note: the workload is regenerated from the config, as it always was for such
 // a world.
 func LoadRecordedPlan(worldPath string, w *schema.World) (*driver.Plan, string, error) {
+	plan, _, note, err := loadRecordedPlan(worldPath, w)
+	return plan, note, err
+}
+
+// loadRecordedPlan is LoadRecordedPlan, also returning the file it read.
+func loadRecordedPlan(worldPath string, w *schema.World) (*driver.Plan, string, string, error) {
 	if w == nil {
-		return nil, "", errors.New("replay: LoadRecordedPlan(nil world)")
+		return nil, "", "", errors.New("replay: LoadRecordedPlan(nil world)")
 	}
 	if w.PlanDigest == "" {
-		return nil, "the world records no plan_digest (" + w.Schema + "), so the workload is regenerated " +
+		return nil, "", "the world records no plan_digest (" + w.Schema + "), so the workload is regenerated " +
 			"from the current config and seed", nil
 	}
 	var tried []string
@@ -44,26 +50,98 @@ func LoadRecordedPlan(worldPath string, w *schema.World) (*driver.Plan, string, 
 			continue
 		}
 		if err != nil {
-			return nil, "", fmt.Errorf("replay: read recorded plan %s: %w", p, err)
+			return nil, "", "", fmt.Errorf("replay: read recorded plan %s: %w", p, err)
 		}
 		plan, err := driver.ParsePlan(raw)
 		if err != nil {
-			return nil, "", fmt.Errorf("replay: recorded plan %s: %w", p, err)
+			return nil, "", "", fmt.Errorf("replay: recorded plan %s: %w", p, err)
 		}
 		got, err := plan.WorkloadDigest()
 		if err != nil {
-			return nil, "", fmt.Errorf("replay: digest recorded plan %s: %w", p, err)
+			return nil, "", "", fmt.Errorf("replay: digest recorded plan %s: %w", p, err)
 		}
 		if got != w.PlanDigest {
-			return nil, "", fmt.Errorf("replay: the plan at %s drives workload %s, but the world's plan_digest "+
+			return nil, "", "", fmt.Errorf("replay: the plan at %s drives workload %s, but the world's plan_digest "+
 				"is %s; it is not the plan this world ran", p, got, w.PlanDigest)
 		}
-		return plan, "drives the recorded plan " + p + " (workload digest matches plan_digest)", nil
+		return plan, p, "drives the recorded plan " + p + " (workload digest matches plan_digest)", nil
 	}
-	return nil, "", fmt.Errorf("replay: the world names its workload (plan_digest %s) but no recorded plan "+
+	return nil, "", "", fmt.Errorf("replay: the world names its workload (plan_digest %s) but no recorded plan "+
 		"was found (looked for %s); replaying without it would drive a different workload",
 		w.PlanDigest, strings.Join(tried, ", "))
 }
+
+// Where a replayed workload came from.
+const (
+	PlanSupplied    = "supplied"
+	PlanRecorded    = "recorded"
+	PlanRegenerated = "regenerated"
+)
+
+// PlanChoice is the workload a replay or shrink drives.
+type PlanChoice struct {
+	// Plan is nil only when the workload is regenerated from the config (a
+	// world that recorded no plan_digest, and no plan supplied).
+	Plan *driver.Plan
+	// Source is PlanSupplied, PlanRecorded or PlanRegenerated.
+	Source string
+	// Path is the plan file, when there is one.
+	Path string
+	// Workload is the digest of a supplied plan's workload when it is not the
+	// workload the world recorded. The run then replays the world's schedule
+	// under a different workload, and says so.
+	Workload string
+	// Note is one line for a human.
+	Note string
+}
+
+// ChoosePlan resolves the workload a replay or shrink drives. A supplied plan
+// (--plan) is driven exactly; without one, the world's recorded plan
+// (LoadRecordedPlan). A supplied plan that cannot be used is the caller's
+// argument error; a recorded plan that cannot be found is the world's.
+func ChoosePlan(worldPath string, w *schema.World, supplied string) (PlanChoice, error) {
+	if w == nil {
+		return PlanChoice{}, errors.New("replay: ChoosePlan(nil world)")
+	}
+	if supplied == "" {
+		plan, path, note, err := loadRecordedPlan(worldPath, w)
+		if err != nil {
+			return PlanChoice{}, err
+		}
+		c := PlanChoice{Plan: plan, Source: PlanRegenerated, Path: path, Note: note}
+		if plan != nil {
+			c.Source = PlanRecorded
+		}
+		return c, nil
+	}
+	plan, err := driver.LoadSuppliedPlan(supplied, w.DriverProfile, w.Seed)
+	if err != nil {
+		return PlanChoice{}, &SuppliedPlanError{Err: err}
+	}
+	digest, err := plan.WorkloadDigest()
+	if err != nil {
+		return PlanChoice{}, &SuppliedPlanError{Err: err}
+	}
+	c := PlanChoice{Plan: plan, Source: PlanSupplied, Path: supplied,
+		Note: fmt.Sprintf("drives the supplied plan %s exactly (%d operation(s), workload %s)",
+			supplied, len(plan.Operations), digest)}
+	if digest != w.PlanDigest {
+		c.Workload = digest
+		recorded := "none"
+		if w.PlanDigest != "" {
+			recorded = w.PlanDigest
+		}
+		c.Note += fmt.Sprintf("; the world recorded workload %s, so this is the world's schedule under "+
+			"the supplied workload, not the recorded world", recorded)
+	}
+	return c, nil
+}
+
+// SuppliedPlanError is a --plan that cannot be driven: an argument error.
+type SuppliedPlanError struct{ Err error }
+
+func (e *SuppliedPlanError) Error() string { return e.Err.Error() }
+func (e *SuppliedPlanError) Unwrap() error { return e.Err }
 
 func recordedPlanPaths(worldPath string) []string {
 	dir := filepath.Dir(worldPath)
@@ -114,7 +192,7 @@ func (r Report) Verdict(m VerdictMeta) schema.Verdict {
 	default:
 		v.Verdict = schema.VerdictInconclusive
 	}
-	t := &schema.Trials{World: r.WorldHash}
+	t := &schema.Trials{World: r.WorldHash, Workload: r.Workload}
 	n := 1
 	for _, a := range r.Attempts {
 		t.Attempts++

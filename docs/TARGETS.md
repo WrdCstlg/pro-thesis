@@ -161,6 +161,14 @@ Four rules, each of which exists because breaking it produced a false verdict he
 4. **Exit non-zero when you could not drive**, so a broken driver is INCONCLUSIVE and never a quiet
    pass over a workload that never ran.
 
+**A plan from elsewhere.** `thesis replay WORLD --plan PATH` and `thesis shrink WORLD --plan PATH`
+drive an operation plan you supply (`prothesis.driver_plan/v1` with an `operations` trace, e.g. one
+a property generator emitted) instead of the world's recorded workload, under the world's seed and
+fault schedule. Each execution's history is checked against the plan's op ids, and an attempt whose
+driver did not execute the plan is INCONCLUSIVE. When the plan is not the recorded workload, the
+replay verdict names its digest in `trials.workload`. Without `--plan`, both commands drive the plan
+the world recorded.
+
 ---
 
 ## 5. The history, and the rule the whole thing rests on

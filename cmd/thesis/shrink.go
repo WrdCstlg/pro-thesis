@@ -57,6 +57,11 @@ Flags:
                        threshold (2).
   --budget DUR         wall-clock ceiling for the entire shrink (default: 20m).
   --world-budget N     maximum world executions ceiling (default: 60).
+  --plan PATH          shrink from this operation plan (prothesis.driver_plan/v1
+                       with an operations trace) instead of the world's
+                       recorded workload: every candidate drives it, or a
+                       subset of it, exactly. Without --plan, a world that
+                       recorded its plan (plan_digest) is shrunk from that plan.
   --skip-ops           skip stage 2 (workload operation history ddmin).
   --skip-narrowing     skip stage 3 (timing window narrowing).
   --skip-baseline      skip stage 0 (pre-flight baseline verification).
@@ -71,6 +76,7 @@ func cmdShrink(ctx context.Context, g globals, args []string) schema.ExitCode {
 	var (
 		worldArg      string
 		profile       string
+		planArg       string
 		expect        string
 		strictnessStr string
 		confirmK      int
@@ -167,6 +173,14 @@ func cmdShrink(ctx context.Context, g globals, args []string) schema.ExitCode {
 			}
 			i = ni
 			profile = v
+		case a == "--plan" || strings.HasPrefix(a, "--plan="):
+			v, ni, err := flagValue(args, i, "--plan")
+			if err != nil {
+				errorf("shrink: %v", err)
+				return schema.ExitConfigError
+			}
+			i = ni
+			planArg = v
 		case a == "--budget" || strings.HasPrefix(a, "--budget="):
 			v, ni, err := flagValue(args, i, "--budget")
 			if err != nil {
@@ -280,37 +294,28 @@ func cmdShrink(ctx context.Context, g globals, args []string) schema.ExitCode {
 		return schema.ExitInconclusive
 	}
 
+	// The workload every candidate starts from: a supplied plan, or the one the
+	// world recorded. Without this, a candidate that keeps every operation drove
+	// a workload regenerated from whatever the config says today.
+	workload, code := choosePlan("shrink", worldPath, world, planArg)
+	if code != schema.ExitPass {
+		return code
+	}
+	if !g.quiet || trace {
+		fmt.Fprintf(os.Stderr, "thesis: shrink: %s\n", workload.Note)
+	}
+
 	runner, err := runnerFor(p, profile, runID, g.quiet && !trace, 0, worldVariant(world))
 	if err != nil {
 		errorf("shrink: %v", err)
 		return schema.ExitConfigError
 	}
 
-	var (
-		extractedOps []int64
-		basePlan     *driver.Plan
-		opPlanAvail  bool
-	)
-
-	if !skipOps {
-		historyPath := filepath.Join(filepath.Dir(worldPath), "history.jsonl")
-		if _, statErr := os.Stat(historyPath); statErr == nil {
-			ext, extErr := driver.ExtractOpsFromFile(historyPath, driver.ExtractOptions{AllowMissingPinned: true})
-			if extErr == nil && len(ext.Ops) > 0 {
-				bp, pErr := driver.NewPlan(p.cfg, world.DriverProfile, historyPath, world.Seed)
-				if pErr == nil {
-					fullPlan, planErr := ext.Plan(bp)
-					if planErr == nil {
-						basePlan = fullPlan
-						opPlanAvail = true
-						extractedOps = make([]int64, len(ext.Ops))
-						for idx, op := range ext.Ops {
-							extractedOps[idx] = op.OpID
-						}
-					}
-				}
-			}
-		}
+	basePlan, extractedOps := shrinkWorkload(p.cfg, world, worldPath, workload.Plan, skipOps)
+	opPlanAvail := basePlan != nil
+	opsBefore := len(extractedOps)
+	if opsBefore == 0 && workload.Plan != nil {
+		opsBefore = len(workload.Plan.Operations)
 	}
 
 	var traceLogger func(string)
@@ -321,16 +326,17 @@ func cmdShrink(ctx context.Context, g globals, args []string) schema.ExitCode {
 	}
 
 	exec := &shrinkRunnerExecutor{
-		runner:   runner,
-		seed:     world.Seed,
-		fullPlan: basePlan,
+		runner:    runner,
+		seed:      world.Seed,
+		wholePlan: workload.Plan,
+		fullPlan:  basePlan,
 	}
 
 	opts := shrink.Options{
 		Original:  origID,
 		Faults:    schedChoice.Faults,
 		Ops:       extractedOps,
-		OpsBefore: len(extractedOps),
+		OpsBefore: opsBefore,
 		OpPlan:    opPlanAvail,
 		Executor:  exec,
 		Budget:    budget,
@@ -509,22 +515,71 @@ func resolveOriginalViolation(worldPath, expect string) (shrink.Identity, error)
 	return shrink.Identity{}, fmt.Errorf("no violation found in world artifacts; pass --expect <oracle> explicitly")
 }
 
+// shrinkWorkload returns the operation plan stage 2 reduces and its op ids,
+// or nil when stage 2 has nothing to work on.
+//
+// A whole plan that already carries an operation trace (supplied with --plan,
+// or recorded by a world that was itself shrunk) is reduced as it stands.
+// Otherwise the trace is extracted from the world's history and attached to
+// the recorded plan, so the reduction keeps the recorded profile, or for a
+// world that recorded none, to the config's profile.
+func shrinkWorkload(cfg *schema.Config, world *schema.World, worldPath string, whole *driver.Plan, skipOps bool) (*driver.Plan, []int64) {
+	if skipOps {
+		return nil, nil
+	}
+	if whole != nil && whole.HasOperations() {
+		return whole, whole.OpIDs()
+	}
+	historyPath := filepath.Join(filepath.Dir(worldPath), "history.jsonl")
+	if _, err := os.Stat(historyPath); err != nil {
+		return nil, nil
+	}
+	ext, err := driver.ExtractOpsFromFile(historyPath, driver.ExtractOptions{AllowMissingPinned: true})
+	if err != nil || len(ext.Ops) == 0 {
+		return nil, nil
+	}
+	base := whole
+	if base == nil {
+		if base, err = driver.NewPlan(cfg, world.DriverProfile, historyPath, world.Seed); err != nil {
+			return nil, nil
+		}
+	}
+	full, err := ext.Plan(base)
+	if err != nil {
+		return nil, nil
+	}
+	return full, full.OpIDs()
+}
+
 type shrinkRunnerExecutor struct {
-	runner   *control.Runner
-	seed     uint64
+	runner *control.Runner
+	seed   uint64
+	// wholePlan is what a candidate that keeps every operation drives: the
+	// supplied or recorded plan, or nil for a workload regenerated from the
+	// config (a world that recorded none).
+	wholePlan *driver.Plan
+	// fullPlan is the operation plan a reduced candidate is a subset of.
 	fullPlan *driver.Plan
 	ordinal  int
 }
 
-func (e *shrinkRunnerExecutor) Execute(ctx context.Context, c shrink.Candidate) (shrink.Attempt, error) {
-	e.ordinal++
-	var plan *driver.Plan
+// planFor is the plan candidate c drives.
+func (e *shrinkRunnerExecutor) planFor(c shrink.Candidate) (*driver.Plan, error) {
 	if c.Ops != nil && e.fullPlan != nil {
 		p, err := e.fullPlan.Subset(c.Ops)
 		if err != nil {
-			return shrink.Attempt{Err: fmt.Errorf("plan subset: %w", err)}, nil
+			return nil, fmt.Errorf("plan subset: %w", err)
 		}
-		plan = p
+		return p, nil
+	}
+	return e.wholePlan, nil
+}
+
+func (e *shrinkRunnerExecutor) Execute(ctx context.Context, c shrink.Candidate) (shrink.Attempt, error) {
+	e.ordinal++
+	plan, err := e.planFor(c)
+	if err != nil {
+		return shrink.Attempt{Err: err}, nil
 	}
 
 	seed := e.seed
@@ -549,8 +604,16 @@ func (e *shrinkRunnerExecutor) Execute(ctx context.Context, c shrink.Candidate) 
 	//
 	// Nothing about that is detectable from the oracle verdict, which is why it
 	// has to be checked here, against the artifact the driver actually wrote.
-	if plan != nil && c.Ops != nil {
-		if err := planWasHonoured(out.Paths.History, len(c.Ops)); err != nil {
+	//
+	// The same holds for an operation plan driven whole: a driver that ignored
+	// it judged every candidate on a workload nobody chose.
+	if plan != nil && plan.HasOperations() {
+		if err := planWasHonoured(out.Paths.History, len(plan.Operations)); err != nil {
+			if c.Ops == nil {
+				err = fmt.Errorf("the driver ignored the operation plan this shrink drives: %d operation(s) "+
+					"were planned and the history records more. Wire {plan_path} / $PROTHESIS_PLAN_PATH "+
+					"into the driver (D-021)", len(plan.Operations))
+			}
 			return shrink.Attempt{Err: err}, nil
 		}
 	}

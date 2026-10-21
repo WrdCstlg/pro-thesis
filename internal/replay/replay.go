@@ -96,10 +96,15 @@ type Options struct {
 	// KeepUp leaves the topology standing after the LAST attempt.
 	KeepUp bool
 
-	// Plan is the driver plan the world recorded (LoadRecordedPlan). Every
-	// attempt drives it instead of a plan regenerated from the current config.
-	// Nil only for a world that recorded none.
+	// Plan is the driver plan every attempt drives instead of one regenerated
+	// from the current config: the world's recorded plan, or a supplied one
+	// (ChoosePlan). Nil only for a world that recorded none and no plan
+	// supplied. An operation plan is checked against each attempt's history,
+	// and an attempt whose driver did not execute it is inconclusive.
 	Plan *driver.Plan
+	// Workload is PlanChoice.Workload: the digest of a supplied workload that
+	// is not the one the world recorded. The report and verdict carry it.
+	Workload string
 
 	// Now is the clock, for tests. Nil means time.Now.
 	Now func() time.Time
@@ -137,6 +142,9 @@ type Report struct {
 	ShortID   string
 	Seed      uint64
 	Schedule  ScheduleChoice
+	// Workload is set when the attempts drove a supplied workload other than
+	// the world's recorded one (Options.Workload).
+	Workload string
 
 	Expect     shrink.Identity
 	Strictness shrink.Strictness
@@ -237,6 +245,7 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 		ShortID:    shortID,
 		Seed:       opts.World.Seed,
 		Schedule:   choice,
+		Workload:   opts.Workload,
 		Expect:     opts.Expect,
 		Strictness: opts.Strictness,
 		MatchRule:  matchRule(opts.Expect, opts.Strictness),
@@ -294,6 +303,9 @@ func Run(ctx context.Context, opts Options) (Report, error) {
 
 		exec := opts.Exec.Execute(ctx, req)
 		att := judge(i, exec, opts.Expect, opts.Strictness)
+		if opts.Plan != nil && opts.Plan.HasOperations() {
+			att = planExecuted(att, opts.Plan, exec.Paths.History)
+		}
 		rep.Attempts = append(rep.Attempts, att)
 
 		tracef(opts.Trace, "attempt %d/%d: %s (%s) in %s", i, k, att.Signal, att.Outcome, att.Duration.Round(time.Millisecond))
@@ -413,6 +425,35 @@ func judge(n int, exec Execution, expect shrink.Identity, strict shrink.Strictne
 		att.Signal = SignalNotReproduced
 		att.Reason = "the world ran and every oracle was satisfied"
 	}
+	return att
+}
+
+// planExecuted checks a judged attempt against the operation plan it drove.
+//
+// The driver is an external process and cannot be asked whether it executed
+// the trace it was handed; a driver that generated its own workload instead
+// writes a well-formed history whose verdict is about operations nobody chose.
+// The history's op ids are the only evidence (driver.VerifyReplay). An attempt
+// whose driver did not execute the plan, or never issued the plan's pinned
+// witness operations, establishes nothing about this world either way, so it is
+// UNKNOWN whatever its oracles said, and a violation it found is not counted as
+// divergent from the one being replayed.
+func planExecuted(att Attempt, plan *driver.Plan, historyPath string) Attempt {
+	if att.Signal == SignalUnknown {
+		return att
+	}
+	why := ""
+	if c, err := driver.VerifyReplay(plan, historyPath); err != nil {
+		why = "the operation plan could not be checked against the history: " + err.Error()
+	} else if !c.Honoured || !c.Checkable {
+		why = c.Reason()
+	}
+	if why == "" {
+		return att
+	}
+	att.Signal = SignalUnknown
+	att.Divergent = nil
+	att.Reason = why
 	return att
 }
 
