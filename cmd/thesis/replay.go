@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -32,6 +33,13 @@ Flags:
   --profile NAME    run profile to execute under. Default: the profile whose
                     driver_profile matches the world's.
   --budget DUR      wall budget for the whole replay (invariant I7).
+  --plan PATH       drive this operation plan (prothesis.driver_plan/v1 with an
+                    operations trace) exactly, instead of the world's recorded
+                    workload: e.g. one an external generator emitted or op-level
+                    ddmin reduced. The world's seed and schedule are kept; an
+                    attempt whose driver did not execute the plan is
+                    inconclusive. A plan that is not the recorded workload is
+                    named in the verdict's trials.workload.
   --trace           print the schedule decision and every attempt as it happens.
   --attach          echo the system under test's node logs to this terminal.
   --keep-up         leave the topology standing after the last attempt.
@@ -47,6 +55,7 @@ func cmdReplay(ctx context.Context, g globals, args []string) schema.ExitCode {
 		attempts int
 		expect   string
 		profile  string
+		planArg  string
 		budget   time.Duration
 		trace    bool
 		attach   bool
@@ -98,6 +107,14 @@ func cmdReplay(ctx context.Context, g globals, args []string) schema.ExitCode {
 			}
 			i = ni
 			profile = v
+		case a == "--plan" || strings.HasPrefix(a, "--plan="):
+			v, ni, err := flagValue(args, i, "--plan")
+			if err != nil {
+				errorf("replay: %v", err)
+				return schema.ExitConfigError
+			}
+			i = ni
+			planArg = v
 		case a == "--budget" || strings.HasPrefix(a, "--budget="):
 			v, ni, err := flagValue(args, i, "--budget")
 			if err != nil {
@@ -182,16 +199,16 @@ func cmdReplay(ctx context.Context, g globals, args []string) schema.ExitCode {
 	// need a BOOT hook the runner does not expose. Claiming one would be claiming
 	// a capability this does not have.
 	quiet := g.quiet && !attach
-	// The workload the world recorded, checked against its plan_digest. A world
-	// that names its workload is not replayed without it: that would drive what
-	// the config says today, which is a different world.
-	recordedPlan, planNote, err := replay.LoadRecordedPlan(worldPath, world)
-	if err != nil {
-		errorf("%v", err)
-		return schema.ExitInconclusive
+	// The workload: a supplied plan, driven exactly, or the one the world
+	// recorded, checked against its plan_digest. A world that names its
+	// workload is not replayed without it: that would drive what the config
+	// says today, which is a different world.
+	workload, code := choosePlan("replay", worldPath, world, planArg)
+	if code != schema.ExitPass {
+		return code
 	}
 	if !g.quiet || trace {
-		fmt.Fprintf(os.Stderr, "thesis: replay: %s\n", planNote)
+		fmt.Fprintf(os.Stderr, "thesis: replay: %s\n", workload.Note)
 	}
 
 	runner, err := runnerFor(p, profile, runID, quiet, 0, worldVariant(world))
@@ -229,7 +246,8 @@ func cmdReplay(ctx context.Context, g globals, args []string) schema.ExitCode {
 		Budget:     budget,
 		KeepUp:     keepUp,
 		Trace:      traceW,
-		Plan:       recordedPlan,
+		Plan:       workload.Plan,
+		Workload:   workload.Workload,
 	})
 	if err != nil {
 		errorf("replay: %v", err)
@@ -260,6 +278,23 @@ func cmdReplay(ctx context.Context, g globals, args []string) schema.ExitCode {
 		printReplayReport(rep, keepUp)
 	}
 	return rep.ExitCode()
+}
+
+// choosePlan resolves the workload `replay` and `shrink` drive. A --plan that
+// cannot be driven is the caller's argument error (exit 5); a world whose
+// recorded plan is missing or wrong cannot be replayed as itself (exit 2).
+func choosePlan(cmd, worldPath string, world *schema.World, planArg string) (replay.PlanChoice, schema.ExitCode) {
+	c, err := replay.ChoosePlan(worldPath, world, planArg)
+	var supplied *replay.SuppliedPlanError
+	switch {
+	case errors.As(err, &supplied):
+		errorf("%s: --plan: %v", cmd, err)
+		return c, schema.ExitConfigError
+	case err != nil:
+		errorf("%s: %v", cmd, err)
+		return c, schema.ExitInconclusive
+	}
+	return c, schema.ExitPass
 }
 
 // printAttachedLogs echoes each node's collected log.
@@ -293,6 +328,9 @@ func printReplayReport(rep replay.Report, keepUp bool) {
 	fmt.Printf("\n--- PRO-THESIS REPLAY ---\n")
 	fmt.Printf("World:      %s\n", rep.WorldPath)
 	fmt.Printf("Identity:   %s (seed %d)\n", rep.WorldHash, rep.Seed)
+	if rep.Workload != "" {
+		fmt.Printf("Workload:   %s (SUPPLIED, not the world's recorded workload)\n", rep.Workload)
+	}
 	fmt.Printf("Schedule:   %s\n", rep.Schedule.Summary())
 	for _, f := range rep.Schedule.Faults {
 		fmt.Printf("              %s\n", f)
@@ -383,6 +421,9 @@ func emitReplayJSON(rep replay.Report, runDir, projectDir string) {
 		"elapsed_ms":      rep.Elapsed.Milliseconds(),
 		"artifacts":       control.RelativeArtifacts(projectDir, runDir),
 		"exit_code":       int(rep.ExitCode()),
+	}
+	if rep.Workload != "" {
+		doc["workload"] = rep.Workload
 	}
 	b, _ := json.MarshalIndent(doc, "", "  ")
 	fmt.Println(string(b))
