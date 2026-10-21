@@ -611,6 +611,9 @@ type worldSpec struct {
 	// expectImages are the images this world must boot on (replay). See
 	// WorldRequest.ExpectImages.
 	expectImages []schema.SUTImage
+	// driverProfile overrides the run profile's driver profile for this world
+	// (a search proposal). See WorldRequest.DriverProfile.
+	driverProfile string
 	// env is the per-world environment for compose and for the driver. Empty
 	// for a serial run; the parallel executor fills it so each world publishes
 	// its own host ports (D-042).
@@ -879,6 +882,18 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 	ordinal := spec.ordinal - 1 // legacy 0-based index used in messages below
 	worldSeed := spec.seed
 	paths := spec.paths
+
+	// The workload this world drives and records: the request's, when it names
+	// one, else the run profile's.
+	driverProfile := r.driverProfile
+	if spec.driverProfile != "" {
+		if _, ok := r.cfg.Driver.Profiles[spec.driverProfile]; !ok {
+			return worldResult{outcome: OutcomeHarnessError, paths: paths},
+				fmt.Errorf("control: world %d names driver profile %q, which is not an entry of "+
+					"driver.profiles", spec.ordinal, spec.driverProfile)
+		}
+		driverProfile = spec.driverProfile
+	}
 
 	if err := os.MkdirAll(paths.Dir, 0o755); err != nil {
 		return worldResult{outcome: OutcomeHarnessError, paths: paths}, err
@@ -1184,7 +1199,7 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 	// and availability_after_heal returned verdicts about a system nothing had
 	// driven. That is a world reporting on a system it never exercised, which is
 	// the one thing this codebase refuses to do, so the error is now FATAL.
-	plan, err := driver.NewPlan(r.cfg, r.driverProfile, paths.History, worldSeed)
+	plan, err := driver.NewPlan(r.cfg, driverProfile, paths.History, worldSeed)
 	if err != nil {
 		return worldResult{outcome: OutcomeHarnessError, paths: paths, timeline: timeline},
 			fmt.Errorf("driver plan: %w", err)
@@ -1216,7 +1231,7 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 		HistoryPath:  paths.History,
 		PlanPath:     planPath,
 		Seed:         worldSeed,
-		Profile:      r.driverProfile,
+		Profile:      driverProfile,
 		Topology:     topology,
 		Env:          r.worldEnv(spec),
 		// Ask for the control channel whenever draining is enabled. A driver
@@ -1405,7 +1420,7 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 	// open it; evaluating first made the path name a file that did not exist yet.
 	// Its contents are already fixed here: the schedule ran, the images were
 	// resolved, and these are the phase timings the oracles are given.
-	world := schema.NewWorld(worldSeed, r.variant, r.driverProfile)
+	world := schema.NewWorld(worldSeed, r.variant, driverProfile)
 	world.PlanDigest = planDigest
 	world.PhaseTimings = timings
 	world.FaultSchedule.Planned = plannedOf(perturb)
