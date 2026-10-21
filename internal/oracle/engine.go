@@ -35,6 +35,27 @@ func (e *PhaseError) Error() string {
 
 func (e *PhaseError) Unwrap() error { return ErrPhaseInvalid }
 
+// ErrNotEvaluated marks a finding for a registered oracle that the engine did
+// not evaluate, because the phase it evaluated in is not one the oracle
+// declares. Such a finding is inconclusive: the property was never checked.
+var ErrNotEvaluated = errors.New("oracle: registered but not evaluated")
+
+// NotEvaluatedError is the cause carried by a not-evaluated finding.
+type NotEvaluatedError struct {
+	Oracle string
+	Phase  schema.Phase
+	Valid  []schema.Phase
+}
+
+func (e *NotEvaluatedError) Error() string {
+	return fmt.Sprintf("oracle %q declares %s and was never evaluated: this harness evaluates a "+
+		"world's oracles once, in %s, so the property it checks was not checked; add %s to its "+
+		"valid_phases (it then judges the whole recorded history, and first_seen_ms still places a "+
+		"violation in the phase it was observed)", e.Oracle, PhaseList(e.Valid), e.Phase, e.Phase)
+}
+
+func (e *NotEvaluatedError) Unwrap() error { return ErrNotEvaluated }
+
 // ---------------------------------------------------------------------------
 // engine
 // ---------------------------------------------------------------------------
@@ -202,6 +223,59 @@ func (e *Engine) EvaluateAt(ctx context.Context, p schema.Phase, in *Input) (Fin
 		out = append(out, f)
 	}
 	return out, nil
+}
+
+// EvaluateEvery evaluates every registered oracle that is valid in p and
+// returns one finding for EVERY registered oracle, in registration order.
+//
+// It is the world-level entry point. EvaluateAt answers "what do the oracles
+// valid here say", and its selection silently drops the rest, which is right
+// for a phase-aware caller and wrong for the one evaluation that decides a
+// world: an oracle dropped there is a configured check that never ran and that
+// nothing records. Here such an oracle comes back inconclusive with a
+// *NotEvaluatedError, so the world cannot pass over it.
+func (e *Engine) EvaluateEvery(ctx context.Context, p schema.Phase, in *Input) (Findings, error) {
+	if !p.Valid() {
+		return nil, fmt.Errorf("oracle: %q is not one of the eight lifecycle phases %v", p, schema.AllPhases)
+	}
+	out := make(Findings, 0, len(e.oracles))
+	for _, o := range e.oracles {
+		if !ValidIn(o, p) {
+			cause := &NotEvaluatedError{Oracle: o.Name(), Phase: p, Valid: append([]schema.Phase(nil), o.ValidPhases()...)}
+			out = append(out, Finding{
+				Oracle:      o.Name(),
+				Class:       o.Class(),
+				ValidPhases: append([]schema.Phase(nil), o.ValidPhases()...),
+				EvaluatedIn: p,
+				Result: Result{
+					Status:      schema.StatusInconclusive,
+					Phase:       p,
+					Explanation: cause.Error(),
+				},
+				Err: cause,
+			})
+			continue
+		}
+		f, err := e.EvaluateOracleAt(ctx, o, p, in)
+		if err != nil {
+			return out, err
+		}
+		out = append(out, f)
+	}
+	return out, nil
+}
+
+// Unevaluable returns the names of the registered oracles that are not valid
+// in p, sorted. A caller that evaluates only in p uses it to refuse such a set
+// before anything runs.
+func (e *Engine) Unevaluable(p schema.Phase) []string {
+	_, skipped := e.SelectFor(p)
+	out := make([]string, 0, len(skipped))
+	for _, o := range skipped {
+		out = append(out, o.Name())
+	}
+	sort.Strings(out)
+	return out
 }
 
 // safeEvaluate runs an oracle and converts a panic into an error.

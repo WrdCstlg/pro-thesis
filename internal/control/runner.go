@@ -176,6 +176,15 @@ func NewRunner(opts RunnerOptions) (*Runner, error) {
 			"of driver.profiles", profile, driverProfile)
 	}
 
+	// Before the run directory is allocated, so a refused oracle set leaves
+	// nothing behind. Only the production engine is checked: a caller that
+	// supplies its own engine has taken over evaluation.
+	if opts.OracleEngine == nil {
+		if err := checkOraclesEvaluable(cfg, absProjDir); err != nil {
+			return nil, err
+		}
+	}
+
 	seed := opts.Seed
 	if seed == 0 {
 		seed = uint64(time.Now().UnixNano())
@@ -1791,11 +1800,41 @@ func (e *defaultOracleEngine) Evaluate(ctx context.Context, req EvalRequest) ([]
 		return nil, err
 	}
 
-	findings, err := engine.EvaluateAt(ctx, schema.PhaseAssert, input)
+	// EvaluateEvery, not EvaluateAt: every registered oracle comes back with a
+	// finding, and one that cannot be evaluated here comes back inconclusive
+	// instead of being dropped by selection and recorded nowhere.
+	findings, err := engine.EvaluateEvery(ctx, schema.PhaseAssert, input)
 	if err != nil {
 		return nil, err
 	}
 	return oracleResultsOf(findings), nil
+}
+
+// checkOraclesEvaluable refuses, before anything is allocated or booted, an
+// oracle set that contains an oracle this runner can never evaluate.
+//
+// A world's oracles are evaluated once, at ASSERT, over the whole recorded
+// history; valid_phases then decides where a violation counts. An oracle whose
+// valid_phases leaves ASSERT out would never run. Refusing here is the fail-fast
+// half of the rule; EvaluateEvery's inconclusive finding is the half that holds
+// if a set reaches ASSERT anyway.
+//
+// A set that does not build at all is left to the per-world path, which already
+// refuses it with the discovery error as the world's reason; that behaviour and
+// its exit code are unchanged by this check.
+func checkOraclesEvaluable(cfg *schema.Config, projectDir string) error {
+	engine, _, err := oracle.NewEngineForConfig(cfg, oracle.DefaultOptions(),
+		oracle.ExternalOptions{ProjectDir: projectDir})
+	if err != nil {
+		return nil
+	}
+	if names := engine.Unevaluable(schema.PhaseAssert); len(names) > 0 {
+		return fmt.Errorf("control: oracle(s) %s declare valid_phases without ASSERT, the only phase "+
+			"a world's oracles are evaluated in; they would never run, and a world they were meant to "+
+			"judge could pass unchecked. Add ASSERT to their valid_phases",
+			strings.Join(names, ", "))
+	}
+	return nil
 }
 
 // buildOracleInput assembles what every oracle is handed for one world.
