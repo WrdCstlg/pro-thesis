@@ -114,5 +114,11 @@ profiles:
   # history (PHASE3_BUILD_BRIEF D-A). `worlds: -1` lets the wall budget be the
   # only ceiling, so `--budget 30m` and `--worlds N` mean exactly what they say.
   search: { budget: 30m, worlds: -1, driver_profile: linear, search: true }
+  # One-world copies for the evaluation suite (eval/manifest.yaml): each is its
+  # source profile with `worlds: 1` and nothing else changed, so an arm is one
+  # un-narrowed world per run, its seed set per run with --seed. The kvfixed copy
+  # pins the corrected build through harness.variant_env.
+  p2-linear: { budget: 10m, worlds: 1, driver_profile: linear, faults: ["net.partition(role:leader)@3000..7500"] }
+  p2-linear-kvfixed: { budget: 10m, worlds: 1, driver_profile: linear, variant: kvfixed, faults: ["net.partition(role:leader)@3000..7500"] }
 
 artifacts: { dir: .prothesis/runs, retain_passing: 3, retain_failing: all }

@@ -84,5 +84,9 @@ profiles:
   smoke: { budget: 120s, worlds: 1, driver_profile: smoke }
   # The primary is the leader the role probe names.
   failover: { budget: 10m, worlds: 2, driver_profile: failover, faults: ["net.partition(role:leader)@3000..7500"] }
+  # One-world copy for the evaluation suite (eval/manifest.yaml): the source
+  # profile with `worlds: 1` and nothing else changed, so an arm is one
+  # un-narrowed world per run, its seed set per run with --seed.
+  p2-failover: { budget: 10m, worlds: 1, driver_profile: failover, faults: ["net.partition(role:leader)@3000..7500"] }
 
 artifacts: { dir: .prothesis/runs, retain_passing: 3, retain_failing: all }

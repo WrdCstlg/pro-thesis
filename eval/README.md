@@ -28,6 +28,10 @@ verdict about the target systems.
 
 ## Operating rules
 
+- A P2 or P3 arm is N runs of exactly one world each: `thesis run --arm <id> --seed <s>` for every run
+  seed `s` in the arm's `seeds`, under the arm's one-world profile (`p2-<source>`, the source profile
+  with `worlds: 1`). A run whose world count was narrowed on the command line cannot report PASS, and a
+  multi-world run stops at its first violating world, so neither counts as one of the N.
 - Every arm is launched from its target's project directory, and after every world the target's
   compose-labelled volumes are checked and the count recorded with the run id. A world that started
   on another world's storage is excluded from the precision and reproducibility figures and

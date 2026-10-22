@@ -1,8 +1,8 @@
 {
   "schema": "prothesis.lock/v1",
-  "manifest_sha": "sha256:2db191547b432dadfb2f1383ebb2d60535f942e24ad5c9efc3bb153e7e5ca8c6",
-  "reason": "Re-locked from a clean scripts/build.ps1 -Verify build of 5a0bffe (two builds byte-identical). linearizable-kv.exe links pkg/schema, which changed after the previous lock: the calibration types and the verdict seed, arm, expected and calibration members (381ea1f), the trials workload member (601ebbc), and the known-problem arm and false_rejection predicates (5a0bffe). No definition or covered key moved. rqliteload.exe links no harness package and is unchanged.",
-  "locked_at": "2026-10-21T19:19:12Z",
+  "manifest_sha": "sha256:adcd4d71c507dc2fc6d1ca7fb6de75f460299a1b109575fe8ad6120ea608582b",
+  "reason": "Adds one-world evaluation profiles p2-linear, p2-weak and p2-none: copies of linear, weak and none with worlds: 1. No program changed, and no existing key moved (oracles verify listed only ADDED keys before this lock).",
+  "locked_at": "2026-10-22T23:43:06Z",
   "tool_version": "0.1.0-phase0",
   "builtin_options_fingerprint": "sha256:ca5cba3edb828e29bd4b1357c9ff2d86ae2e3eb6a6bd009a2430b076304064bf",
   "executables": [
@@ -411,6 +411,66 @@
         "path": "profiles.none.worlds",
         "kind": "scalar",
         "value": "2"
+      },
+      {
+        "path": "profiles.p2-linear.budget",
+        "kind": "scalar",
+        "value": "10m"
+      },
+      {
+        "path": "profiles.p2-linear.driver_profile",
+        "kind": "scalar",
+        "value": "linear"
+      },
+      {
+        "path": "profiles.p2-linear.faults",
+        "kind": "scalar",
+        "value": "net.partition(role:leader)@3000..7500"
+      },
+      {
+        "path": "profiles.p2-linear.worlds",
+        "kind": "scalar",
+        "value": "1"
+      },
+      {
+        "path": "profiles.p2-none.budget",
+        "kind": "scalar",
+        "value": "10m"
+      },
+      {
+        "path": "profiles.p2-none.driver_profile",
+        "kind": "scalar",
+        "value": "none"
+      },
+      {
+        "path": "profiles.p2-none.faults",
+        "kind": "scalar",
+        "value": "net.partition(role:leader)@3000..7500"
+      },
+      {
+        "path": "profiles.p2-none.worlds",
+        "kind": "scalar",
+        "value": "1"
+      },
+      {
+        "path": "profiles.p2-weak.budget",
+        "kind": "scalar",
+        "value": "10m"
+      },
+      {
+        "path": "profiles.p2-weak.driver_profile",
+        "kind": "scalar",
+        "value": "weak"
+      },
+      {
+        "path": "profiles.p2-weak.faults",
+        "kind": "scalar",
+        "value": "net.partition(role:leader)@3000..7500"
+      },
+      {
+        "path": "profiles.p2-weak.worlds",
+        "kind": "scalar",
+        "value": "1"
       },
       {
         "path": "profiles.smoke.budget",

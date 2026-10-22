@@ -7,14 +7,19 @@
 #   target        project directory under the repository
 #   control       harness | positive | negative | discriminating | oracle-discipline
 #   variant       the configuration that defines the arm
-#   profile       the lock-covered run profile the arm runs under (its faults live in the profile)
+#   profile       the lock-covered run profile the arm runs under (its faults live in the profile).
+#                 A P2 or P3 arm names a one-world profile (`p2-<source>`: the source profile
+#                 with `worlds: 1`), so every run is exactly one un-narrowed world
 #   fault_basis   the schedule the profile carries
 #   expected      the exit code the arm is designed to produce; the prediction file may disagree
+#   target_oracle for an expected-FAIL arm, the oracle whose violation counts as the catch; a FAIL
+#                 raised only by another oracle does not
 #   oracles       the oracle set judging the arm
-#   n             worlds per phase
-#   seeds         seed set per phase
+#   n             runs per phase; each run is one world under the arm's profile
+#   seeds         run seeds per phase (`thesis run --seed`), one run per seed; each world's seed is
+#                 derived from its run's
 #   prediction    the pre-registration file
-#   status        planned | registered | running | scored | archived | unmeasured
+#   status        planned | registered | running | scored | archived | unmeasured | deferred
 #   note          anything a reader must know before trusting the row
 
 schema: eval_manifest/v1
@@ -26,9 +31,10 @@ arms:
     target: testdata/kvfixture
     control: harness
     variant: planted stale read present (KV_VARIANT unset)
-    profile: linear
-    fault_basis: standard_fault (profile linear)
+    profile: p2-linear
+    fault_basis: standard_fault (profile p2-linear)
     expected: 1
+    target_oracle: linearizable.kv
     oracles: locked set (linearizable.kv and the built-ins)
     n: {P2: 10, P3: 30}
     seeds: {P2: "1-10", P3: "101-130"}
@@ -39,9 +45,9 @@ arms:
     tier: 1
     target: testdata/kvfixture
     control: harness
-    variant: kvfixed build (KV_VARIANT=kvfixed)
-    profile: linear
-    fault_basis: standard_fault (profile linear)
+    variant: kvfixed build (KV_VARIANT=kvfixed, pinned by the profile)
+    profile: p2-linear-kvfixed
+    fault_basis: standard_fault (profile p2-linear-kvfixed)
     expected: 0
     oracles: locked set
     n: {P2: 10, P3: 30}
@@ -54,8 +60,8 @@ arms:
     target: targets/etcd
     control: negative
     variant: linearizable reads (existing anchor arm)
-    profile: linear
-    fault_basis: standard_fault (profile linear)
+    profile: p2-linear
+    fault_basis: standard_fault (profile p2-linear)
     expected: 0
     oracles: locked set
     n: {P2: 10, P3: 30}
@@ -69,7 +75,7 @@ arms:
     target: targets/rqlite
     control: negative
     variant: reads at level=linearizable, writes to the leader only
-    profile: linear
+    profile: p2-linear
     fault_basis: standard_fault
     expected: 0
     oracles: locked set
@@ -85,9 +91,10 @@ arms:
     target: targets/rqlite
     control: discriminating
     variant: default read level (weak)
-    profile: weak
+    profile: p2-weak
     fault_basis: standard_fault
     expected: 1
+    target_oracle: linearizable.kv
     oracles: locked set
     n: {P2: 10, P3: 30}
     seeds: {P2: "1-10", P3: "101-130"}
@@ -101,9 +108,10 @@ arms:
     target: targets/rqlite
     control: positive
     variant: reads at level=none (local, unbounded staleness)
-    profile: none
+    profile: p2-none
     fault_basis: standard_fault
     expected: 1
+    target_oracle: linearizable.kv
     oracles: locked set
     n: {P2: 10, P3: 30}
     seeds: {P2: "1-10", P3: "101-130"}
@@ -118,21 +126,26 @@ arms:
     profile: linear
     fault_basis: standard_fault
     expected: 1
+    target_oracle: linearizable.kv
     oracles: locked set
     n: {P3: 30, P7: "curve, shrink, k=5 replay"}
     seeds: {P3: "101-130"}
     prediction: eval/predictions/RQ-04.md
-    status: planned
-    note: the seeded-defect study (phase P7).
+    status: deferred
+    note: the seeded-defect study (phase P7). Deferred and not part of P2. No seeded-defect build
+      exists (the target runs the upstream image pinned by digest); building one (a source build, a
+      variant_env, a one-world profile and a re-lock) is a new capability that needs its own decision
+      before P3 or P7.
 
   - id: CO-01
     tier: 1
     target: targets/consul
     control: discriminating
     variant: default read mode
-    profile: default
+    profile: p2-default
     fault_basis: standard_fault
     expected: 1
+    target_oracle: linearizable.kv
     oracles: locked set
     n: {P2: 10, P3: 30}
     seeds: {P2: "1-10", P3: "101-130"}
@@ -146,9 +159,10 @@ arms:
     target: targets/consul
     control: discriminating
     variant: "?stale reads"
-    profile: stale
+    profile: p2-stale
     fault_basis: standard_fault
     expected: 1
+    target_oracle: linearizable.kv
     oracles: locked set
     n: {P2: 10, P3: 30}
     seeds: {P2: "1-10", P3: "101-130"}
@@ -160,7 +174,7 @@ arms:
     target: targets/consul
     control: negative
     variant: "?consistent reads"
-    profile: consistent
+    profile: p2-consistent
     fault_basis: standard_fault
     expected: 0
     oracles: locked set
@@ -174,9 +188,10 @@ arms:
     target: targets/redis
     control: positive
     variant: primary, replica, sentinel failover; asynchronous replication
-    profile: failover
+    profile: p2-failover
     fault_basis: standard_fault
     expected: 1
+    target_oracle: linearizable.kv
     oracles: locked set
     n: {P2: 10, P3: 30}
     seeds: {P2: "1-10", P3: "101-130"}
