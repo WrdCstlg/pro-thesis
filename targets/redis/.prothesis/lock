@@ -1,8 +1,8 @@
 {
   "schema": "prothesis.lock/v1",
-  "manifest_sha": "sha256:068ab3129efaa862c2c3cad1916a33b1f7c957d7cc57269c35fb5e300001a1ef",
-  "reason": "Re-locked from a clean scripts/build.ps1 -Verify build of 5a0bffe (two builds byte-identical). linearizable-kv.exe links pkg/schema, which changed after the previous lock: the calibration types and the verdict seed, arm, expected and calibration members (381ea1f), the trials workload member (601ebbc), and the known-problem arm and false_rejection predicates (5a0bffe). No definition or covered key moved. redisload.exe links no harness package and is unchanged.",
-  "locked_at": "2026-10-21T19:19:13Z",
+  "manifest_sha": "sha256:d284293dabc9d383502b0e03d8751ed5a795aa67c78ac11ea2ba45b8a091fcf4",
+  "reason": "Adds the one-world evaluation profile p2-failover: a copy of failover with worlds: 1. No program changed, and no existing key moved (oracles verify listed only ADDED keys before this lock).",
+  "locked_at": "2026-10-22T23:43:06Z",
   "tool_version": "0.1.0-phase0",
   "builtin_options_fingerprint": "sha256:ca5cba3edb828e29bd4b1357c9ff2d86ae2e3eb6a6bd009a2430b076304064bf",
   "executables": [
@@ -331,6 +331,26 @@
         "path": "profiles.failover.worlds",
         "kind": "scalar",
         "value": "2"
+      },
+      {
+        "path": "profiles.p2-failover.budget",
+        "kind": "scalar",
+        "value": "10m"
+      },
+      {
+        "path": "profiles.p2-failover.driver_profile",
+        "kind": "scalar",
+        "value": "failover"
+      },
+      {
+        "path": "profiles.p2-failover.faults",
+        "kind": "scalar",
+        "value": "net.partition(role:leader)@3000..7500"
+      },
+      {
+        "path": "profiles.p2-failover.worlds",
+        "kind": "scalar",
+        "value": "1"
       },
       {
         "path": "profiles.smoke.budget",

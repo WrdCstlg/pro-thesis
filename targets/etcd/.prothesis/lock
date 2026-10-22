@@ -1,8 +1,8 @@
 {
   "schema": "prothesis.lock/v1",
-  "manifest_sha": "sha256:a0b232ac2f8fd89f3a4e9e33fb26e40531966a019178ef4dba922ab773b1a046",
-  "reason": "Re-locked from a clean scripts/build.ps1 -Verify build of 5a0bffe (two builds byte-identical). linearizable-kv.exe links pkg/schema, which changed after the previous lock: the calibration types and the verdict seed, arm, expected and calibration members (381ea1f), the trials workload member (601ebbc), and the known-problem arm and false_rejection predicates (5a0bffe). No definition or covered key moved. etcdload.exe links pkg/schema as well and moved for the same reason.",
-  "locked_at": "2026-10-21T19:19:12Z",
+  "manifest_sha": "sha256:f8aa6b1d797067c02b82aa1194b26737e4f7060a1047f6233b6c6fb15ff8f2f8",
+  "reason": "Adds the one-world evaluation profile p2-linear: a copy of linear with worlds: 1. No program changed, and no existing key moved (oracles verify listed only ADDED keys before this lock).",
+  "locked_at": "2026-10-22T23:43:06Z",
   "tool_version": "0.1.0-phase0",
   "builtin_options_fingerprint": "sha256:ca5cba3edb828e29bd4b1357c9ff2d86ae2e3eb6a6bd009a2430b076304064bf",
   "executables": [
@@ -351,6 +351,26 @@
         "path": "profiles.linear.worlds",
         "kind": "scalar",
         "value": "2"
+      },
+      {
+        "path": "profiles.p2-linear.budget",
+        "kind": "scalar",
+        "value": "10m"
+      },
+      {
+        "path": "profiles.p2-linear.driver_profile",
+        "kind": "scalar",
+        "value": "linear"
+      },
+      {
+        "path": "profiles.p2-linear.faults",
+        "kind": "scalar",
+        "value": "net.partition(role:leader)@3000..7500"
+      },
+      {
+        "path": "profiles.p2-linear.worlds",
+        "kind": "scalar",
+        "value": "1"
       },
       {
         "path": "profiles.smoke.budget",

@@ -1,8 +1,8 @@
 {
   "schema": "prothesis.lock/v1",
-  "manifest_sha": "sha256:0719a26f393ba64afa7af6615ab4ed08c0d543e3fb4db1b5535f21637946f058",
-  "reason": "Re-locked from a clean scripts/build.ps1 -Verify build of 5a0bffe (two builds byte-identical). linearizable-kv.exe links pkg/schema, which changed after the previous lock: the calibration types and the verdict seed, arm, expected and calibration members (381ea1f), the trials workload member (601ebbc), and the known-problem arm and false_rejection predicates (5a0bffe). No definition or covered key moved. loadgen.exe links nothing from this module and is unchanged.",
-  "locked_at": "2026-10-21T19:19:12Z",
+  "manifest_sha": "sha256:77a68de16f555d3e639ac45f73a6f20ab4f6c8e7635db565fdf818d79de97bed",
+  "reason": "Adds one-world evaluation profiles p2-linear and p2-linear-kvfixed: copies of linear with worlds: 1; p2-linear-kvfixed also pins variant: kvfixed. No program changed, and no existing key moved (oracles verify listed only ADDED keys before this lock).",
+  "locked_at": "2026-10-22T23:43:06Z",
   "tool_version": "0.1.0-phase0",
   "builtin_options_fingerprint": "sha256:ca5cba3edb828e29bd4b1357c9ff2d86ae2e3eb6a6bd009a2430b076304064bf",
   "executables": [
@@ -391,6 +391,51 @@
         "path": "profiles.linear.worlds",
         "kind": "scalar",
         "value": "5"
+      },
+      {
+        "path": "profiles.p2-linear-kvfixed.budget",
+        "kind": "scalar",
+        "value": "10m"
+      },
+      {
+        "path": "profiles.p2-linear-kvfixed.driver_profile",
+        "kind": "scalar",
+        "value": "linear"
+      },
+      {
+        "path": "profiles.p2-linear-kvfixed.faults",
+        "kind": "scalar",
+        "value": "net.partition(role:leader)@3000..7500"
+      },
+      {
+        "path": "profiles.p2-linear-kvfixed.variant",
+        "kind": "scalar",
+        "value": "kvfixed"
+      },
+      {
+        "path": "profiles.p2-linear-kvfixed.worlds",
+        "kind": "scalar",
+        "value": "1"
+      },
+      {
+        "path": "profiles.p2-linear.budget",
+        "kind": "scalar",
+        "value": "10m"
+      },
+      {
+        "path": "profiles.p2-linear.driver_profile",
+        "kind": "scalar",
+        "value": "linear"
+      },
+      {
+        "path": "profiles.p2-linear.faults",
+        "kind": "scalar",
+        "value": "net.partition(role:leader)@3000..7500"
+      },
+      {
+        "path": "profiles.p2-linear.worlds",
+        "kind": "scalar",
+        "value": "1"
       },
       {
         "path": "profiles.search.budget",

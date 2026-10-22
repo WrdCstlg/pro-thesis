@@ -87,5 +87,11 @@ profiles:
   strong: { budget: 10m, worlds: 2, driver_profile: strong, faults: ["net.partition(role:leader)@3000..7500"] }
   weak: { budget: 10m, worlds: 2, driver_profile: weak, faults: ["net.partition(role:leader)@3000..7500"] }
   none: { budget: 10m, worlds: 2, driver_profile: none, faults: ["net.partition(role:leader)@3000..7500"] }
+  # One-world copies for the evaluation suite (eval/manifest.yaml): each is its
+  # source profile with `worlds: 1` and nothing else changed, so an arm is one
+  # un-narrowed world per run, its seed set per run with --seed.
+  p2-linear: { budget: 10m, worlds: 1, driver_profile: linear, faults: ["net.partition(role:leader)@3000..7500"] }
+  p2-weak: { budget: 10m, worlds: 1, driver_profile: weak, faults: ["net.partition(role:leader)@3000..7500"] }
+  p2-none: { budget: 10m, worlds: 1, driver_profile: none, faults: ["net.partition(role:leader)@3000..7500"] }
 
 artifacts: { dir: .prothesis/runs, retain_passing: 3, retain_failing: all }
