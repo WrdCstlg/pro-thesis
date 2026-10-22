@@ -1,0 +1,27 @@
+# Recorded runs whose search.json records a bridge-network leak (fewer free
+# bridge networks after the run than before) and whose leaked compose projects
+# have since been removed. A run's record keeps its counts forever and is never
+# edited, so the acceptance check TestNoRecordedRunLeakedABridgeNetwork
+# (internal/search/engine) would otherwise fail on it for good.
+#
+# An entry is honoured only while Docker confirms, at check time, that no
+# container and no network of any compose project the run recorded still
+# exists. A listed run whose project survives, a daemon that cannot be asked,
+# a count that differs from the recorded leak, and an entry that matches no
+# recorded leak all fail the check.
+#
+# Each entry: the run, the number of leaked networks it acknowledges (must
+# equal before - after in the run's search.json), the date the absence was
+# confirmed, how it was confirmed, and the ledger id that records the leak.
+runs:
+  - run: r_2026_09_08_5bc6
+    leaked_networks: 2
+    confirmed_absent: "2026-10-21"
+    evidence: >-
+      For each compose project the run recorded (thesis-r_2026_09_08_5bc6-w00
+      to -w03): docker ps -a --filter label=com.docker.compose.project=<project>
+      and docker network ls --filter label=com.docker.compose.project=<project>
+      listed nothing, and no network name starts with "<project>_" (every
+      command exit 0). When and by whom the project was removed is not
+      recorded.
+    ledger: OQ-044
