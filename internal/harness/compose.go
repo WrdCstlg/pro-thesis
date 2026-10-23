@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -86,7 +87,23 @@ func (c *Compose) Up(ctx context.Context, req UpRequest) (*recorder.Topology, er
 		project = ProjectName(cfg, req.ProjectDir)
 	}
 
+	// Compose resolves every --file against its working directory, so every
+	// later invocation for this project must run where this one does, `down`
+	// included, and `down` may run in another process. Recorded absolute, because
+	// a relative project directory means something else from any other directory
+	// (OQ-087).
+	projectDir, err := filepath.Abs(req.ProjectDir)
+	if err != nil {
+		return nil, fmt.Errorf("harness: resolve project directory %q: %w", req.ProjectDir, err)
+	}
+	req.ProjectDir = projectDir
+
 	if err := dockerAvailable(ctx); err != nil {
+		return nil, err
+	}
+
+	storage, err := ensureFreshStorage(ctx, project)
+	if err != nil {
 		return nil, err
 	}
 
@@ -103,6 +120,8 @@ func (c *Compose) Up(ctx context.Context, req UpRequest) (*recorder.Topology, er
 		ComposeFile:    cfg.Harness.File,
 		ComposeProject: project,
 		OverlayFile:    overlayPath,
+		ProjectDir:     projectDir,
+		Storage:        storage,
 	}
 
 	// Bring the project up. --wait makes compose block on its own healthchecks
@@ -133,6 +152,57 @@ func (c *Compose) Up(ctx context.Context, req UpRequest) (*recorder.Topology, er
 		}
 	}
 	return top, nil
+}
+
+// ensureFreshStorage is BOOT's fresh-storage check (OQ-087).
+//
+// A compose project's named volumes outlive its containers, and every serial
+// world of a checkout boots under one project name, so a volume an earlier
+// world left behind is the next world's storage: the fixture replays its Raft
+// log from it (OQ-090). Measured in the evaluation suite's P2: one world booted
+// on three volumes an earlier test run had left in its project.
+//
+// Containers already in the project are refused, never removed: they belong to
+// another world, a kept-up topology or a crashed run, and `compose up` would
+// adopt them and boot on their state. Leftover volumes are removed, since no
+// container of the project can be using them, and counted again; if any
+// survive, the world cannot boot fresh and Up refuses.
+func ensureFreshStorage(ctx context.Context, project string) (*recorder.StorageCheck, error) {
+	const label = "com.docker.compose.project"
+	ids, err := containersByLabel(ctx, label, project)
+	if err != nil {
+		return nil, fmt.Errorf("harness: fresh-storage check: list the containers of %s: %w", project, err)
+	}
+	if len(ids) > 0 {
+		return nil, fmt.Errorf("harness: compose project %s already has %d container(s), so this world "+
+			"cannot boot fresh: another world, a kept-up topology or a crashed run is using it. Tear it down "+
+			"first (`thesis down`, or `docker compose --project-name %s down --volumes`) (OQ-087)",
+			project, len(ids), project)
+	}
+	found, err := volumesByLabel(ctx, label, project)
+	if err != nil {
+		return nil, fmt.Errorf("harness: fresh-storage check: list the volumes of %s: %w", project, err)
+	}
+	check := &recorder.StorageCheck{Found: append([]string{}, found...), Removed: []string{}}
+	if len(found) > 0 {
+		_, rmErr := run(ctx, "", append([]string{"volume", "rm"}, found...)...)
+		left, err := volumesByLabel(ctx, label, project)
+		if err != nil {
+			return nil, fmt.Errorf("harness: fresh-storage check: list the volumes of %s again: %w", project, err)
+		}
+		for _, v := range found {
+			if !slices.Contains(left, v) {
+				check.Removed = append(check.Removed, v)
+			}
+		}
+		if len(left) > 0 {
+			return nil, fmt.Errorf("harness: compose project %s still has volume(s) %s from an earlier world "+
+				"and they could not be removed (%v), so this world cannot boot fresh (OQ-087)",
+				project, strings.Join(left, ", "), rmErr)
+		}
+	}
+	check.Fresh = true
+	return check, nil
 }
 
 // writeOverlay generates the compose overlay that stamps PRO-THESIS labels onto
@@ -249,7 +319,14 @@ func (c *Compose) Down(ctx context.Context, top *recorder.Topology, opts DownOpt
 	if opts.Timeout > 0 {
 		sub = append(sub, "--timeout", fmt.Sprintf("%d", int(opts.Timeout.Std().Seconds())))
 	}
-	dir := filepath.Dir(top.ComposeFile)
+	// Run where `up` did: compose resolves the recorded, relative compose file
+	// against its working directory. A topology recorded before ProjectDir was,
+	// and the teardown stand-in, whose compose file is absolute, fall back to the
+	// file's own directory (OQ-087).
+	dir := top.ProjectDir
+	if dir == "" {
+		dir = filepath.Dir(top.ComposeFile)
+	}
 	composeErr := func() error {
 		_, err := runEnv(ctx, dir, opts.Env, composeArgs(project, files, sub...)...)
 		return err
@@ -258,7 +335,7 @@ func (c *Compose) Down(ctx context.Context, top *recorder.Topology, opts DownOpt
 	// Sweep by label regardless of whether compose succeeded. The compose file
 	// may have been edited or deleted since `up`, in which case `compose down`
 	// cannot address what it created but the labels still can.
-	residual := c.sweep(ctx, project)
+	residual := c.sweep(ctx, project, opts.Volumes)
 
 	if composeErr != nil && residual != nil {
 		return fmt.Errorf("compose down failed (%v) and residual resources remain: %w", composeErr, residual)
@@ -277,7 +354,13 @@ func (c *Compose) Down(ctx context.Context, top *recorder.Topology, opts DownOpt
 // one permanently. A search that leaks a network per world exhausts the pool
 // after a couple of dozen worlds and then fails in a way that looks like a
 // Docker bug.
-func (c *Compose) sweep(ctx context.Context, project string) error {
+//
+// With volumes, it removes and verifies the project's volumes too, last,
+// because a volume still mounted by a container cannot be removed. Named
+// volumes outlive every container, so `rm --volumes` never touches them, and a
+// world whose `compose down` could not run left them for the next world of its
+// project to boot on, while Down reported success (OQ-087).
+func (c *Compose) sweep(ctx context.Context, project string, volumes bool) error {
 	if ids, err := containersByLabel(ctx, "com.docker.compose.project", project); err == nil && len(ids) > 0 {
 		args := append([]string{"rm", "--force", "--volumes"}, ids...)
 		_, _ = run(ctx, "", args...)
@@ -285,6 +368,11 @@ func (c *Compose) sweep(ctx context.Context, project string) error {
 	if nets, err := networksByLabel(ctx, "com.docker.compose.project", project); err == nil {
 		for _, n := range nets {
 			_, _ = run(ctx, "", "network", "rm", n)
+		}
+	}
+	if volumes {
+		if vols, err := volumesByLabel(ctx, "com.docker.compose.project", project); err == nil && len(vols) > 0 {
+			_, _ = run(ctx, "", append([]string{"volume", "rm"}, vols...)...)
 		}
 	}
 
@@ -296,6 +384,11 @@ func (c *Compose) sweep(ctx context.Context, project string) error {
 	}
 	if nets, err := networksByLabel(ctx, "com.docker.compose.project", project); err == nil && len(nets) > 0 {
 		left = append(left, fmt.Sprintf("%d network(s)", len(nets)))
+	}
+	if volumes {
+		if vols, err := volumesByLabel(ctx, "com.docker.compose.project", project); err == nil && len(vols) > 0 {
+			left = append(left, fmt.Sprintf("%d volume(s) (%s)", len(vols), strings.Join(vols, ", ")))
+		}
 	}
 	if len(left) > 0 {
 		return fmt.Errorf("harness: project %s still has %s after down", project, strings.Join(left, " and "))

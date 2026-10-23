@@ -37,6 +37,8 @@ type stubBackend struct {
 	// upErr makes BOOT fail, so the teardown path can be exercised for a world
 	// that never got a topology.
 	upErr error
+	// storage is the fresh-storage check Up reports, nil for none.
+	storage *recorder.StorageCheck
 }
 
 func (b *stubBackend) Name() schema.Backend { return schema.BackendCompose }
@@ -63,6 +65,7 @@ func (b *stubBackend) Up(_ context.Context, req harness.UpRequest) (*recorder.To
 		Backend:        string(schema.BackendCompose),
 		ComposeProject: project,
 		Nodes:          b.nodes,
+		Storage:        b.storage,
 	}, nil
 }
 

@@ -1593,6 +1593,12 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 	if topology != nil && topology.ComposeProject != "" {
 		resDoc["compose_project"] = topology.ComposeProject
 	}
+	// The fresh-storage check BOOT made (OQ-087). The topology carrying it is in
+	// no world file, so this is the only record of whether the world booted on
+	// clean storage, on cleaned storage, or on a project nobody checked.
+	if topology != nil && topology.Storage != nil {
+		resDoc["storage"] = topology.Storage
+	}
 	if spec.slot >= 0 {
 		resDoc["worker_slot"] = spec.slot
 	}

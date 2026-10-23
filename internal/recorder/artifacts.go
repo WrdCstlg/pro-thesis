@@ -611,6 +611,26 @@ type Topology struct {
 	RunID string `json:"run_id"`
 	// Schema is TopologySchema.
 	Schema string `json:"schema"`
+	// Storage is what `up` found of the project's volumes before it booted the
+	// project (OQ-087). Nil means no check ran: a topology written before the
+	// check existed, or a stand-in built for teardown.
+	Storage *StorageCheck `json:"storage,omitempty"`
+}
+
+// StorageCheck records the fresh-storage check `up` makes before `compose up`.
+//
+// A compose project's named volumes outlive its containers, and a world whose
+// project still has an earlier world's volumes boots on that world's data: the
+// fixture replays its Raft log from them (OQ-087, OQ-090). `up` removes such
+// leftovers and refuses to boot when it cannot, so a topology that exists
+// carries Fresh: true, and Found says whether that took a removal.
+type StorageCheck struct {
+	// Found lists the project's volumes that existed before `compose up`.
+	Found []string `json:"found"`
+	// Fresh is true when the project had no volumes left when `compose up` ran.
+	Fresh bool `json:"fresh"`
+	// Removed lists the leftovers `up` removed before booting.
+	Removed []string `json:"removed"`
 }
 
 // NodeBinding is one logical node's resolved identity.

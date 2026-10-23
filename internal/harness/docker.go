@@ -276,6 +276,20 @@ func networksByLabel(ctx context.Context, label, value string) ([]string, error)
 	return nonEmptyLines(out), nil
 }
 
+// volumesByLabel returns the names of volumes carrying label=value.
+//
+// Compose labels every volume it creates with its project, so this finds a
+// project's named volumes after its containers, and even its compose file, are
+// gone. Those volumes are what a world leaves for the next world of the same
+// project to boot on (OQ-087).
+func volumesByLabel(ctx context.Context, label, value string) ([]string, error) {
+	out, err := run(ctx, "", "volume", "ls", "--quiet", "--filter", "label="+label+"="+value)
+	if err != nil {
+		return nil, err
+	}
+	return nonEmptyLines(out), nil
+}
+
 func nonEmptyLines(s string) []string {
 	var out []string
 	for _, l := range strings.Split(s, "\n") {
