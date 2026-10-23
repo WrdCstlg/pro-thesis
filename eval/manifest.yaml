@@ -39,7 +39,7 @@ arms:
     n: {P2: 10, P3: 30}
     seeds: {P2: "1-10", P3: "101-130"}
     prediction: eval/predictions/HC-01.md
-    status: planned
+    status: registered
 
   - id: HC-02
     tier: 1
@@ -53,7 +53,7 @@ arms:
     n: {P2: 10, P3: 30}
     seeds: {P2: "1-10", P3: "101-130"}
     prediction: eval/predictions/HC-02.md
-    status: planned
+    status: registered
 
   - id: ET-01
     tier: 1
@@ -67,7 +67,7 @@ arms:
     n: {P2: 10, P3: 30}
     seeds: {P2: "1-10", P3: "101-130"}
     prediction: eval/predictions/ET-01.md
-    status: planned
+    status: registered
     note: re-run of the existing arm for continuity; prior recorded evidence is reported next to the new.
 
   - id: RQ-01
@@ -82,7 +82,7 @@ arms:
     n: {P2: 10, P3: 30}
     seeds: {P2: "1-10", P3: "101-130"}
     prediction: eval/predictions/RQ-01.md
-    status: planned
+    status: registered
     note: rqlite's documented DEFAULT read level is weak, not linearizable, so the documented-correct
       negative control is the explicit linearizable level; the default is its own arm (RQ-02).
 
@@ -99,7 +99,7 @@ arms:
     n: {P2: 10, P3: 30}
     seeds: {P2: "1-10", P3: "101-130"}
     prediction: eval/predictions/RQ-02.md
-    status: planned
+    status: registered
     note: weak reads have a documented sub-second deposed-leader window; a FAIL is possible but
       timing-dependent, and the prediction says so.
 
@@ -116,7 +116,7 @@ arms:
     n: {P2: 10, P3: 30}
     seeds: {P2: "1-10", P3: "101-130"}
     prediction: eval/predictions/RQ-03.md
-    status: planned
+    status: registered
 
   - id: RQ-04
     tier: 1
@@ -150,7 +150,7 @@ arms:
     n: {P2: 10, P3: 30}
     seeds: {P2: "1-10", P3: "101-130"}
     prediction: eval/predictions/CO-01.md
-    status: planned
+    status: registered
     note: Consul documents its default mode as consistent except in a brief leader-change window; a
       FAIL is possible but not assured, and the prediction says so. CO-02 is the reliable partner.
 
@@ -167,7 +167,7 @@ arms:
     n: {P2: 10, P3: 30}
     seeds: {P2: "1-10", P3: "101-130"}
     prediction: eval/predictions/CO-02.md
-    status: planned
+    status: registered
 
   - id: CO-03
     tier: 1
@@ -181,7 +181,7 @@ arms:
     n: {P2: 10, P3: 30}
     seeds: {P2: "1-10", P3: "101-130"}
     prediction: eval/predictions/CO-03.md
-    status: planned
+    status: registered
 
   - id: RE-01
     tier: 1
@@ -196,7 +196,7 @@ arms:
     n: {P2: 10, P3: 30}
     seeds: {P2: "1-10", P3: "101-130"}
     prediction: eval/predictions/RE-01.md
-    status: planned
+    status: registered
     note: if the register oracle cannot soundly express the workload, the prediction says so and the
       arm is scored as oracle-discipline.
 
