@@ -70,6 +70,7 @@ name `target_oracle`, the oracle that must raise the FAIL for the run to count a
 | `manifest.yaml` | Every arm, one row each: target, control type, variant, fault basis, N, seeds, oracles, profile, prediction file, phase, status |
 | `predictions/` | One frozen pre-registration per arm (`TEMPLATE.md` shows the fields) |
 | `runs/INDEX.md` | Every run the suite made: arm, phase, run id, commit, exit code, worlds, archive state |
+| `results/` | One file per phase, scoring its runs against the registered predictions (verdict and mechanism separately) |
 | `scorecard.md` | The seven axes by target; every cell a measured value with run ids and bounds, or UNMEASURED with the reason |
 | `tools/` | Suite tooling (no harness code) |
 

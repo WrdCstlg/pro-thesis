@@ -1,0 +1,35 @@
+# Known-problem registry for the rqlite target (OQ-072).
+#
+# Every non-terminal outcome recorded under .prothesis/runs must attribute to
+# one entry below. `thesis diagnose` exits 2 and prints the evidence when
+# anything matches nothing; a NEW cause is supposed to turn it red. The fix is
+# never to broaden a matcher past what was measured: investigate, then add an
+# entry (with its OQ- or D- citation) in the same change.
+#
+# Registry order is precedence order: the first entry whose predicates all
+# match wins. There is deliberately no catch-all.
+schema: prothesis.knownproblems/v1
+problems:
+  # ---------------------------------------------------------------- world
+  - id: KP-001
+    title: linearizable.kv exhausted its search budget before every key was searched to completion
+    classification: accepted-refusal
+    ledger: OQ-104
+    level: world
+    match:
+      oracle: linearizable.kv
+      reason_regex: '^the budget was exhausted: \d+ of \d+ key\(s\) were searched to completion'
+  # --------------------------------------------------------------- bundle
+  # A run's INCONCLUSIVE folded up from its worlds' refusals, each of which is
+  # attributed above on its own. Narrowed, zero-world and missing-result runs
+  # are excluded so they cannot be explained by the fold-up.
+  - id: KP-002
+    title: run verdict folded up from world-level refusals
+    classification: by-design
+    ledger: OQ-072
+    level: bundle
+    match:
+      verdict: INCONCLUSIVE
+      narrowed: false
+      zero_worlds: false
+      missing_results: false
