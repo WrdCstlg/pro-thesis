@@ -447,5 +447,7 @@ That is the shape every fix in this repository has to take, applied to the integ
   and timings) is yours to record, as the Redis driver does on the first history record.
 - **Only declared nodes are in the evidence** (OQ-101). Images, logs and crashes of other compose
   services (a Sentinel, a shim) are not recorded.
-- **Launch runs from the project directory.** Launched from elsewhere, teardown can leave the
-  project's named volumes behind and the next world boots on them (OQ-087).
+- **Launch runs from the project directory.** That is where the config is found. Before
+  `b725ea8`, launching from elsewhere could also leave the project's named volumes behind for the
+  next world to boot on (OQ-087); since then teardown runs compose where `up` did and BOOT checks
+  the project's volumes.

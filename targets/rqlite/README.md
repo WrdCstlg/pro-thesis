@@ -28,8 +28,8 @@ claim about rqlite.
 ## Build and run
 
 From the repository root, then from this directory. Run every `thesis`
-command from this directory: launched from elsewhere, teardown can leave the
-world's volumes behind (OQ-087).
+command from this directory. Before `b725ea8`, launching from elsewhere could
+leave the world's volumes behind (OQ-087).
 
 ```powershell
 pwsh -File scripts/build.ps1                                   # bin/thesis.exe

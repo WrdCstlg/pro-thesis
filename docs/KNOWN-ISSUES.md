@@ -71,13 +71,16 @@ A false PASS is the failure this project exists to prevent, so these come first.
 
 ## Where the harness can fail quietly
 
-- **Teardown can leave a world's volumes behind without saying so (OQ-087).** Every serial world
-  of a checkout boots under one compose project, so a volume that survives teardown is the next
-  world's storage. `Down` runs compose from the working directory with a relative file name, while
-  `up` runs from the project directory; started elsewhere, `compose down` fails, the label sweep
-  removes containers and networks only, and teardown reports success. Read from the code, not
-  reproduced. *Would close it:* run `down` from where `up` ran, sweep volumes by label, and check at
-  BOOT that the project has none.
+- **Fixed in `b725ea8`, `8917942` and `592a0d7`: teardown could leave a world's volumes behind
+  without saying so (OQ-087).** Every serial world of a checkout boots under one compose project,
+  so a volume that survived teardown was the next world's storage. `Down` now runs compose from
+  where `up` ran, and the label sweep removes the project's volumes and verifies they are gone. At
+  BOOT, `up` refuses a project that already has containers and leaves it as found, and it removes
+  leftover volumes, refusing if any survive. Each world records the check in `result.json` as
+  `storage`. Worlds run by an earlier binary had no such check: P2 (`c22e678`, now `a588d4d`) did,
+  and its HC-01 seed 1 booted on leftover volumes and is excluded. Still open: only
+  compose-labelled volumes are checked, so bind mounts, external volumes and fixed-name volumes are
+  not; and a `topology.json` written before the fix still relies on the volume sweep.
 - **A failure to write `verdict.json` is discarded (OQ-080).** On a full disk, which this
   repository has suffered once, the run exits with its verdict code and leaves no verdict file.
   *Would close it:* exit 2 when the verdict cannot be written.

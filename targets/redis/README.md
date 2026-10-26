@@ -96,8 +96,8 @@ network, where a partition reaches them.
 ## Build and run
 
 From the repository root, then from this directory. Run every `thesis`
-command from this directory: launched from elsewhere, teardown can leave the
-world's volumes behind (OQ-087). `bin/redishealth` must exist before any
+command from this directory. Before `b725ea8`, launching from elsewhere could
+leave the world's volumes behind (OQ-087). `bin/redishealth` must exist before any
 `compose up`: Docker creates a missing bind-mount source as a directory.
 
 ```powershell
