@@ -839,9 +839,15 @@ func (r *Runner) teardownStandIn(spec worldSpec) *recorder.Topology {
 	if project == "" {
 		return nil
 	}
+	// Absolute, because Down runs compose in ProjectDir and the runner may have
+	// been given a relative project directory.
+	dir, err := filepath.Abs(r.opts.ProjectDir)
+	if err != nil {
+		dir = r.opts.ProjectDir
+	}
 	file := r.cfg.Harness.File
 	if file != "" && !filepath.IsAbs(file) {
-		file = filepath.Join(r.opts.ProjectDir, file)
+		file = filepath.Join(dir, file)
 	}
 	return &recorder.Topology{
 		Schema:         recorder.TopologySchema,
@@ -849,6 +855,7 @@ func (r *Runner) teardownStandIn(spec worldSpec) *recorder.Topology {
 		Backend:        string(r.cfg.Harness.Backend),
 		ComposeFile:    file,
 		ComposeProject: project,
+		ProjectDir:     dir,
 	}
 }
 
@@ -974,6 +981,10 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 		healed          bool
 		drain           DrainReport
 		sutImages       []schema.SUTImage
+		// bootInUse is set when Up refused the project because something else
+		// is using it (harness.ErrProjectInUse). TEARDOWN then leaves the
+		// project alone: sweeping it would destroy what Up declined to adopt.
+		bootInUse bool
 	)
 
 	// Invariant: HEAL and TEARDOWN run unconditionally, with a detached context.
@@ -1056,7 +1067,25 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 		// The sweep addresses the project by NAME and verifies by LABEL, so it
 		// is correct either way and returns nil when there is nothing to remove.
 		downTop := topology
-		if downTop == nil {
+		switch {
+		case downTop == nil && bootInUse:
+			// Up refused the project because another world, a kept-up topology
+			// or a crashed run is using it. Sweeping it by name here would tear
+			// down exactly what Up declined to adopt, volumes included, so it is
+			// left as found and the skip is recorded as this world's teardown
+			// verdict. Under the parallel executor that retires the slot rather
+			// than handing a project that is in use to the next world (OQ-087).
+			project := spec.project
+			if project == "" {
+				project = harness.ProjectName(r.cfg, r.opts.ProjectDir)
+			}
+			wres.teardownErr = fmt.Errorf("teardown skipped: BOOT refused compose project %s because "+
+				"something else is using it, so it is left as found (OQ-087)", project)
+			fmt.Fprintf(r.stderr, "thesis: world %d: TEARDOWN: %v\n", ordinal+1, wres.teardownErr)
+			if wres.outcome.Rank() < OutcomeHarnessError.Rank() {
+				wres.outcome = OutcomeHarnessError
+			}
+		case downTop == nil:
 			downTop = r.teardownStandIn(spec)
 		}
 
@@ -1122,9 +1151,18 @@ func (r *Runner) runWorld(ctx context.Context, spec worldSpec) (wres worldResult
 		Env:         r.worldEnv(spec),
 	})
 	if err != nil {
+		bootInUse = errors.Is(err, harness.ErrProjectInUse)
 		return worldResult{outcome: OutcomeHarnessError, paths: paths, timeline: timeline}, fmt.Errorf("boot up failed: %w", err)
 	}
 	topology = topo
+	// Said on stderr even when quiet: a removal is how volumes kept on purpose
+	// (`thesis down --keep-volumes`) disappear, and the record in result.json is
+	// found only by whoever goes looking (OQ-087).
+	if st := topology.Storage; st != nil && len(st.Removed) > 0 {
+		fmt.Fprintf(r.stderr, "thesis: world %d: BOOT removed %d leftover volume(s) of compose project %s "+
+			"before booting it: %s (OQ-087)\n", ordinal+1, len(st.Removed), topology.ComposeProject,
+			strings.Join(st.Removed, ", "))
+	}
 
 	// Resolve the SUT's image digests NOW, while the bound containers exist
 	// (OQ-055). Fail-soft by contract: World.Validate accepts [] as "recorded

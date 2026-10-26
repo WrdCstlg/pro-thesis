@@ -175,9 +175,10 @@ func ensureFreshStorage(ctx context.Context, project string) (*recorder.StorageC
 	}
 	if len(ids) > 0 {
 		return nil, fmt.Errorf("harness: compose project %s already has %d container(s), so this world "+
-			"cannot boot fresh: another world, a kept-up topology or a crashed run is using it. Tear it down "+
-			"first (`thesis down`, or `docker compose --project-name %s down --volumes`) (OQ-087)",
-			project, len(ids), project)
+			"cannot boot fresh: another world, a kept-up topology or a crashed run is using it, and it is left "+
+			"as found. If nothing is using it, remove it (`thesis down` for a kept-up topology, otherwise "+
+			"`docker compose --project-name %s down --volumes`) (OQ-087): %w",
+			project, len(ids), project, ErrProjectInUse)
 	}
 	found, err := volumesByLabel(ctx, label, project)
 	if err != nil {
@@ -236,6 +237,12 @@ func (c *Compose) writeOverlay(req UpRequest, project string) (string, error) {
 	path := req.OverlayPath
 	if path == "" {
 		path = filepath.Join(req.RunDir, OverlayName)
+	}
+	// Absolute, because the file is written relative to this process but compose
+	// reads it relative to the project directory it runs in, and `down` may run
+	// from anywhere.
+	if abs, err := filepath.Abs(path); err == nil {
+		path = abs
 	}
 	if dir := filepath.Dir(path); dir != "" {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -377,21 +384,37 @@ func (c *Compose) sweep(ctx context.Context, project string, volumes bool) error
 	}
 
 	// Verify. `down` claiming success while resources survive is exactly the
-	// failure that exhausts the network pool silently.
-	var left []string
-	if ids, err := containersByLabel(ctx, "com.docker.compose.project", project); err == nil && len(ids) > 0 {
+	// failure that exhausts the network pool silently. A listing that fails is
+	// a verification that was not made, so it counts against the teardown, never
+	// as "nothing left".
+	var left, unverified []string
+	if ids, err := containersByLabel(ctx, "com.docker.compose.project", project); err != nil {
+		unverified = append(unverified, fmt.Sprintf("containers (%v)", err))
+	} else if len(ids) > 0 {
 		left = append(left, fmt.Sprintf("%d container(s)", len(ids)))
 	}
-	if nets, err := networksByLabel(ctx, "com.docker.compose.project", project); err == nil && len(nets) > 0 {
+	if nets, err := networksByLabel(ctx, "com.docker.compose.project", project); err != nil {
+		unverified = append(unverified, fmt.Sprintf("networks (%v)", err))
+	} else if len(nets) > 0 {
 		left = append(left, fmt.Sprintf("%d network(s)", len(nets)))
 	}
 	if volumes {
-		if vols, err := volumesByLabel(ctx, "com.docker.compose.project", project); err == nil && len(vols) > 0 {
+		if vols, err := volumesByLabel(ctx, "com.docker.compose.project", project); err != nil {
+			unverified = append(unverified, fmt.Sprintf("volumes (%v)", err))
+		} else if len(vols) > 0 {
 			left = append(left, fmt.Sprintf("%d volume(s) (%s)", len(vols), strings.Join(vols, ", ")))
 		}
 	}
+	var problems []string
 	if len(left) > 0 {
-		return fmt.Errorf("harness: project %s still has %s after down", project, strings.Join(left, " and "))
+		problems = append(problems, fmt.Sprintf("project %s still has %s after down", project, strings.Join(left, " and ")))
+	}
+	if len(unverified) > 0 {
+		problems = append(problems, fmt.Sprintf("could not verify that project %s has no %s left after down",
+			project, strings.Join(unverified, " or ")))
+	}
+	if len(problems) > 0 {
+		return fmt.Errorf("harness: %s", strings.Join(problems, "; "))
 	}
 	return nil
 }

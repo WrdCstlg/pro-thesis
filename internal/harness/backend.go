@@ -22,6 +22,12 @@ import (
 // cannot run on this host.
 var ErrUnsupportedBackend = errors.New("harness: backend not supported on this platform")
 
+// ErrProjectInUse is wrapped by Up when the compose project already has
+// containers: another world, a kept-up topology or a crashed run is using it.
+// Up touches nothing then, and a caller must not tear the project down either,
+// or the refusal protects nothing (OQ-087).
+var ErrProjectInUse = errors.New("compose project in use")
+
 // Backend supervises a topology. compose is the only Phase 0 implementation;
 // process, k8s and sim are named by the directive and reserved here.
 type Backend interface {

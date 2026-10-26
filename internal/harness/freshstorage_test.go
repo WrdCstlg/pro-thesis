@@ -3,6 +3,7 @@ package harness
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -49,6 +50,11 @@ type stubState struct {
 	UpVolumes []string `json:"up_volumes"`
 	// Stuck are volumes `volume rm` refuses to remove.
 	Stuck []string `json:"stuck"`
+	// VolumeLsCalls counts `volume ls` invocations; once it exceeds a positive
+	// VolumeLsFailAfter, every further `volume ls` fails, as a daemon that stops
+	// answering mid-teardown does.
+	VolumeLsCalls     int `json:"volume_ls_calls"`
+	VolumeLsFailAfter int `json:"volume_ls_fail_after"`
 }
 
 // stubCall is one invocation of the stand-in, as it saw it.
@@ -97,6 +103,11 @@ func stubDocker(st *stubState, dir string, args []string) int {
 	case len(args) > 1 && args[0] == "network":
 		return 0 // the project creates no networks the tests look at
 	case len(args) > 1 && args[0] == "volume" && args[1] == "ls":
+		st.VolumeLsCalls++
+		if st.VolumeLsFailAfter > 0 && st.VolumeLsCalls > st.VolumeLsFailAfter {
+			fmt.Fprintln(os.Stderr, "Error response from daemon: the daemon stopped answering")
+			return 1
+		}
 		if has(label) {
 			for _, v := range st.Volumes {
 				fmt.Println(v)
@@ -229,17 +240,31 @@ func newStubWorld(t *testing.T, mutate func(*stubState)) *stubWorld {
 // name the fixture as ../../testdata/kvfixture.
 func (w *stubWorld) up() (*recorder.Topology, error) {
 	w.t.Helper()
+	return w.upWith(w.runDir)
+}
+
+// upWith is up with the given run directory, which may itself be relative.
+func (w *stubWorld) upWith(runDir string) (*recorder.Topology, error) {
+	w.t.Helper()
+	return NewCompose().Up(context.Background(), UpRequest{
+		Config: w.cfg, ProjectDir: w.rel(w.projectDir), RunID: "r_2026_10_23_0b03", RunDir: runDir, SkipHealth: true,
+	})
+}
+
+// rel is path relative to the test's working directory. Windows cannot express
+// a path on another drive relatively, and the case under test does not exist
+// there, so the test skips rather than fail.
+func (w *stubWorld) rel(path string) string {
+	w.t.Helper()
 	cwd, err := os.Getwd()
 	if err != nil {
 		w.t.Fatal(err)
 	}
-	rel, err := filepath.Rel(cwd, w.projectDir)
+	rel, err := filepath.Rel(cwd, path)
 	if err != nil {
-		w.t.Fatal(err)
+		w.t.Skipf("%s cannot be named relative to %s (another drive?): %v", path, cwd, err)
 	}
-	return NewCompose().Up(context.Background(), UpRequest{
-		Config: w.cfg, ProjectDir: rel, RunID: "r_2026_10_23_0b03", RunDir: w.runDir, SkipHealth: true,
-	})
+	return rel
 }
 
 func (w *stubWorld) state() stubState {
@@ -372,9 +397,53 @@ func TestDownReportsAVolumeItCouldNotRemove(t *testing.T) {
 	stuck := w.project + "_n1data"
 	w.setState(func(st *stubState) { st.Stuck = []string{stuck} })
 	err = NewCompose().Down(context.Background(), top, DownOptions{Volumes: true})
-	if err == nil || !strings.Contains(err.Error(), "volume") {
+	if err == nil || !strings.Contains(err.Error(), "volume(s)") {
 		t.Fatalf("Down returned %v with volume %s still present; want an error that names the volume residue",
 			err, stuck)
+	}
+}
+
+// A verification that could not be made is not a clean result. With a volume
+// that will not go and a daemon that stops answering `volume ls` when the sweep
+// checks, Down reported success, and `thesis down` would print "torn down"
+// over the residue.
+//
+// Mutation: restore `err == nil && len(vols) > 0` in the verification and this
+// fails.
+func TestDownTreatsAListingItCouldNotMakeAsResidue(t *testing.T) {
+	w := newStubWorld(t, nil)
+	top, err := w.up()
+	if err != nil {
+		t.Fatalf("Up: %v", err)
+	}
+	stuck := w.project + "_n1data"
+	w.setState(func(st *stubState) {
+		st.Stuck = []string{stuck}
+		// The sweep's own listing still answers; the verification after it does not.
+		st.VolumeLsFailAfter = st.VolumeLsCalls + 1
+	})
+	err = NewCompose().Down(context.Background(), top, DownOptions{Volumes: true})
+	if err == nil || !strings.Contains(err.Error(), "could not verify") {
+		t.Fatalf("Down returned %v although it could not list the project's volumes to verify them and %s "+
+			"is still there; want an error saying the teardown could not be verified", err, stuck)
+	}
+}
+
+// A run directory given relative to the caller is written relative to the
+// caller, so compose, which runs in the project directory, must be handed it
+// absolute. Otherwise it resolves the overlay against the project directory and
+// cannot find it. Production callers pass absolute paths today; this keeps a
+// relative one from breaking BOOT.
+//
+// Mutation: drop the filepath.Abs in writeOverlay and this fails.
+func TestUpAcceptsARelativeRunDirectory(t *testing.T) {
+	w := newStubWorld(t, nil)
+	top, err := w.upWith(w.rel(w.runDir))
+	if err != nil {
+		t.Fatalf("Up with a relative run directory: %v", err)
+	}
+	if !filepath.IsAbs(top.OverlayFile) {
+		t.Fatalf("topology overlay_file = %q, want an absolute path a later `down` can find from anywhere", top.OverlayFile)
 	}
 }
 
@@ -479,6 +548,12 @@ func TestUpRefusesAProjectThatAlreadyHasContainers(t *testing.T) {
 	_, err := w.up()
 	if err == nil || !strings.Contains(err.Error(), "container") {
 		t.Fatalf("Up returned %v on a project that already had a container; want a refusal", err)
+	}
+	// Typed, so the caller can tell this refusal from any other BOOT failure and
+	// leave the project alone at teardown too (the runner's half of the property).
+	if !errors.Is(err, ErrProjectInUse) {
+		t.Fatalf("Up's refusal %v does not wrap ErrProjectInUse; the runner cannot tell it apart and will tear "+
+			"the project down", err)
 	}
 	if at, _ := composeCall(w.calls(), "up"); at >= 0 {
 		t.Fatalf("Up ran `compose up` (call %d) and adopted the earlier container", at)

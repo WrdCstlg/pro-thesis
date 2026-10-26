@@ -614,6 +614,12 @@ type Topology struct {
 	// Storage is what `up` found of the project's volumes before it booted the
 	// project (OQ-087). Nil means no check ran: a topology written before the
 	// check existed, or a stand-in built for teardown.
+	//
+	// The canonical decoder is strict, so a binary older than this field
+	// refuses a topology.json that carries it ("unknown field"): `thesis down`
+	// from an older build cannot address a topology a newer `thesis up` wrote.
+	// TopologySchema is not bumped for it, because an older build would refuse
+	// the new schema id just the same.
 	Storage *StorageCheck `json:"storage,omitempty"`
 }
 
@@ -624,6 +630,14 @@ type Topology struct {
 // fixture replays its Raft log from them (OQ-087, OQ-090). `up` removes such
 // leftovers and refuses to boot when it cannot, so a topology that exists
 // carries Fresh: true, and Found says whether that took a removal.
+//
+// Scope: Fresh covers the volumes compose labels with the project, which are
+// every volume the five reference targets keep state on (`nXdata: {}`). It
+// says nothing about bind mounts, `external: true` volumes or volumes with a
+// fixed `name:`. A claim of an empty initial state also needs the target's own
+// declaration that it keeps its state only in project volumes (H6b). Volumes
+// kept on purpose with `thesis down --keep-volumes` last only until the
+// project next boots: that BOOT removes them, and says so.
 type StorageCheck struct {
 	// Found lists the project's volumes that existed before `compose up`.
 	Found []string `json:"found"`
