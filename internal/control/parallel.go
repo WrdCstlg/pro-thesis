@@ -977,5 +977,7 @@ func (p *slotPool) exhaustedLocked() error {
 	}
 	b.WriteString("\n  recover with: docker network ls --filter label=com.docker.compose.project " +
 		"and `docker network rm` the survivors, or `docker network prune`")
+	b.WriteString("\n  a slot whose error says \"teardown skipped\" was not leaked: BOOT refused its project because " +
+		"something else is using it; remove that project only if nothing is (OQ-087)")
 	return fmt.Errorf("%s: %w", b.String(), ErrWorkerPoolExhausted)
 }

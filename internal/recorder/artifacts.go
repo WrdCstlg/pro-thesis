@@ -637,7 +637,8 @@ type Topology struct {
 // fixed `name:`. A claim of an empty initial state also needs the target's own
 // declaration that it keeps its state only in project volumes (H6b). Volumes
 // kept on purpose with `thesis down --keep-volumes` last only until the
-// project next boots: that BOOT removes them, and says so.
+// project next boots: that BOOT removes them. A `thesis run` world says so on
+// stderr; `thesis up` records it only here, in storage.removed.
 type StorageCheck struct {
 	// Found lists the project's volumes that existed before `compose up`.
 	Found []string `json:"found"`

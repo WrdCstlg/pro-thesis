@@ -55,6 +55,11 @@ type stubState struct {
 	// answering mid-teardown does.
 	VolumeLsCalls     int `json:"volume_ls_calls"`
 	VolumeLsFailAfter int `json:"volume_ls_fail_after"`
+	// PsAllFail fails every `ps --all` listing (the label sweep and its
+	// verification; the paused-container query has no --all). NetLsFail fails
+	// every `network ls`.
+	PsAllFail bool `json:"ps_all_fail"`
+	NetLsFail bool `json:"net_ls_fail"`
 }
 
 // stubCall is one invocation of the stand-in, as it saw it.
@@ -90,6 +95,10 @@ func stubDocker(st *stubState, dir string, args []string) int {
 		fmt.Println("29.1.3")
 		return 0
 	case len(args) > 0 && args[0] == "ps":
+		if st.PsAllFail && has("--all") {
+			fmt.Fprintln(os.Stderr, "Error response from daemon: the daemon stopped answering")
+			return 1
+		}
 		if has("status=paused") || !has(label) {
 			return 0
 		}
@@ -101,6 +110,10 @@ func stubDocker(st *stubState, dir string, args []string) int {
 		st.Containers = slices.DeleteFunc(st.Containers, func(c string) bool { return has(c) })
 		return 0
 	case len(args) > 1 && args[0] == "network":
+		if st.NetLsFail && args[1] == "ls" {
+			fmt.Fprintln(os.Stderr, "Error response from daemon: the daemon stopped answering")
+			return 1
+		}
 		return 0 // the project creates no networks the tests look at
 	case len(args) > 1 && args[0] == "volume" && args[1] == "ls":
 		st.VolumeLsCalls++
@@ -251,9 +264,11 @@ func (w *stubWorld) upWith(runDir string) (*recorder.Topology, error) {
 	})
 }
 
-// rel is path relative to the test's working directory. Windows cannot express
-// a path on another drive relatively, and the case under test does not exist
-// there, so the test skips rather than fail.
+// rel is path relative to the test's working directory, the form the
+// Docker-backed tests use. Windows cannot express a path on another drive
+// relatively; then the absolute path is used, which still runs every test that
+// does not depend on the relative form (the wrong-directory teardown happens
+// with an absolute project directory too) instead of skipping them.
 func (w *stubWorld) rel(path string) string {
 	w.t.Helper()
 	cwd, err := os.Getwd()
@@ -262,7 +277,8 @@ func (w *stubWorld) rel(path string) string {
 	}
 	rel, err := filepath.Rel(cwd, path)
 	if err != nil {
-		w.t.Skipf("%s cannot be named relative to %s (another drive?): %v", path, cwd, err)
+		w.t.Logf("%s cannot be named relative to %s (another drive?): %v; using it absolute", path, cwd, err)
+		return path
 	}
 	return rel
 }
@@ -426,6 +442,36 @@ func TestDownTreatsAListingItCouldNotMakeAsResidue(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "could not verify") {
 		t.Fatalf("Down returned %v although it could not list the project's volumes to verify them and %s "+
 			"is still there; want an error saying the teardown could not be verified", err, stuck)
+	}
+}
+
+// The same holds for containers and networks: a listing that fails during the
+// verification is a teardown nobody verified, whatever kind of resource it was.
+//
+// Mutation: ignore listing errors for containers or networks in the
+// verification and the matching subtest fails.
+func TestDownTreatsAnUnlistableContainerOrNetworkAsUnverified(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		set  func(*stubState)
+		want string
+	}{
+		{"containers", func(st *stubState) { st.PsAllFail = true }, "containers"},
+		{"networks", func(st *stubState) { st.NetLsFail = true }, "networks"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w := newStubWorld(t, nil)
+			top, err := w.up()
+			if err != nil {
+				t.Fatalf("Up: %v", err)
+			}
+			w.setState(tc.set)
+			err = NewCompose().Down(context.Background(), top, DownOptions{Volumes: true})
+			if err == nil || !strings.Contains(err.Error(), "could not verify") || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("Down returned %v although it could not list the project's %s to verify them; "+
+					"want an error saying so", err, tc.want)
+			}
+		})
 	}
 }
 
